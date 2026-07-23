@@ -70,24 +70,7 @@
 
                     <CollectionView.Header>
                         <Grid HeightRequest="{Binding Source={x:Reference thisPage}, Path=Height}" RowDefinitions="Auto, *, Auto, *" RowSpacing="20" Padding="20" BackgroundColor="#000000">
-                            
-                            <Grid Grid.Row="0" ColumnDefinitions="Auto, *, Auto" Margin="0,20,0,0">
-                                <Border Grid.Column="0" WidthRequest="42" HeightRequest="42" StrokeShape="RoundRectangle 21" Stroke="#222222" BackgroundColor="#1A1A1A" VerticalOptions="Center">
-                                    <Image Source="{Binding ShellModel.CurrentUser.ProfilePictureUrl}" Aspect="AspectFill" />
-                                    <Border.GestureRecognizers>
-                                        <TapGestureRecognizer Command="{Binding SnapToProfileCommand}" />
-                                    </Border.GestureRecognizers>
-                                </Border>
-                                
-                                <Label Grid.Column="1" Text="📸 Pocket" FontSize="22" FontAttributes="Bold" TextColor="White" HorizontalOptions="Center" VerticalOptions="Center" />
-                                       
-                                <Border Grid.Column="2" WidthRequest="42" HeightRequest="42" StrokeShape="RoundRectangle 21" Stroke="#222222" BackgroundColor="#1A1A1A" VerticalOptions="Center">
-                                    <Label Text="💬" HorizontalOptions="Center" VerticalOptions="Center" />
-                                    <Border.GestureRecognizers>
-                                        <TapGestureRecognizer Command="{Binding SnapToChatCommand}" />
-                                    </Border.GestureRecognizers>
-                                </Border>
-                            </Grid>
+                            <BoxView Grid.Row="0" HeightRequest="42" Margin="0,20,0,0" Color="Transparent" />
 
                             <Border Grid.Row="1" WidthRequest="340" HeightRequest="340" StrokeShape="RoundRectangle 36" Stroke="#222222" StrokeThickness="1" HorizontalOptions="Center" VerticalOptions="Center" BackgroundColor="#000000">
                                 <Grid>
@@ -135,17 +118,7 @@
                     <CollectionView.ItemTemplate>
                         <DataTemplate x:DataType="models:MediaPost">
                             <Grid HeightRequest="{Binding Source={x:Reference thisPage}, Path=Height}" RowDefinitions="Auto, *, Auto, *" RowSpacing="20" Padding="20" BackgroundColor="#000000">
-                                <Grid Grid.Row="0" ColumnDefinitions="Auto, *, Auto" Margin="0,20,0,0">
-                                    <Border Grid.Column="0" WidthRequest="42" HeightRequest="42" StrokeShape="RoundRectangle 21" Stroke="#222222" BackgroundColor="#1A1A1A" VerticalOptions="Center">
-                                        <Image Source="{Binding BindingContext.ShellModel.CurrentUser.ProfilePictureUrl, Source={x:Reference thisPage}}" Aspect="AspectFill" />
-                                        <Border.GestureRecognizers>
-                                            <TapGestureRecognizer Command="{Binding BindingContext.SnapToProfileCommand, Source={x:Reference thisPage}}" />
-                                        </Border.GestureRecognizers>
-                                    </Border>
-                                    
-                                    <Label Grid.Column="1" Text="📸 Pocket" FontSize="22" FontAttributes="Bold" TextColor="White" HorizontalOptions="Center" VerticalOptions="Center" />
-                                    <BoxView Grid.Column="2" WidthRequest="42" Color="Transparent" />
-                                </Grid>
+                                <BoxView Grid.Row="0" HeightRequest="42" Margin="0,20,0,0" Color="Transparent" />
 
                                 <Border Grid.Row="1" WidthRequest="340" HeightRequest="340" StrokeShape="RoundRectangle 36" Stroke="#222222" StrokeThickness="1" HorizontalOptions="Center" VerticalOptions="Center" BackgroundColor="#000000">
                                     <Image Source="{Binding MediaLocalPath}" Aspect="AspectFill" HorizontalOptions="Fill" VerticalOptions="Fill" />
@@ -159,6 +132,25 @@
                         </DataTemplate>
                     </CollectionView.ItemTemplate>
                 </CollectionView>
+
+                <!-- Persistent Top Header -->
+                <Grid ColumnDefinitions="Auto, *, Auto" Margin="20,40,20,0" VerticalOptions="Start">
+                    <Border Grid.Column="0" WidthRequest="42" HeightRequest="42" StrokeShape="RoundRectangle 21" Stroke="#222222" BackgroundColor="#1A1A1A" VerticalOptions="Center">
+                        <Image Source="{Binding ShellModel.CurrentUser.ProfilePictureUrl}" Aspect="AspectFill" />
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding SnapToProfileCommand}" />
+                        </Border.GestureRecognizers>
+                    </Border>
+                    
+                    <Label Grid.Column="1" Text="📸 Pocket" FontSize="22" FontAttributes="Bold" TextColor="White" HorizontalOptions="Center" VerticalOptions="Center" />
+                           
+                    <Border Grid.Column="2" WidthRequest="42" HeightRequest="42" StrokeShape="RoundRectangle 21" Stroke="#222222" BackgroundColor="#1A1A1A" VerticalOptions="Center">
+                        <Label Text="💬" HorizontalOptions="Center" VerticalOptions="Center" />
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding SnapToChatCommand}" />
+                        </Border.GestureRecognizers>
+                    </Border>
+                </Grid>
             </Grid>
 
             <!-- Chat Page (Column 2) -->
