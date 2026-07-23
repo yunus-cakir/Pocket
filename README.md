@@ -1,11 +1,11 @@
-# 📸 LocalLocket (MAUI)
+# 📸 Pocket (.NET MAUI)
 
 [![.NET MAUI](https://img.shields.io/badge/.NET-MAUI-512BD4?style=flat&logo=dotnet)](https://dotnet.microsoft.com/en-us/apps/maui)
 [![Platform](https://img.shields.io/badge/Platform-iOS%20%7C%20Android-lightgrey)](#)
 [![Architecture](https://img.shields.io/badge/Architecture-Local--First-brightgreen)](#)
 
 ## 📖 Overview
-LocalLocket is a privacy-focused, local-first photo and message-sharing mobile application built with pure **.NET MAUI**. Inspired by popular widget-based social applications, it introduces complete data sovereignty by storing all personal media and direct messages directly on the user's device, rather than relying on persistent cloud storage.
+Pocket is a privacy-focused, local-first photo and message-sharing mobile application built with pure **.NET MAUI**. Inspired by popular widget-based social applications, it introduces complete data sovereignty by storing all personal media and direct messages directly on the user's device, rather than relying on persistent cloud storage.
 
 ## ✨ Key Features
 - **Local-First Architecture:** Messages and media are transmitted via a transient relay server using End-to-End Encryption (E2EE) and saved *only* to local SQLite databases.
@@ -19,7 +19,7 @@ LocalLocket is a privacy-focused, local-first photo and message-sharing mobile a
 The project follows the MVVM (Model-View-ViewModel) architectural pattern and is organized by feature and function:
 
 ```text
-LocalLocket/
+Pocket/
 │
 ├── src/
 │   ├── Models/               # Data entities (e.g., Message, Photo, User)
@@ -56,8 +56,8 @@ LocalLocket/
 ### Installation & Run
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/yourusername/LocalLocket.git
-   cd LocalLocket
+   git clone https://github.com/yourusername/Pocket.git
+   cd Pocket
    ```
 2. **Restore dependencies:**
    ```bash
