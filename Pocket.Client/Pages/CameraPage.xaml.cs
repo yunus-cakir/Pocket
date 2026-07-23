@@ -76,10 +76,13 @@ namespace Pocket.Client.Pages
                     _panX = PanContainer.TranslationX;
                     _isVerticalScrollLocked = false;
                     _isHorizontalScrollLocked = false;
-                    _initialTotalX = 0;
-                    _initialTotalY = 0;
+                    // Snapshot the initial pan values once so the directional deadzone
+                    // comparison is always relative to where the finger started.
+                    // These must NOT be overwritten in the Running case.
+                    _initialTotalX = e.TotalX;
+                    _initialTotalY = e.TotalY;
                     _lastPanTime = currentTime;
-                    _lastPanX = 0;
+                    _lastPanX = e.TotalX;
                     _velocity = 0;
                     break;
 
@@ -98,27 +101,29 @@ namespace Pocket.Client.Pages
                     _lastPanX = e.TotalX;
 
                     // Directional Locking Phase (15px deadzone)
+                    // _initialTotalX/_initialTotalY were captured once in Started;
+                    // delta relative to the gesture origin is used here.
                     if (!_isHorizontalScrollLocked)
                     {
-                        _initialTotalX = e.TotalX;
-                        _initialTotalY = e.TotalY;
+                        double dX = e.TotalX - _initialTotalX;
+                        double dY = e.TotalY - _initialTotalY;
 
-                        if (Math.Abs(_initialTotalY) > 10 && Math.Abs(_initialTotalY) > Math.Abs(_initialTotalX))
+                        if (Math.Abs(dY) > 10 && Math.Abs(dY) > Math.Abs(dX))
                         {
-                            // Vertical swipe detected. Lock out horizontal panning.
+                            // Vertical swipe detected — release the touch to CollectionView.
                             _isVerticalScrollLocked = true;
                             return;
                         }
 
-                        if (Math.Abs(_initialTotalX) > 15)
+                        if (Math.Abs(dX) > 15)
                         {
-                            // Past horizontal deadzone, lock horizontal
+                            // Past horizontal deadzone, commit to horizontal panning.
                             _isHorizontalScrollLocked = true;
                             cameraView.IsVisible = true;
                         }
                         else
                         {
-                            return; // Still in deadzone
+                            return; // Still in deadzone — do not move PanContainer yet.
                         }
                     }
 

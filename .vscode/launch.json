@@ -4,7 +4,8 @@
         {
             "name": ".NET Meteor Debugger",
             "type": "dotnet-meteor.debugger",
-            "request": "launch"
+            "request": "launch",
+            "preLaunchTask": "build-android"
         }
     ]
 }
