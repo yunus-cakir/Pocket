@@ -21,30 +21,28 @@ The project follows the MVVM (Model-View-ViewModel) architectural pattern and is
 ```text
 Pocket/
 │
-├── src/
-│   ├── Models/               # Data entities (e.g., Message, Photo, User)
-│   ├── ViewModels/           # Business logic and state management for UI
-│   ├── Views/                # XAML Pages (CameraView, DMView, FeedView)
-│   ├── Services/             # Core business and API logic
-│   │   ├── Api/              # Transient relay server communication (SignalR/gRPC)
-│   │   ├── Storage/          # Local SQLite database operations
-│   │   └── Crypto/           # End-to-end encryption (E2EE) utilities
-│   ├── Controls/             # Custom MAUI controls (e.g., CustomCameraView)
-│   └── Handlers/             # Platform-specific rendering instructions (e.g., IncognitoEntry)
+├── Pocket.sln                # Main solution file
 │
-├── Platforms/
-│   ├── Android/              # Android-specific code (AppWidget, MainActivity, CameraX)
-│   └── iOS/                  # iOS-specific code (WidgetKit extensions, AVFoundation, AppDelegate)
+├── Pocket.Client/            # .NET MAUI Client Application
+│   ├── Models/               # Local data entities (e.g., Message, Photo, User)[cite: 1]
+│   ├── ViewModels/           # Business logic and state management for UI[cite: 1]
+│   ├── Views/                # XAML Pages (CameraView, DMView, FeedView)[cite: 1]
+│   ├── Services/             # API communication, local storage, and Crypto logic[cite: 1]
+│   ├── Controls/             # Custom MAUI controls (e.g., CustomCameraView)[cite: 1]
+│   ├── Handlers/             # Platform-specific rendering instructions (e.g., IncognitoEntry)[cite: 1]
+│   ├── Platforms/            # Android and iOS specific OS code[cite: 1]
+│   ├── Resources/            # Custom typography, static assets, and global styles[cite: 1]
+│   └── MauiProgram.cs        # Dependency injection and app configuration[cite: 1]
 │
-├── Resources/
-│   ├── Fonts/                # Custom typography
-│   ├── Images/               # Static assets and icons
-│   └── Styles/               # App-wide XAML styles and themes
+├── Pocket.Server/            # Transient Relay Server (Backend)
+│   ├── Hubs/                 # SignalR / gRPC Hubs for real-time E2EE payload relay
+│   ├── Services/             # Connection tracking and temporary memory management
+│   └── Program.cs            # Server configuration and middleware pipeline
 │
-├── App.xaml                  # Global application resources
-├── AppShell.xaml             # Application routing and navigation hierarchy
-└── MauiProgram.cs            # Dependency injection and app configuration
-```
+└── Pocket.Shared/            # Shared Library (.NET Class Library)
+    ├── DTOs/                 # Data Transfer Objects used by both Client and Server
+    ├── Enums/                # Shared enumerations (e.g., SyncStatus)
+    └── Interfaces/           # Shared API contracts and interface definitions
 
 ## 🚀 Getting Started
 
