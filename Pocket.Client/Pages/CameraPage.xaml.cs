@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Controls;
+using Pocket.Client.Controls;
 using Pocket.Client.PageModels;
 
 namespace Pocket.Client.Pages
@@ -11,12 +12,8 @@ namespace Pocket.Client.Pages
     {
         private int _currentIndex = 1; // 0=Profile, 1=Camera, 2=Chat
         private double _panX = 0;
-        
-        // Advanced Gesture State
-        private bool _isVerticalScrollLocked = false;
-        private bool _isHorizontalScrollLocked = false;
-        private double _initialTotalX = 0;
-        private double _initialTotalY = 0;
+
+        // Velocity tracking for fling detection
         private long _lastPanTime = 0;
         private double _lastPanX = 0;
         private double _velocity = 0;
@@ -25,6 +22,11 @@ namespace Pocket.Client.Pages
         {
             InitializeComponent();
             BindingContext = viewModel;
+
+            // Wire horizontal swipe events from the custom Android ViewGroup.
+            // Direction detection and touch routing happen at the native level —
+            // only confirmed horizontal pans reach this handler.
+            SwipeContainer.SwipePanUpdated += OnSwipePanUpdated;
 
             viewModel.SnapToProfileAction = async () => await SnapToPanel(0);
             viewModel.SnapToCameraAction = async () => await SnapToPanel(1);
@@ -40,7 +42,10 @@ namespace Pocket.Client.Pages
                 ProfilePanel.WidthRequest = width;
                 CameraPanel.WidthRequest = width;
                 ChatPanel.WidthRequest = width;
-                
+
+                // Ensure the panning container doesn't get clamped to 1x screen width by the ContentView
+                PanContainer.WidthRequest = width * 3;
+
                 // Immediately jump to the correct panel without animation
                 PanContainer.TranslationX = -(_currentIndex * width);
             }
@@ -50,7 +55,7 @@ namespace Pocket.Client.Pages
         {
             _currentIndex = Math.Max(0, Math.Min(2, index));
             double targetX = -(_currentIndex * this.Width);
-            
+
             // Dynamic animation duration based on distance to feel natural
             double distance = Math.Abs(PanContainer.TranslationX - targetX);
             uint duration = (uint)Math.Max(100, Math.Min(250, (distance / Math.Max(1, this.Width)) * 250));
@@ -66,7 +71,13 @@ namespace Pocket.Client.Pages
             }
         }
 
-        private async void OnPanUpdated(object sender, PanUpdatedEventArgs e)
+        /// <summary>
+        /// Handles horizontal pan events from <see cref="HorizontalSwipeView"/>.
+        /// Only horizontal swipes reach this handler — taps and vertical gestures are
+        /// routed to child views (shutter button, CollectionView) at the native level.
+        /// No directional-lock logic needed here.
+        /// </summary>
+        private async void OnSwipePanUpdated(object? sender, SwipePanEventArgs e)
         {
             long currentTime = Stopwatch.GetTimestamp();
 
@@ -74,60 +85,24 @@ namespace Pocket.Client.Pages
             {
                 case GestureStatus.Started:
                     _panX = PanContainer.TranslationX;
-                    _isVerticalScrollLocked = false;
-                    _isHorizontalScrollLocked = false;
-                    // Snapshot the initial pan values once so the directional deadzone
-                    // comparison is always relative to where the finger started.
-                    // These must NOT be overwritten in the Running case.
-                    _initialTotalX = e.TotalX;
-                    _initialTotalY = e.TotalY;
                     _lastPanTime = currentTime;
-                    _lastPanX = e.TotalX;
+                    _lastPanX = 0;
                     _velocity = 0;
+                    cameraView.IsVisible = true;
                     break;
 
                 case GestureStatus.Running:
-                    if (_isVerticalScrollLocked) return;
-
-                    // Calculate instantaneous velocity
+                    // Calculate instantaneous velocity for fling detection
                     double deltaX = e.TotalX - _lastPanX;
                     long deltaTime = currentTime - _lastPanTime;
                     if (deltaTime > 0)
                     {
-                        // Velocity in pixels per second
-                        _velocity = deltaX / (double)deltaTime * Stopwatch.Frequency; 
+                        _velocity = deltaX / (double)deltaTime * Stopwatch.Frequency;
                     }
                     _lastPanTime = currentTime;
                     _lastPanX = e.TotalX;
 
-                    // Directional Locking Phase (15px deadzone)
-                    // _initialTotalX/_initialTotalY were captured once in Started;
-                    // delta relative to the gesture origin is used here.
-                    if (!_isHorizontalScrollLocked)
-                    {
-                        double dX = e.TotalX - _initialTotalX;
-                        double dY = e.TotalY - _initialTotalY;
-
-                        if (Math.Abs(dY) > 10 && Math.Abs(dY) > Math.Abs(dX))
-                        {
-                            // Vertical swipe detected — release the touch to CollectionView.
-                            _isVerticalScrollLocked = true;
-                            return;
-                        }
-
-                        if (Math.Abs(dX) > 15)
-                        {
-                            // Past horizontal deadzone, commit to horizontal panning.
-                            _isHorizontalScrollLocked = true;
-                            cameraView.IsVisible = true;
-                        }
-                        else
-                        {
-                            return; // Still in deadzone — do not move PanContainer yet.
-                        }
-                    }
-
-                    // Apply horizontal translation
+                    // Apply horizontal translation with clamping
                     var newTranslation = _panX + e.TotalX;
                     newTranslation = Math.Max(-this.Width * 2, Math.Min(0, newTranslation));
                     PanContainer.TranslationX = newTranslation;
@@ -135,8 +110,6 @@ namespace Pocket.Client.Pages
 
                 case GestureStatus.Completed:
                 case GestureStatus.Canceled:
-                    if (_isVerticalScrollLocked) return;
-
                     double currentTranslation = PanContainer.TranslationX;
                     double width = this.Width;
 
@@ -167,7 +140,7 @@ namespace Pocket.Client.Pages
         {
             base.OnAppearing();
             cameraView.PhotoCaptured += OnPhotoCaptured;
-            
+
             if (BindingContext is CameraPageModel vm)
             {
                 await vm.LoadFeedAsync();
@@ -191,14 +164,14 @@ namespace Pocket.Client.Pages
             }
         }
 
-        private void OnShutterTapped(object sender, EventArgs e)
+        private void OnShutterTapped(object? sender, TappedEventArgs e)
         {
             cameraView.CapturePhoto();
         }
 
         private void OnPhotoCaptured(object? sender, string filePath)
         {
-            Dispatcher.Dispatch(() => 
+            Dispatcher.Dispatch(() =>
             {
                 if (BindingContext is CameraPageModel vm)
                 {

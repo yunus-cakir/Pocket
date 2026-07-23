@@ -17,18 +17,9 @@
         <toolkit:IsStringNotNullOrWhiteSpaceConverter x:Key="IsStringNotNullOrWhiteSpaceConverter" />
     </ContentPage.Resources>
 
-    <Grid>
-        <!-- PanGestureRecognizer MUST live on the root Grid.
-             PanContainer (Auto columns, fully covered by children) sits below
-             RecyclerViews that call requestDisallowInterceptTouchEvent(true),
-             which starves any recognizer placed there. The root Grid is the only
-             element that intercepts events reliably at the Android view-hierarchy root. -->
-        <Grid.GestureRecognizers>
-            <PanGestureRecognizer PanUpdated="OnPanUpdated" />
-        </Grid.GestureRecognizers>
-
+    <controls:HorizontalSwipeView x:Name="SwipeContainer">
         <!-- Container translated horizontally -->
-        <Grid x:Name="PanContainer" ColumnDefinitions="Auto, Auto, Auto">
+        <Grid x:Name="PanContainer" ColumnDefinitions="Auto, Auto, Auto" HorizontalOptions="Start">
             
             <!-- Profile Page (Column 0) -->
             <Grid x:Name="ProfilePanel" Grid.Column="0" BackgroundColor="#000000" RowDefinitions="Auto, *">
@@ -112,16 +103,12 @@
 
                                 <Grid Grid.Row="1" HorizontalOptions="Center" VerticalOptions="Center">
                                     <Grid IsVisible="{Binding IsPreviewing, Converter={StaticResource InvertedBoolConverter}}" HorizontalOptions="Center" VerticalOptions="Center">
-                                        <!-- Outer decorative ring (purely visual) -->
-                                        <Border WidthRequest="80" HeightRequest="80" StrokeShape="RoundRectangle 40" Stroke="White" StrokeThickness="4" BackgroundColor="Transparent" InputTransparent="True" />
-                                        <!-- Shutter Button: uses native Button (OnClickListener) instead of
-                                             TapGestureRecognizer so it fires on ACTION_UP independently of the
-                                             parent PanGestureRecognizer's gesture-detector pipeline. -->
-                                        <Button WidthRequest="66" HeightRequest="66" CornerRadius="33"
-                                                BackgroundColor="White" BorderColor="Transparent" BorderWidth="0"
-                                                Text="" Padding="0"
-                                                HorizontalOptions="Center" VerticalOptions="Center"
-                                                Clicked="OnShutterTapped" />
+                                        <Border WidthRequest="80" HeightRequest="80" StrokeShape="RoundRectangle 40" Stroke="White" StrokeThickness="4" BackgroundColor="Transparent" />
+                                        <Border WidthRequest="66" HeightRequest="66" StrokeShape="RoundRectangle 33" Stroke="Transparent" BackgroundColor="White" HorizontalOptions="Center" VerticalOptions="Center">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnShutterTapped" />
+                                            </Border.GestureRecognizers>
+                                        </Border>
                                     </Grid>
 
                                     <HorizontalStackLayout IsVisible="{Binding IsPreviewing}" Spacing="20" HorizontalOptions="Center" VerticalOptions="Center">
@@ -197,5 +184,5 @@
             </Grid>
 
         </Grid>
-    </Grid>
+    </controls:HorizontalSwipeView>
 </ContentPage>

@@ -23,6 +23,7 @@ namespace Pocket.Client
                 {
 #if ANDROID
                     handlers.AddHandler(typeof(Pocket.Client.Controls.CameraView), typeof(Pocket.Client.Platforms.Android.Handlers.CameraViewHandler));
+                    handlers.AddHandler(typeof(Pocket.Client.Controls.HorizontalSwipeView), typeof(Pocket.Client.Platforms.Android.Handlers.HorizontalSwipeViewHandler));
 #endif
                 });
 
