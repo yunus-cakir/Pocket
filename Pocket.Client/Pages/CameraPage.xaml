@@ -70,7 +70,7 @@
 
                     <CollectionView.Header>
                         <Grid HeightRequest="{Binding Source={x:Reference thisPage}, Path=Height}" RowDefinitions="Auto, *, Auto, *" RowSpacing="20" Padding="20" BackgroundColor="#000000">
-                            <BoxView Grid.Row="0" HeightRequest="42" Margin="0,20,0,0" Color="Transparent" />
+                            <BoxView Grid.Row="0" HeightRequest="42" Margin="0,20,0,0" BackgroundColor="Transparent" Color="Transparent" />
 
                             <Border Grid.Row="1" WidthRequest="340" HeightRequest="340" StrokeShape="RoundRectangle 36" Stroke="#222222" StrokeThickness="1" HorizontalOptions="Center" VerticalOptions="Center" BackgroundColor="#000000">
                                 <Grid>
@@ -118,7 +118,7 @@
                     <CollectionView.ItemTemplate>
                         <DataTemplate x:DataType="models:MediaPost">
                             <Grid HeightRequest="{Binding Source={x:Reference thisPage}, Path=Height}" RowDefinitions="Auto, *, Auto, *" RowSpacing="20" Padding="20" BackgroundColor="#000000">
-                                <BoxView Grid.Row="0" HeightRequest="42" Margin="0,20,0,0" Color="Transparent" />
+                                <BoxView Grid.Row="0" HeightRequest="42" Margin="0,20,0,0" BackgroundColor="Transparent" Color="Transparent" />
 
                                 <Border Grid.Row="1" WidthRequest="340" HeightRequest="340" StrokeShape="RoundRectangle 36" Stroke="#222222" StrokeThickness="1" HorizontalOptions="Center" VerticalOptions="Center" BackgroundColor="#000000">
                                     <Image Source="{Binding MediaLocalPath}" Aspect="AspectFill" HorizontalOptions="Fill" VerticalOptions="Fill" />
