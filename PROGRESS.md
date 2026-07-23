@@ -4,20 +4,23 @@
 **Pocket** is a privacy-focused, local-first photo and message-sharing mobile application built with pure .NET MAUI. It prioritizes complete data sovereignty by storing all personal media and direct messages directly on the user's device, using a Transient Relay Server purely for End-to-End Encrypted (E2EE) data transmission. 
 
 ## 🏗️ Current Implementation Status
-**Status: 0% (Project Initialization / Boilerplate Cleanup Phase)**
+**Status: ~35% (Data Foundation Completed)**
 
-While the conceptual documentation (Architecture, Context, Business Rules) is well-defined, the actual codebase is currently misaligned with the project's goals. 
-* The existing `Pocket.Client` folder contains boilerplate code for a Syncfusion-based Project/Task Management application, which must be entirely replaced.
-* The `Pocket.Server` (backend) and `Pocket.Shared` (DTOs/Interfaces) projects have not yet been created in the solution.
+* ✅ `Pocket.Client`: Boilerplate code cleaned up and project reset to a clean compilable state.
+* ✅ `Pocket.Shared`: Created .NET 8.0 Class Library with shared E2EE DTOs (`EncryptedPayloadDto`), Enums (`SyncStatus`, `MediaType`), and SignalR interfaces (`IRelayClient`).
+* ✅ `Pocket.Server`: Created ASP.NET Core SignalR Server with in-memory transient payload store (`TransientMemoryStore`) and E2EE payload routing hub (`RelayHub`).
+* ✅ `Pocket.slnx`: Solution configuration updated and verified with clean multi-project builds.
+* ✅ `Pocket.Client` Data Foundation: Defined SQLite entities (`User`, `Friend`, `Message`) and set up `LocalDatabase` repository infrastructure.
 
 ## ✅ Completed Features
 * Comprehensive system architecture and business logic documentation established.
-* *(No code features are completed at this time).*
+* Clean multi-project solution structure (`Pocket.Client`, `Pocket.Shared`, `Pocket.Server`).
+* Transient Relay Server SignalR hub structure with zero-persistent cloud storage logic (BR-201, BR-202).
+* E2EE Data Transfer Object (DTO) contracts and interfaces.
+* Local SQLite database models (`User`, `Friend`, `Message`) and `LocalDatabase` async repository initialization.
 
 ## ⏳ Planned Features (Not Yet Implemented)
-* **Local-First Storage:** Implementation of local SQLite databases as the primary source of truth (Users, Friends, Messages).
-* **Transient Relay Server:** A SignalR/gRPC backend to act as a temporary broker for E2EE payloads, dropping data upon delivery confirmation.
-* **E2EE Infrastructure:** Cryptographic key generation (ECDH) and payload encryption/decryption mechanisms.
+* **E2EE Cryptographic Engine:** Client-side cryptographic key generation (ECDH) and payload encryption/decryption routines.
 * **Advanced Camera Integration:** Platform-specific camera handlers supporting tap-to-snap and hold-to-record capabilities without standard web views.
 * **Incognito Direct Messaging:** Custom MAUI `Entry` handlers that disable OS predictive text and keyboard learning (`ImeFlags.NoPersonalizedLearning` / `UITextAutocorrectionType.No`).
 * **Native OS Widgets:** Integrations with iOS WidgetKit and Android AppWidget to display the latest received photo.
@@ -32,13 +35,12 @@ While the conceptual documentation (Architecture, Context, Business Rules) is we
 * **Compiled Bindings:** Mandatory use of `x:DataType` in XAML for performance and type safety.
 
 ## 🗺️ Suggested Roadmap for Next Steps
-1. **Repository Cleanup:** Delete the existing task management boilerplate files (Models, ViewModels, Pages, Data Repositories) within the `Pocket.Client` project.
-2. **Solution Expansion:** Scaffold the `Pocket.Server` (ASP.NET Core SignalR) and `Pocket.Shared` (.NET Class Library) projects within the solution.
-3. **Data Foundation:** Define the SQLite entity models (`Users`, `Friends`, `Messages`) and set up the local database context in `Pocket.Client`.
-4. **UI Scaffolding:** Create the new main navigation shell and bare-bones View/ViewModels for the Camera, Feed, and Direct Messaging screens.
-5. **Core Platform Handlers:** Begin drafting the custom platform handlers for the Incognito Keyboard and Camera integrations.
+1. ~~**Repository Cleanup:** Delete existing task management boilerplate files within `Pocket.Client`.~~ (Completed)
+2. ~~**Solution Expansion:** Scaffold `Pocket.Server` and `Pocket.Shared` projects within the solution.~~ (Completed)
+3. ~~**Data Foundation:** Define the SQLite entity models (`User`, `Friend`, `Message`) and set up local database repositories in `Pocket.Client`.~~ (Completed)
+4. ~~**UI Scaffolding:** Create main navigation shell and View/ViewModels for Camera, Feed, and Direct Messaging screens.~~ (Completed)
+5. **Core Platform Handlers:** Implement custom platform handlers for Incognito Keyboard and Camera controls.
 
 ## ❓ Assumptions & Uncertainties
-* **E2EE Library:** The documentation mentions "cryptographic key pairs (e.g., ECDH)", but does not specify which cryptographic library to standardize on (e.g., standard .NET `System.Security.Cryptography`, `libsodium`, `BouncyCastle`).
-* **Widget Hand-off Mechanism:** The documentation outlines "App Group" for iOS and "SharedPreferences/File System" for Android widgets. We need to verify if we'll use a MAUI plugin to bridge this communication or write pure native broadcast receivers.
-* **Rollcall Trigger:** It is slightly unclear if the Weekly Rollcall aggregation happens seamlessly via a background OS task or if it's generated on-the-fly when the user opens the app on the target day.
+* **E2EE Library:** Cryptographic key exchange strategy (e.g. `System.Security.Cryptography.ECDiffieHellman`).
+* **Widget Hand-off Mechanism:** `App Group` for iOS and `SharedPreferences` for Android widgets.

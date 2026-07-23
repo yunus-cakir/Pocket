@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:pm="clr-namespace:Pocket.Client.PageModels"
+             xmlns:models="clr-namespace:Pocket.Client.Models"
+             xmlns:controls="clr-namespace:Pocket.Client.Controls"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+             x:Class="Pocket.Client.Pages.CameraPage"
+             x:DataType="pm:CameraPageModel"
+             x:Name="thisPage"
+             Title="Camera"
+             BackgroundColor="#000000"
+             Shell.NavBarIsVisible="False">
+
+    <ContentPage.Resources>
+        <toolkit:InvertedBoolConverter x:Key="InvertedBoolConverter" />
+        <toolkit:IsStringNotNullOrWhiteSpaceConverter x:Key="IsStringNotNullOrWhiteSpaceConverter" />
+    </ContentPage.Resources>
+
+    <Grid>
+        <!-- Custom optimized PanGestureRecognizer -->
+        <Grid.GestureRecognizers>
+            <PanGestureRecognizer PanUpdated="OnPanUpdated" />
+        </Grid.GestureRecognizers>
+
+        <!-- Container translated horizontally -->
+        <Grid x:Name="PanContainer" ColumnDefinitions="Auto, Auto, Auto">
+            
+            <!-- Profile Page (Column 0) -->
+            <Grid x:Name="ProfilePanel" Grid.Column="0" BackgroundColor="#000000" RowDefinitions="Auto, *">
+                <Grid Grid.Row="0" ColumnDefinitions="Auto, *, Auto" Padding="20" Margin="0, 20, 0, 0">
+                    <Border Grid.Column="0" WidthRequest="60" HeightRequest="60" StrokeShape="RoundRectangle 30" Stroke="#333333" BackgroundColor="#1A1A1A">
+                        <Image Source="{Binding ShellModel.CurrentUser.ProfilePictureUrl}" Aspect="AspectFill" />
+                    </Border>
+                    
+                    <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Margin="15,0,0,0">
+                        <Label Text="{Binding ShellModel.CurrentUser.DisplayName}" TextColor="White" FontSize="22" FontAttributes="Bold" />
+                        <Label Text="Pocket User" TextColor="Gray" FontSize="14" />
+                    </VerticalStackLayout>
+                    
+                    <Border Grid.Column="2" WidthRequest="44" HeightRequest="44" StrokeShape="RoundRectangle 22" Stroke="#333333" BackgroundColor="#1A1A1A" HorizontalOptions="End" VerticalOptions="Center">
+                        <Label Text="➔" TextColor="White" FontSize="20" FontAttributes="Bold" HorizontalOptions="Center" VerticalOptions="Center" />
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding SnapToCameraCommand}" />
+                        </Border.GestureRecognizers>
+                    </Border>
+                </Grid>
+
+                <Grid Grid.Row="1" RowDefinitions="Auto, *" Padding="20,0">
+                    <Label Grid.Row="0" Text="Arkadaşlarım" TextColor="White" FontSize="18" FontAttributes="Bold" Margin="0,0,0,15" />
+                    <CollectionView Grid.Row="1" ItemsSource="{Binding ShellModel.Friends}">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="models:Friend">
+                                <Grid ColumnDefinitions="Auto, *" Margin="0,0,0,15">
+                                    <Border Grid.Column="0" WidthRequest="50" HeightRequest="50" StrokeShape="RoundRectangle 25" Stroke="#222222" BackgroundColor="#1A1A1A">
+                                        <Image Source="{Binding ProfilePictureUrl}" Aspect="AspectFill" />
+                                    </Border>
+                                    <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Margin="15,0,0,0">
+                                        <Label Text="{Binding DisplayName}" TextColor="White" FontSize="16" FontAttributes="Bold" />
+                                        <Label Text="Pocket User" TextColor="Gray" FontSize="12" />
+                                    </VerticalStackLayout>
+                                </Grid>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </Grid>
+            </Grid>
+
+            <!-- Camera & Feed Page (Column 1) -->
+            <Grid x:Name="CameraPanel" Grid.Column="1" BackgroundColor="#000000">
+                <CollectionView ItemsSource="{Binding FeedPosts}" BackgroundColor="#000000" ItemsUpdatingScrollMode="KeepItemsInView">
+                    <CollectionView.ItemsLayout>
+                        <LinearItemsLayout Orientation="Vertical" SnapPointsType="MandatorySingle" SnapPointsAlignment="Start" />
+                    </CollectionView.ItemsLayout>
+
+                    <CollectionView.Header>
+                        <Grid HeightRequest="{Binding Source={x:Reference thisPage}, Path=Height}" RowDefinitions="Auto, *, Auto, *" RowSpacing="20" Padding="20" BackgroundColor="#000000">
+                            
+                            <Grid Grid.Row="0" ColumnDefinitions="Auto, *, Auto" Margin="0,20,0,0">
+                                <Border Grid.Column="0" WidthRequest="42" HeightRequest="42" StrokeShape="RoundRectangle 21" Stroke="#222222" BackgroundColor="#1A1A1A" VerticalOptions="Center">
+                                    <Image Source="{Binding ShellModel.CurrentUser.ProfilePictureUrl}" Aspect="AspectFill" />
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SnapToProfileCommand}" />
+                                    </Border.GestureRecognizers>
+                                </Border>
+                                
+                                <Label Grid.Column="1" Text="📸 Pocket" FontSize="22" FontAttributes="Bold" TextColor="White" HorizontalOptions="Center" VerticalOptions="Center" />
+                                       
+                                <Border Grid.Column="2" WidthRequest="42" HeightRequest="42" StrokeShape="RoundRectangle 21" Stroke="#222222" BackgroundColor="#1A1A1A" VerticalOptions="Center">
+                                    <Label Text="💬" HorizontalOptions="Center" VerticalOptions="Center" />
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SnapToChatCommand}" />
+                                    </Border.GestureRecognizers>
+                                </Border>
+                            </Grid>
+
+                            <Border Grid.Row="1" WidthRequest="340" HeightRequest="340" StrokeShape="RoundRectangle 36" Stroke="#222222" StrokeThickness="1" HorizontalOptions="Center" VerticalOptions="Center" BackgroundColor="#000000">
+                                <Grid>
+                                    <controls:CameraView x:Name="cameraView" HorizontalOptions="Fill" VerticalOptions="Fill" />
+                                    <Image Source="{Binding CapturedImagePath}" IsVisible="{Binding IsPreviewing}" Aspect="AspectFill" HorizontalOptions="Fill" VerticalOptions="Fill" />
+                                </Grid>
+                            </Border>
+
+                            <Grid Grid.Row="2" RowDefinitions="Auto, Auto" RowSpacing="20" VerticalOptions="Center">
+                                <Border Grid.Row="0" IsVisible="{Binding IsPreviewing}" Stroke="#333333" StrokeShape="RoundRectangle 20" BackgroundColor="#1A1A1A" Padding="15,5" Margin="20,0" HeightRequest="50">
+                                    <Entry Text="{Binding Caption}" Placeholder="Bir açıklama ekle..." PlaceholderColor="Gray" TextColor="White" BackgroundColor="Transparent" VerticalOptions="Center" />
+                                </Border>
+
+                                <Grid Grid.Row="1" HorizontalOptions="Center" VerticalOptions="Center">
+                                    <Grid IsVisible="{Binding IsPreviewing, Converter={StaticResource InvertedBoolConverter}}" HorizontalOptions="Center" VerticalOptions="Center">
+                                        <Border WidthRequest="80" HeightRequest="80" StrokeShape="RoundRectangle 40" Stroke="White" StrokeThickness="4" BackgroundColor="Transparent" />
+                                        <Border WidthRequest="66" HeightRequest="66" StrokeShape="RoundRectangle 33" Stroke="Transparent" BackgroundColor="White" HorizontalOptions="Center" VerticalOptions="Center">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnShutterTapped" />
+                                            </Border.GestureRecognizers>
+                                        </Border>
+                                    </Grid>
+
+                                    <HorizontalStackLayout IsVisible="{Binding IsPreviewing}" Spacing="20" HorizontalOptions="Center" VerticalOptions="Center">
+                                        <Border WidthRequest="60" HeightRequest="60" StrokeShape="RoundRectangle 30" Stroke="#333333" BackgroundColor="#1A1A1A">
+                                            <Label Text="✕" TextColor="White" FontSize="24" FontAttributes="Bold" HorizontalOptions="Center" VerticalOptions="Center" />
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding CancelCommand}" />
+                                            </Border.GestureRecognizers>
+                                        </Border>
+
+                                        <Border WidthRequest="180" HeightRequest="60" StrokeShape="RoundRectangle 30" Stroke="Transparent" BackgroundColor="#007AFF">
+                                            <Label Text="Gönder" TextColor="White" FontSize="18" FontAttributes="Bold" HorizontalOptions="Center" VerticalOptions="Center" />
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding SendCommand}" />
+                                            </Border.GestureRecognizers>
+                                        </Border>
+                                    </HorizontalStackLayout>
+                                </Grid>
+                            </Grid>
+                            <Grid Grid.Row="3" />
+                        </Grid>
+                    </CollectionView.Header>
+
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="models:MediaPost">
+                            <Grid HeightRequest="{Binding Source={x:Reference thisPage}, Path=Height}" RowDefinitions="Auto, *, Auto, *" RowSpacing="20" Padding="20" BackgroundColor="#000000">
+                                <Grid Grid.Row="0" ColumnDefinitions="Auto, *, Auto" Margin="0,20,0,0">
+                                    <Border Grid.Column="0" WidthRequest="42" HeightRequest="42" StrokeShape="RoundRectangle 21" Stroke="#222222" BackgroundColor="#1A1A1A" VerticalOptions="Center">
+                                        <Image Source="{Binding BindingContext.ShellModel.CurrentUser.ProfilePictureUrl, Source={x:Reference thisPage}}" Aspect="AspectFill" />
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding BindingContext.SnapToProfileCommand, Source={x:Reference thisPage}}" />
+                                        </Border.GestureRecognizers>
+                                    </Border>
+                                    
+                                    <Label Grid.Column="1" Text="📸 Pocket" FontSize="22" FontAttributes="Bold" TextColor="White" HorizontalOptions="Center" VerticalOptions="Center" />
+                                    <BoxView Grid.Column="2" WidthRequest="42" Color="Transparent" />
+                                </Grid>
+
+                                <Border Grid.Row="1" WidthRequest="340" HeightRequest="340" StrokeShape="RoundRectangle 36" Stroke="#222222" StrokeThickness="1" HorizontalOptions="Center" VerticalOptions="Center" BackgroundColor="#000000">
+                                    <Image Source="{Binding MediaLocalPath}" Aspect="AspectFill" HorizontalOptions="Fill" VerticalOptions="Fill" />
+                                </Border>
+                                
+                                <Border Grid.Row="2" IsVisible="{Binding Caption, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}" Stroke="#333333" StrokeShape="RoundRectangle 20" BackgroundColor="#1A1A1A" Padding="20,12" Margin="20,0" HorizontalOptions="Center" VerticalOptions="Center" MaximumWidthRequest="340">
+                                    <Label Text="{Binding Caption}" TextColor="White" FontSize="16" HorizontalOptions="Center" HorizontalTextAlignment="Center" />
+                                </Border>
+                                <Grid Grid.Row="3" />
+                            </Grid>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </Grid>
+
+            <!-- Chat Page (Column 2) -->
+            <Grid x:Name="ChatPanel" Grid.Column="2" BackgroundColor="#000000">
+                <Grid Padding="20" RowDefinitions="Auto, *">
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto, *, Auto" Margin="0, 20, 0, 0">
+                        <Border Grid.Column="0" WidthRequest="44" HeightRequest="44" StrokeShape="RoundRectangle 22" Stroke="#333333" BackgroundColor="#1A1A1A" HorizontalOptions="Start" VerticalOptions="Center">
+                            <Label Text="🡐" TextColor="White" FontSize="20" FontAttributes="Bold" HorizontalOptions="Center" VerticalOptions="Center" />
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding SnapToCameraCommand}" />
+                            </Border.GestureRecognizers>
+                        </Border>
+                        
+                        <Label Grid.Column="1" Text="Sohbetler" TextColor="White" FontSize="22" FontAttributes="Bold" HorizontalOptions="Center" VerticalOptions="Center" />
+                        
+                        <BoxView Grid.Column="2" WidthRequest="44" Color="Transparent" />
+                    </Grid>
+                    
+                    <VerticalStackLayout Grid.Row="1" VerticalOptions="Center" HorizontalOptions="Center" Spacing="10">
+                        <Label Text="💬 Direct Messages (Placeholder)" FontSize="20" TextColor="Gray" HorizontalOptions="Center" />
+                    </VerticalStackLayout>
+                </Grid>
+            </Grid>
+
+        </Grid>
+    </Grid>
+</ContentPage>

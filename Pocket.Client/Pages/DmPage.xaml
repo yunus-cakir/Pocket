@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:pm="clr-namespace:Pocket.Client.PageModels"
+             x:Class="Pocket.Client.Pages.DmPage"
+             x:DataType="pm:DmPageModel"
+             Title="Direct Messages"
+             BackgroundColor="#000000">
+
+    <Grid VerticalOptions="Center" HorizontalOptions="Center" BackgroundColor="#000000">
+        <VerticalStackLayout Spacing="10" HorizontalOptions="Center">
+            <Label Text="💬 Direct Messages (Placeholder)" FontSize="24" TextColor="White" HorizontalOptions="Center" />
+            <Label Text="{Binding FriendId, StringFormat='Friend ID: {0}'}" TextColor="Gray" HorizontalOptions="Center" />
+        </VerticalStackLayout>
+    </Grid>
+</ContentPage>

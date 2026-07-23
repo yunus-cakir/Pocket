@@ -1,22 +1,15 @@
 namespace Pocket.Client.Services
 {
-    /// <summary>
-    /// Modal Error Handler.
-    /// </summary>
     public class ModalErrorHandler : IErrorHandler
     {
-        SemaphoreSlim _semaphore = new(1, 1);
+        private readonly SemaphoreSlim _semaphore = new(1, 1);
 
-        /// <summary>
-        /// Handle error in UI.
-        /// </summary>
-        /// <param name="ex">Exception.</param>
         public void HandleError(Exception ex)
         {
-            DisplayAlertAsync(ex).FireAndForgetSafeAsync();
+            _ = DisplayAlertAsync(ex);
         }
 
-        async Task DisplayAlertAsync(Exception ex)
+        private async Task DisplayAlertAsync(Exception ex)
         {
             try
             {

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:pm="clr-namespace:Pocket.Client.PageModels"
+             x:Class="Pocket.Client.Pages.FeedPage"
+             x:DataType="pm:FeedPageModel"
+             Title="Feed"
+             BackgroundColor="#000000">
+
+    <Grid VerticalOptions="Center" HorizontalOptions="Center" BackgroundColor="#000000">
+        <Label Text="📰 Feed &amp; Gallery (Placeholder)" FontSize="24" TextColor="White" />
+    </Grid>
+</ContentPage>

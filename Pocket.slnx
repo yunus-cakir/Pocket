@@ -1,3 +1,5 @@
 <Solution>
   <Project Path="Pocket.Client/Pocket.Client.csproj" />
+  <Project Path="Pocket.Shared/Pocket.Shared.csproj" />
+  <Project Path="Pocket.Server/Pocket.Server.csproj" />
 </Solution>
