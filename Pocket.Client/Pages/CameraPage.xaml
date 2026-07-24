@@ -29,8 +29,14 @@
                     </Border>
                     
                     <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Margin="15,0,0,0">
-                        <Label Text="{Binding ShellModel.CurrentUser.DisplayName}" TextColor="White" FontSize="22" FontAttributes="Bold" />
-                        <Label Text="Pocket User" TextColor="Gray" FontSize="14" />
+                        <VerticalStackLayout.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding ShellModel.EditProfileCommand}" />
+                        </VerticalStackLayout.GestureRecognizers>
+                        <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                            <Label Text="{Binding ShellModel.CurrentUser.DisplayName}" TextColor="White" FontSize="22" FontAttributes="Bold" />
+                            <Label Text="✏️" FontSize="14" VerticalOptions="Center" Opacity="0.7" />
+                        </HorizontalStackLayout>
+                        <Label Text="{Binding ShellModel.CurrentUser.Username, StringFormat='@{0}'}" TextColor="Gray" FontSize="14" />
                     </VerticalStackLayout>
                     
                     <Border Grid.Column="2" WidthRequest="44" HeightRequest="44" StrokeShape="RoundRectangle 22" Stroke="#333333" BackgroundColor="#1A1A1A" HorizontalOptions="End" VerticalOptions="Center">

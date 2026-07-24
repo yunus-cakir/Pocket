@@ -32,7 +32,7 @@ namespace Pocket.Client
             builder.Services.AddLogging(configure => configure.AddDebug());
 #endif
             builder.Services.AddSingleton<LocalDatabase>();
-
+            builder.Services.AddSingleton<Pocket.Client.Services.ICryptoService, Pocket.Client.Services.CryptoService>();
             // Page Models
             builder.Services.AddTransient<CameraPageModel>();
             builder.Services.AddSingleton<AppShellModel>();
@@ -46,6 +46,9 @@ namespace Pocket.Client
 
             builder.Services.AddTransient<DmPageModel>();
             builder.Services.AddTransient<DmPage>();
+
+            builder.Services.AddSingleton<DmListPageModel>();
+            builder.Services.AddSingleton<DmListPage>();
 
             return builder.Build();
         }

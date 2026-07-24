@@ -10,6 +10,9 @@ namespace Pocket.Client
         {
             InitializeComponent();
             BindingContext = viewModel;
+
+            Routing.RegisterRoute(nameof(DmListPage), typeof(DmListPage));
+            Routing.RegisterRoute(nameof(DmPage), typeof(DmPage));
         }
     }
 }

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:pm="clr-namespace:Pocket.Client.PageModels"
+             xmlns:models="clr-namespace:Pocket.Client.Models"
+             x:Class="Pocket.Client.Pages.DmListPage"
+             x:DataType="pm:DmListPageModel"
+             Title="Chats"
+             BackgroundColor="#000000">
+
+    <Grid RowDefinitions="Auto, *">
+        
+        <!-- Top Section: Search & Add -->
+        <VerticalStackLayout Grid.Row="0" Padding="20" Spacing="10" BackgroundColor="#111111">
+            <Label Text="Add Friend" FontSize="18" TextColor="White" FontAttributes="Bold" />
+            
+            <Grid ColumnDefinitions="*, Auto" ColumnSpacing="10">
+                <Entry Grid.Column="0" 
+                       Placeholder="Search username (must be online)" 
+                       Text="{Binding SearchQuery}"
+                       TextColor="White"
+                       PlaceholderColor="Gray"
+                       BackgroundColor="#222222" />
+                
+                <Button Grid.Column="1" 
+                        Text="Search" 
+                        Command="{Binding SearchUserCommand}" />
+            </Grid>
+
+            <ActivityIndicator IsRunning="{Binding IsSearching}" IsVisible="{Binding IsSearching}" Color="White" />
+            <Label Text="{Binding SearchMessage}" TextColor="LightCoral" IsVisible="{Binding HasSearchMessage}" />
+
+            <Border IsVisible="{Binding HasSearchResult}"
+                    BackgroundColor="#333333" Padding="15" StrokeShape="RoundRectangle 10" Margin="0,10,0,0">
+                <Grid ColumnDefinitions="*, Auto">
+                    <VerticalStackLayout Grid.Column="0">
+                        <Label Text="{Binding SearchResult.Username}" TextColor="White" FontSize="16" FontAttributes="Bold" />
+                        <Label Text="Online" TextColor="LightGreen" FontSize="12" />
+                    </VerticalStackLayout>
+                    <Button Grid.Column="1" Text="Send Request" Command="{Binding SendFriendRequestCommand}" />
+                </Grid>
+            </Border>
+        </VerticalStackLayout>
+
+        <!-- Bottom Section: Chat List -->
+        <CollectionView Grid.Row="1" ItemsSource="{Binding Friends}" Margin="20">
+            <CollectionView.EmptyView>
+                <Label Text="No friends yet. Search a username above to add someone!" 
+                       TextColor="Gray" HorizontalOptions="Center" VerticalOptions="Center" />
+            </CollectionView.EmptyView>
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="models:Friend">
+                    <Grid Padding="10" ColumnDefinitions="Auto, *">
+                        <BoxView Grid.Column="0" WidthRequest="40" HeightRequest="40" Color="Gray" CornerRadius="20" />
+                        <VerticalStackLayout Grid.Column="1" Margin="10,0,0,0">
+                            <!-- Note: Binding to Friend.cs model -->
+                            <Label Text="{Binding Username}" TextColor="White" FontSize="16" FontAttributes="Bold" />
+                            <Label Text="Tap to chat" TextColor="Gray" FontSize="14" />
+                        </VerticalStackLayout>
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+
+    </Grid>
+
+</ContentPage>

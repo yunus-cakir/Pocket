@@ -6,5 +6,7 @@ namespace Pocket.Shared.Interfaces
     {
         Task ReceivePayload(EncryptedPayloadDto payload);
         Task AcknowledgeDelivery(Guid messageId);
+        Task ReceiveFriendRequest(FriendRequestDto request);
+        Task ReceiveFriendAccept(FriendAcceptDto accept);
     }
 }
