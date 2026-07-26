@@ -48,7 +48,10 @@
                 </Grid>
 
                 <Grid Grid.Row="1" RowDefinitions="Auto, *" Padding="20,0">
-                    <Label Grid.Row="0" Text="Arkadaşlarım" TextColor="White" FontSize="18" FontAttributes="Bold" Margin="0,0,0,15" />
+                    <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,15">
+                        <Label Grid.Column="0" Text="Arkadaşlarım" TextColor="White" FontSize="18" FontAttributes="Bold" VerticalOptions="Center" />
+                        <Button Grid.Column="1" Text="Ekle" Command="{Binding ShellModel.AddFriendCommand}" BackgroundColor="#333333" TextColor="White" CornerRadius="15" HeightRequest="30" Padding="15,0" VerticalOptions="Center" />
+                    </Grid>
                     <CollectionView Grid.Row="1" ItemsSource="{Binding ShellModel.Friends}">
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="models:Friend">

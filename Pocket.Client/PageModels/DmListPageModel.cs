@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Pocket.Shared.DTOs;
+using Pocket.Client.Services;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 
@@ -28,9 +29,13 @@ namespace Pocket.Client.PageModels
 
         public ObservableCollection<Models.Friend> Friends { get; } = new();
 
-        public DmListPageModel()
+        private readonly IRelayService _relayService;
+        private readonly AppShellModel _appShellModel;
+
+        public DmListPageModel(IRelayService relayService, AppShellModel appShellModel)
         {
-            // Placeholder: Load friends from LocalDatabase here
+            _relayService = relayService;
+            _appShellModel = appShellModel;
         }
 
         [RelayCommand]
@@ -49,19 +54,11 @@ namespace Pocket.Client.PageModels
 
             try
             {
-                // TODO: Call RelayService.LookupUser(SearchQuery) via SignalR
-                // For now, simulating a network delay
-                await Task.Delay(1000);
-
-                // Mock response
-                if (SearchQuery.ToLower() == "alice")
+                var result = await _relayService.LookupUserAsync(SearchQuery);
+                
+                if (result != null)
                 {
-                    SearchResult = new UserIdentityDto
-                    {
-                        UserId = "mock-id-alice",
-                        Username = "alice",
-                        PublicKey = "mock-public-key"
-                    };
+                    SearchResult = result;
                     SearchMessage = string.Empty;
                 }
                 else
@@ -80,8 +77,16 @@ namespace Pocket.Client.PageModels
         {
             if (SearchResult == null) return;
 
-            // TODO: Call RelayService.SendFriendRequest via SignalR
-            // using CryptoService to sign/generate public key for the payload
+            var request = new FriendRequestDto
+            {
+                SenderId = _appShellModel.CurrentUser.Id,
+                SenderUsername = _appShellModel.CurrentUser.Username,
+                SenderPublicKey = _appShellModel.CurrentUser.PublicKey,
+                RecipientId = SearchResult.UserId,
+                Timestamp = System.DateTime.UtcNow
+            };
+
+            await _relayService.SendFriendRequestAsync(request);
             
             SearchMessage = $"Friend request sent to {SearchResult.Username}!";
             SearchResult = null;

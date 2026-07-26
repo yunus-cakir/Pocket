@@ -1,0 +1,135 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.IdentityModel.Tokens;
+using Pocket.Shared.DTOs;
+
+namespace Pocket.Client.Services
+{
+    public class RelayService : IRelayService, IAsyncDisposable
+    {
+        private HubConnection? _hubConnection;
+        
+        // NOTE: In a real app, this should come from configuration/settings.
+        // For Android Emulator, use "https://10.0.2.2:7245/hubs/relay"
+        // For Windows/iOS, use "https://localhost:7245/hubs/relay"
+        private const string HubUrl = "https://localhost:7245/hubs/relay"; 
+
+        public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected;
+
+        public event Action<EncryptedPayloadDto>? OnPayloadReceived;
+        public event Action<Guid>? OnDeliveryAcknowledged;
+        public event Action<FriendRequestDto>? OnFriendRequestReceived;
+        public event Action<FriendAcceptDto>? OnFriendAcceptReceived;
+
+        public async Task ConnectAsync(string userId, string username)
+        {
+            if (_hubConnection != null)
+            {
+                await _hubConnection.DisposeAsync();
+            }
+
+            var token = GenerateDevJwt(userId, username);
+
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl(HubUrl, options =>
+                {
+                    options.AccessTokenProvider = () => Task.FromResult(token)!;
+                })
+                .WithAutomaticReconnect()
+                .Build();
+
+            // Map Hub events to C# events
+            _hubConnection.On<EncryptedPayloadDto>("ReceivePayload", payload => OnPayloadReceived?.Invoke(payload));
+            _hubConnection.On<Guid>("AcknowledgeDelivery", messageId => OnDeliveryAcknowledged?.Invoke(messageId));
+            _hubConnection.On<FriendRequestDto>("ReceiveFriendRequest", request => OnFriendRequestReceived?.Invoke(request));
+            _hubConnection.On<FriendAcceptDto>("ReceiveFriendAccept", accept => OnFriendAcceptReceived?.Invoke(accept));
+
+            await _hubConnection.StartAsync();
+        }
+
+        public async Task DisconnectAsync()
+        {
+            if (_hubConnection != null)
+            {
+                await _hubConnection.StopAsync();
+            }
+        }
+
+        public async Task SendPayloadAsync(EncryptedPayloadDto payload)
+        {
+            if (IsConnected)
+            {
+                await _hubConnection!.SendAsync("SendPayload", payload);
+            }
+        }
+
+        public async Task ConfirmDeliveryAsync(string senderId, Guid messageId)
+        {
+            if (IsConnected)
+            {
+                await _hubConnection!.SendAsync("ConfirmDelivery", senderId, messageId);
+            }
+        }
+
+        public async Task<UserIdentityDto?> LookupUserAsync(string username)
+        {
+            if (IsConnected)
+            {
+                return await _hubConnection!.InvokeAsync<UserIdentityDto?>("LookupUser", username);
+            }
+            return null;
+        }
+
+        public async Task SendFriendRequestAsync(FriendRequestDto request)
+        {
+            if (IsConnected)
+            {
+                await _hubConnection!.SendAsync("SendFriendRequest", request);
+            }
+        }
+
+        public async Task SendFriendAcceptAsync(FriendAcceptDto accept)
+        {
+            if (IsConnected)
+            {
+                await _hubConnection!.SendAsync("SendFriendAccept", accept);
+            }
+        }
+
+        /// <summary>
+        /// Generates a dummy JWT for development purposes. 
+        /// Since ValidateIssuerSigningKey = false on the server, any signature works.
+        /// </summary>
+        private string GenerateDevJwt(string userId, string username)
+        {
+            var claims = new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, userId),
+                new Claim(ClaimTypes.Name, username)
+            };
+
+            // Using an arbitrary key just to satisfy the token structure
+            var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes("SuperSecretDummyKeyForDevelopmentPurposesOnly!!!"));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var token = new JwtSecurityToken(
+                issuer: "pocket-client-dev",
+                audience: "pocket-server",
+                claims: claims,
+                expires: DateTime.Now.AddDays(7),
+                signingCredentials: creds
+            );
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_hubConnection != null)
+            {
+                await _hubConnection.DisposeAsync();
+            }
+        }
+    }
+}

@@ -9,30 +9,38 @@ namespace Pocket.Server.Services
     /// </summary>
     public class TransientMemoryStore
     {
-        private readonly ConcurrentDictionary<string, ConcurrentQueue<EncryptedPayloadDto>> _pendingPayloads = new();
+        // Outer key: UserId, Inner key: MessageId
+        private readonly ConcurrentDictionary<string, ConcurrentDictionary<Guid, EncryptedPayloadDto>> _pendingPayloads = new();
 
         public void EnqueuePayload(EncryptedPayloadDto payload)
         {
-            var queue = _pendingPayloads.GetOrAdd(payload.RecipientId, _ => new ConcurrentQueue<EncryptedPayloadDto>());
-            queue.Enqueue(payload);
+            var userMessages = _pendingPayloads.GetOrAdd(payload.RecipientId, _ => new ConcurrentDictionary<Guid, EncryptedPayloadDto>());
+            userMessages[payload.MessageId] = payload;
         }
 
-        public List<EncryptedPayloadDto> DequeuePayloadsForUser(string userId)
+        /// <summary>
+        /// Reads pending payloads without removing them (to prevent data loss if connection drops).
+        /// Messages are only removed when explicitly confirmed via RemoveMessage.
+        /// </summary>
+        public List<EncryptedPayloadDto> GetPendingPayloadsForUser(string userId)
         {
-            if (_pendingPayloads.TryRemove(userId, out var queue))
+            if (_pendingPayloads.TryGetValue(userId, out var userMessages))
             {
-                return queue.ToList();
+                // Return a snapshot of current messages
+                return userMessages.Values.ToList();
             }
             return new List<EncryptedPayloadDto>();
         }
 
+        /// <summary>
+        /// Safely removes a specific message after it has been confirmed delivered.
+        /// Thread-safe and O(1) removal.
+        /// </summary>
         public bool RemoveMessage(string userId, Guid messageId)
         {
-            if (_pendingPayloads.TryGetValue(userId, out var queue))
+            if (_pendingPayloads.TryGetValue(userId, out var userMessages))
             {
-                var remaining = queue.Where(p => p.MessageId != messageId).ToList();
-                _pendingPayloads[userId] = new ConcurrentQueue<EncryptedPayloadDto>(remaining);
-                return true;
+                return userMessages.TryRemove(messageId, out _);
             }
             return false;
         }
