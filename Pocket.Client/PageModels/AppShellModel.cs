@@ -20,6 +20,9 @@ namespace Pocket.Client.PageModels
         [ObservableProperty]
         private User _currentUser = new User(); // Default empty user until loaded
 
+        [ObservableProperty]
+        private string _serverIp = string.Empty;
+
         public ObservableCollection<Friend> Friends { get; } = new();
 
         public AppShellModel(LocalDatabase database, ICryptoService cryptoService, IRelayService relayService)
@@ -58,6 +61,9 @@ namespace Pocket.Client.PageModels
                 }
                 
                 CurrentUser = user;
+
+                // Load Server IP from Preferences
+                ServerIp = Microsoft.Maui.Storage.Preferences.Get("ServerIp", RelayService.GetDefaultServerIp());
 
                 // Load real friends from database
                 var friends = await _database.GetFriendsAsync();
@@ -150,6 +156,29 @@ namespace Pocket.Client.PageModels
                     }
                 }
             });
+        }
+
+        [RelayCommand]
+        private async Task SaveServerIpAsync()
+        {
+            if (string.IsNullOrWhiteSpace(ServerIp))
+            {
+                ServerIp = RelayService.GetDefaultServerIp();
+            }
+
+            string cleanIp = ServerIp.Trim();
+            Microsoft.Maui.Storage.Preferences.Set("ServerIp", cleanIp);
+            ServerIp = cleanIp;
+
+            if (_relayService != null && CurrentUser != null && !string.IsNullOrEmpty(CurrentUser.Id))
+            {
+                await _relayService.ConnectAsync(CurrentUser.Id, CurrentUser.Username);
+
+                if (Microsoft.Maui.Controls.Shell.Current != null)
+                {
+                    await Microsoft.Maui.Controls.Shell.Current.DisplayAlert("Sunucu Ayarı", $"Sunucu IP '{cleanIp}' olarak kaydedildi ve yeniden bağlanılıyor.", "Tamam");
+                }
+            }
         }
 
         private IAsyncRelayCommand? _editProfileCommand;

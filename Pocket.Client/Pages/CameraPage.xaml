@@ -47,7 +47,7 @@
                     </Border>
                 </Grid>
 
-                <Grid Grid.Row="1" RowDefinitions="Auto, *" Padding="20,0">
+                <Grid Grid.Row="1" RowDefinitions="Auto, *, Auto" Padding="20,0">
                     <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,15">
                         <Label Grid.Column="0" Text="Arkadaşlarım" TextColor="White" FontSize="18" FontAttributes="Bold" VerticalOptions="Center" />
                         <Button Grid.Column="1" Text="Ekle" Command="{Binding ShellModel.AddFriendCommand}" BackgroundColor="#333333" TextColor="White" CornerRadius="15" HeightRequest="30" Padding="15,0" VerticalOptions="Center" />
@@ -67,6 +67,19 @@
                             </DataTemplate>
                         </CollectionView.ItemTemplate>
                     </CollectionView>
+
+                    <!-- Server Settings Box (Row 2) -->
+                    <Border Grid.Row="2" Margin="0,10,0,20" Padding="15" Stroke="#333333" StrokeShape="RoundRectangle 16" BackgroundColor="#111111">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="⚙️ Sunucu Bağlantı IP'si" TextColor="#AAAAAA" FontSize="13" FontAttributes="Bold" />
+                            <Grid ColumnDefinitions="*, Auto" ColumnSpacing="10">
+                                <Border Grid.Column="0" Stroke="#222222" StrokeShape="RoundRectangle 10" BackgroundColor="#1A1A1A" Padding="10,0" HeightRequest="40">
+                                    <Entry Text="{Binding ShellModel.ServerIp}" Placeholder="Örn: 192.168.1.35 veya 10.0.2.2" PlaceholderColor="Gray" TextColor="White" FontSize="13" VerticalOptions="Center" />
+                                </Border>
+                                <Button Grid.Column="1" Text="Kaydet" Command="{Binding ShellModel.SaveServerIpCommand}" BackgroundColor="#2563EB" TextColor="White" FontSize="12" CornerRadius="10" HeightRequest="40" Padding="12,0" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
                 </Grid>
             </Grid>
 

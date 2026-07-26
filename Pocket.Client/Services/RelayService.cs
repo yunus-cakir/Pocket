@@ -10,10 +10,24 @@ namespace Pocket.Client.Services
     {
         private HubConnection? _hubConnection;
         
-        // NOTE: In a real app, this should come from configuration/settings.
-        // For Android Emulator, use "https://10.0.2.2:7245/hubs/relay"
-        // For Windows/iOS, use "https://localhost:7245/hubs/relay"
-        private const string HubUrl = "https://localhost:7245/hubs/relay"; 
+        public static string GetDefaultServerIp()
+        {
+#if ANDROID
+            return "10.0.2.2";
+#else
+            return "localhost";
+#endif
+        }
+
+        public static string GetHubUrl()
+        {
+            string ip = Microsoft.Maui.Storage.Preferences.Get("ServerIp", GetDefaultServerIp());
+            if (string.IsNullOrWhiteSpace(ip))
+            {
+                ip = GetDefaultServerIp();
+            }
+            return $"http://{ip.Trim()}:5200/hubs/relay";
+        }
 
         public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected;
 
@@ -32,7 +46,7 @@ namespace Pocket.Client.Services
             var token = GenerateDevJwt(userId, username);
 
             _hubConnection = new HubConnectionBuilder()
-                .WithUrl(HubUrl, options =>
+                .WithUrl(GetHubUrl(), options =>
                 {
                     options.AccessTokenProvider = () => Task.FromResult(token)!;
                 })
