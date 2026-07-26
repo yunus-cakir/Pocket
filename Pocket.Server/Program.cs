@@ -1,9 +1,12 @@
+using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Pocket.Server.Hubs;
 using Pocket.Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.WebHost.UseUrls("http://0.0.0.0:5200");
 
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<TransientMemoryStore>();
@@ -33,7 +36,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuer = false, 
             ValidateAudience = false,
             ValidateLifetime = true,
-            ValidateIssuerSigningKey = false 
+            ValidateIssuerSigningKey = false,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("SuperSecretDummyKeyForDevelopmentPurposesOnly!!!"))
         };
     });
 builder.Services.AddAuthorization();

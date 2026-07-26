@@ -23,6 +23,21 @@ namespace Pocket.Client.PageModels
         [ObservableProperty]
         private string _serverIp = string.Empty;
 
+        [ObservableProperty]
+        private bool _isConnected;
+
+        [ObservableProperty]
+        private string _connectionStatusText = "Bağlı Değil";
+
+        [ObservableProperty]
+        private string _connectionStatusColor = "#EF4444";
+
+        [ObservableProperty]
+        private string _connectedUrlText = "-";
+
+        [ObservableProperty]
+        private string _connectedAtText = "-";
+
         public ObservableCollection<Friend> Friends { get; } = new();
 
         public AppShellModel(LocalDatabase database, ICryptoService cryptoService, IRelayService relayService)
@@ -77,12 +92,40 @@ namespace Pocket.Client.PageModels
                 await _relayService.ConnectAsync(CurrentUser.Id, CurrentUser.Username);
 
                 // Subscribe to real-time events
+                _relayService.OnConnectionStateChanged -= HandleConnectionStateChanged;
+                _relayService.OnConnectionStateChanged += HandleConnectionStateChanged;
+
                 _relayService.OnFriendRequestReceived -= HandleFriendRequestReceived;
                 _relayService.OnFriendRequestReceived += HandleFriendRequestReceived;
 
                 _relayService.OnFriendAcceptReceived -= HandleFriendAcceptReceived;
                 _relayService.OnFriendAcceptReceived += HandleFriendAcceptReceived;
+
+                // Initial connection state
+                HandleConnectionStateChanged(_relayService.IsConnected);
             }
+        }
+
+        private void HandleConnectionStateChanged(bool isConnected)
+        {
+            Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+            {
+                IsConnected = isConnected;
+                if (isConnected)
+                {
+                    ConnectionStatusText = "Sunucuya Bağlandı";
+                    ConnectionStatusColor = "#10B981"; // Emerald Green
+                    ConnectedUrlText = _relayService?.CurrentHubUrl ?? "-";
+                    ConnectedAtText = _relayService?.ConnectedAt?.ToString("HH:mm:ss") ?? "-";
+                }
+                else
+                {
+                    ConnectionStatusText = "Bağlantı Kesildi";
+                    ConnectionStatusColor = "#EF4444"; // Red
+                    ConnectedUrlText = _relayService?.CurrentHubUrl ?? "-";
+                    ConnectedAtText = "Yeniden Bağlanılıyor...";
+                }
+            });
         }
 
         private void HandleFriendRequestReceived(Pocket.Shared.DTOs.FriendRequestDto request)
@@ -176,7 +219,14 @@ namespace Pocket.Client.PageModels
 
                 if (Microsoft.Maui.Controls.Shell.Current != null)
                 {
-                    await Microsoft.Maui.Controls.Shell.Current.DisplayAlert("Sunucu Ayarı", $"Sunucu IP '{cleanIp}' olarak kaydedildi ve yeniden bağlanılıyor.", "Tamam");
+                    if (_relayService.IsConnected)
+                    {
+                        await Microsoft.Maui.Controls.Shell.Current.DisplayAlert("Bağlantı Başarılı", $"Sunucuya '{cleanIp}' adresi üzerinden erişildi!", "Tamam");
+                    }
+                    else
+                    {
+                        await Microsoft.Maui.Controls.Shell.Current.DisplayAlert("Bağlantı Başarısız", $"'{cleanIp}:5200' adresindeki sunucuya ulaşılamadı. Sunucunun açık olduğundan emin olun.", "Tamam");
+                    }
                 }
             }
         }

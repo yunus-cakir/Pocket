@@ -30,7 +30,10 @@ namespace Pocket.Client.Services
         }
 
         public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected;
+        public string CurrentHubUrl { get; private set; } = string.Empty;
+        public DateTime? ConnectedAt { get; private set; }
 
+        public event Action<bool>? OnConnectionStateChanged;
         public event Action<EncryptedPayloadDto>? OnPayloadReceived;
         public event Action<Guid>? OnDeliveryAcknowledged;
         public event Action<FriendRequestDto>? OnFriendRequestReceived;
@@ -44,14 +47,35 @@ namespace Pocket.Client.Services
             }
 
             var token = GenerateDevJwt(userId, username);
+            CurrentHubUrl = GetHubUrl();
 
             _hubConnection = new HubConnectionBuilder()
-                .WithUrl(GetHubUrl(), options =>
+                .WithUrl(CurrentHubUrl, options =>
                 {
                     options.AccessTokenProvider = () => Task.FromResult(token)!;
                 })
                 .WithAutomaticReconnect()
                 .Build();
+
+            // Connection Lifecycle Events
+            _hubConnection.Closed += exception =>
+            {
+                OnConnectionStateChanged?.Invoke(false);
+                return Task.CompletedTask;
+            };
+
+            _hubConnection.Reconnecting += exception =>
+            {
+                OnConnectionStateChanged?.Invoke(false);
+                return Task.CompletedTask;
+            };
+
+            _hubConnection.Reconnected += connectionId =>
+            {
+                ConnectedAt = DateTime.Now;
+                OnConnectionStateChanged?.Invoke(true);
+                return Task.CompletedTask;
+            };
 
             // Map Hub events to C# events
             _hubConnection.On<EncryptedPayloadDto>("ReceivePayload", payload => OnPayloadReceived?.Invoke(payload));
@@ -59,7 +83,18 @@ namespace Pocket.Client.Services
             _hubConnection.On<FriendRequestDto>("ReceiveFriendRequest", request => OnFriendRequestReceived?.Invoke(request));
             _hubConnection.On<FriendAcceptDto>("ReceiveFriendAccept", accept => OnFriendAcceptReceived?.Invoke(accept));
 
-            await _hubConnection.StartAsync();
+            try
+            {
+                await _hubConnection.StartAsync();
+                ConnectedAt = DateTime.Now;
+                OnConnectionStateChanged?.Invoke(true);
+            }
+            catch (Exception ex)
+            {
+                ConnectedAt = null;
+                OnConnectionStateChanged?.Invoke(false);
+                System.Diagnostics.Debug.WriteLine($"[RelayService] Failed to connect to SignalR: {ex.Message}");
+            }
         }
 
         public async Task DisconnectAsync()

@@ -13,7 +13,11 @@ namespace Pocket.Client.Services
         Task SendFriendRequestAsync(FriendRequestDto request);
         Task SendFriendAcceptAsync(FriendAcceptDto accept);
         
+        string CurrentHubUrl { get; }
+        DateTime? ConnectedAt { get; }
+
         // Events received from Hub
+        event Action<bool>? OnConnectionStateChanged;
         event Action<EncryptedPayloadDto>? OnPayloadReceived;
         event Action<Guid>? OnDeliveryAcknowledged;
         event Action<FriendRequestDto>? OnFriendRequestReceived;

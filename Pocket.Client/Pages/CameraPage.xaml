@@ -68,10 +68,25 @@
                         </CollectionView.ItemTemplate>
                     </CollectionView>
 
-                    <!-- Server Settings Box (Row 2) -->
+                    <!-- Server Settings & Status Box (Row 2) -->
                     <Border Grid.Row="2" Margin="0,10,0,20" Padding="15" Stroke="#333333" StrokeShape="RoundRectangle 16" BackgroundColor="#111111">
-                        <VerticalStackLayout Spacing="8">
-                            <Label Text="⚙️ Sunucu Bağlantı IP'si" TextColor="#AAAAAA" FontSize="13" FontAttributes="Bold" />
+                        <VerticalStackLayout Spacing="10">
+                            <!-- Status Header -->
+                            <Grid ColumnDefinitions="Auto, *, Auto">
+                                <HorizontalStackLayout Grid.Column="0" Spacing="6" VerticalOptions="Center">
+                                    <Border WidthRequest="10" HeightRequest="10" StrokeShape="RoundRectangle 5" Stroke="Transparent" BackgroundColor="{Binding ShellModel.ConnectionStatusColor}" VerticalOptions="Center" />
+                                    <Label Text="{Binding ShellModel.ConnectionStatusText}" TextColor="{Binding ShellModel.ConnectionStatusColor}" FontSize="13" FontAttributes="Bold" VerticalOptions="Center" />
+                                </HorizontalStackLayout>
+                                <Label Grid.Column="2" Text="{Binding ShellModel.ConnectedAtText, StringFormat='Saat: {0}'}" TextColor="#777777" FontSize="11" VerticalOptions="Center" />
+                            </Grid>
+
+                            <!-- Active URL info -->
+                            <Label Text="{Binding ShellModel.ConnectedUrlText, StringFormat='Aktif Adres: {0}'}" TextColor="#888888" FontSize="11" LineBreakMode="TailTruncation" />
+
+                            <BoxView HeightRequest="1" BackgroundColor="#222222" Margin="0,2" />
+
+                            <!-- IP Input & Save Button -->
+                            <Label Text="⚙️ Sunucu IP Değiştir:" TextColor="#AAAAAA" FontSize="12" FontAttributes="Bold" />
                             <Grid ColumnDefinitions="*, Auto" ColumnSpacing="10">
                                 <Border Grid.Column="0" Stroke="#222222" StrokeShape="RoundRectangle 10" BackgroundColor="#1A1A1A" Padding="10,0" HeightRequest="40">
                                     <Entry Text="{Binding ShellModel.ServerIp}" Placeholder="Örn: 192.168.1.35 veya 10.0.2.2" PlaceholderColor="Gray" TextColor="White" FontSize="13" VerticalOptions="Center" />
