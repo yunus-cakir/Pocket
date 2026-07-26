@@ -41,20 +41,22 @@ namespace Pocket.Client.PageModels
         [RelayCommand]
         private async Task SearchUserAsync()
         {
-            if (string.IsNullOrWhiteSpace(SearchQuery))
+            string cleanQuery = (SearchQuery ?? string.Empty).Trim().TrimStart('@');
+
+            if (string.IsNullOrWhiteSpace(cleanQuery))
             {
-                SearchMessage = "Please enter a username.";
+                SearchMessage = "Lütfen bir kullanıcı adı girin.";
                 SearchResult = null;
                 return;
             }
 
             IsSearching = true;
-            SearchMessage = "Searching...";
+            SearchMessage = "Aranıyor...";
             SearchResult = null;
 
             try
             {
-                var result = await _relayService.LookupUserAsync(SearchQuery);
+                var result = await _relayService.LookupUserAsync(cleanQuery);
                 
                 if (result != null)
                 {

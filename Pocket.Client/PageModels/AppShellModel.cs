@@ -90,6 +90,15 @@ namespace Pocket.Client.PageModels
 
                 // Connect to Relay Server securely
                 await _relayService.ConnectAsync(CurrentUser.Id, CurrentUser.Username);
+                if (_relayService.IsConnected)
+                {
+                    await _relayService.RegisterUserAsync(new Pocket.Shared.DTOs.UserIdentityDto
+                    {
+                        UserId = CurrentUser.Id,
+                        Username = CurrentUser.Username,
+                        PublicKey = CurrentUser.PublicKey
+                    });
+                }
 
                 // Subscribe to real-time events
                 _relayService.OnConnectionStateChanged -= HandleConnectionStateChanged;
@@ -216,6 +225,15 @@ namespace Pocket.Client.PageModels
             if (_relayService != null && CurrentUser != null && !string.IsNullOrEmpty(CurrentUser.Id))
             {
                 await _relayService.ConnectAsync(CurrentUser.Id, CurrentUser.Username);
+                if (_relayService.IsConnected)
+                {
+                    await _relayService.RegisterUserAsync(new Pocket.Shared.DTOs.UserIdentityDto
+                    {
+                        UserId = CurrentUser.Id,
+                        Username = CurrentUser.Username,
+                        PublicKey = CurrentUser.PublicKey
+                    });
+                }
 
                 if (Microsoft.Maui.Controls.Shell.Current != null)
                 {
@@ -268,6 +286,15 @@ namespace Pocket.Client.PageModels
                         
                         // Reconnect to generate a new JWT with the updated username
                         await _relayService.ConnectAsync(CurrentUser.Id, CurrentUser.Username);
+                        if (_relayService.IsConnected)
+                        {
+                            await _relayService.RegisterUserAsync(new Pocket.Shared.DTOs.UserIdentityDto
+                            {
+                                UserId = CurrentUser.Id,
+                                Username = CurrentUser.Username,
+                                PublicKey = CurrentUser.PublicKey
+                            });
+                        }
                     }
                 }
             }

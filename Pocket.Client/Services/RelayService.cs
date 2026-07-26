@@ -70,11 +70,14 @@ namespace Pocket.Client.Services
                 return Task.CompletedTask;
             };
 
-            _hubConnection.Reconnected += connectionId =>
+            _hubConnection.Reconnected += async connectionId =>
             {
                 ConnectedAt = DateTime.Now;
+                if (_lastRegisteredIdentity != null && IsConnected)
+                {
+                    await RegisterUserAsync(_lastRegisteredIdentity);
+                }
                 OnConnectionStateChanged?.Invoke(true);
-                return Task.CompletedTask;
             };
 
             // Map Hub events to C# events
@@ -118,6 +121,17 @@ namespace Pocket.Client.Services
             if (IsConnected)
             {
                 await _hubConnection!.SendAsync("ConfirmDelivery", senderId, messageId);
+            }
+        }
+
+        private UserIdentityDto? _lastRegisteredIdentity;
+
+        public async Task RegisterUserAsync(UserIdentityDto identity)
+        {
+            _lastRegisteredIdentity = identity;
+            if (IsConnected)
+            {
+                await _hubConnection!.SendAsync("RegisterUser", identity);
             }
         }
 

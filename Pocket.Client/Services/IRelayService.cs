@@ -10,6 +10,7 @@ namespace Pocket.Client.Services
         Task SendPayloadAsync(EncryptedPayloadDto payload);
         Task ConfirmDeliveryAsync(string senderId, Guid messageId);
         Task<UserIdentityDto?> LookupUserAsync(string username);
+        Task RegisterUserAsync(UserIdentityDto identity);
         Task SendFriendRequestAsync(FriendRequestDto request);
         Task SendFriendAcceptAsync(FriendAcceptDto accept);
         
