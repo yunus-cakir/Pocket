@@ -50,13 +50,16 @@
             </CollectionView.EmptyView>
             <CollectionView.ItemTemplate>
                 <DataTemplate x:DataType="models:Friend">
-                    <Grid Padding="10" ColumnDefinitions="Auto, *">
+                    <Grid Padding="10" ColumnDefinitions="Auto, *, Auto">
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding OpenChatCommand}" />
+                        </Grid.GestureRecognizers>
                         <BoxView Grid.Column="0" WidthRequest="40" HeightRequest="40" Color="Gray" CornerRadius="20" />
                         <VerticalStackLayout Grid.Column="1" Margin="10,0,0,0">
-                            <!-- Note: Binding to Friend.cs model -->
                             <Label Text="{Binding Username}" TextColor="White" FontSize="16" FontAttributes="Bold" />
-                            <Label Text="Tap to chat" TextColor="Gray" FontSize="14" />
+                            <Label Text="🔒 Sohbet için dokun" TextColor="#10B981" FontSize="13" />
                         </VerticalStackLayout>
+                        <Label Grid.Column="2" Text="💬" FontSize="18" VerticalOptions="Center" />
                     </Grid>
                 </DataTemplate>
             </CollectionView.ItemTemplate>

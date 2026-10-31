@@ -1,11 +1,17 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.Maui.Controls;
 using SQLite;
 using System;
 using Pocket.Shared.Enums;
 
 namespace Pocket.Client.Models
 {
-    public class DirectMessage
+    public partial class DirectMessage : ObservableObject
     {
+        private SyncStatus _syncStatus = SyncStatus.Pending;
+        private string _referencedPostPath = string.Empty;
+        private string _referencedPostCaption = string.Empty;
+
         [PrimaryKey]
         public Guid Id { get; set; }
 
@@ -24,6 +30,65 @@ namespace Pocket.Client.Models
         [Indexed]
         public DateTime SentAt { get; set; } = DateTime.UtcNow;
 
-        public SyncStatus SyncStatus { get; set; } = SyncStatus.Pending;
+        public SyncStatus SyncStatus
+        {
+            get => _syncStatus;
+            set
+            {
+                if (SetProperty(ref _syncStatus, value))
+                {
+                    OnPropertyChanged(nameof(StatusText));
+                }
+            }
+        }
+
+        [Ignore]
+        public bool HasMediaReference => MediaPostId.HasValue && !string.IsNullOrEmpty(ReferencedPostPath);
+
+        [Ignore]
+        public string ReferencedPostPath
+        {
+            get => _referencedPostPath;
+            set
+            {
+                if (SetProperty(ref _referencedPostPath, value))
+                {
+                    OnPropertyChanged(nameof(HasMediaReference));
+                }
+            }
+        }
+
+        [Ignore]
+        public string ReferencedPostCaption
+        {
+            get => string.IsNullOrWhiteSpace(_referencedPostCaption)
+                ? "📸 Fotoğrafa yanıt"
+                : $"📸 {_referencedPostCaption}";
+            set => SetProperty(ref _referencedPostCaption, value);
+        }
+
+        [Ignore]
+        public bool HasReaction => !string.IsNullOrWhiteSpace(ReactionEmoji);
+
+        [Ignore]
+        public bool HasText => !string.IsNullOrWhiteSpace(TextContent);
+
+        [Ignore]
+        public LayoutOptions BubbleAlignment => IsIncoming ? LayoutOptions.Start : LayoutOptions.End;
+
+        [Ignore]
+        public string BubbleColor => IsIncoming ? "#1F2937" : "#2563EB";
+
+        [Ignore]
+        public string StatusText => IsIncoming
+            ? $"🔐 E2EE Çözüldü • {SentAt.ToLocalTime():HH:mm}"
+            : SyncStatus switch
+            {
+                SyncStatus.Pending => $"⏳ Bekliyor • {SentAt.ToLocalTime():HH:mm}",
+                SyncStatus.Sent => $"🔒 E2EE Gönderildi • {SentAt.ToLocalTime():HH:mm}",
+                SyncStatus.Delivered => $"✅ E2EE İletildi & Silindi • {SentAt.ToLocalTime():HH:mm}",
+                SyncStatus.Failed => $"❌ Başarısız • {SentAt.ToLocalTime():HH:mm}",
+                _ => string.Empty
+            };
     }
 }

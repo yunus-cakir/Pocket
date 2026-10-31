@@ -9,7 +9,7 @@ namespace Pocket.Client.Services
     public class RelayService : IRelayService, IAsyncDisposable
     {
         private HubConnection? _hubConnection;
-        
+
         public static string GetDefaultServerIp()
         {
 #if ANDROID
@@ -26,6 +26,7 @@ namespace Pocket.Client.Services
             {
                 ip = GetDefaultServerIp();
             }
+
             return $"http://{ip.Trim()}:5200/hubs/relay";
         }
 
@@ -50,10 +51,7 @@ namespace Pocket.Client.Services
             CurrentHubUrl = GetHubUrl();
 
             _hubConnection = new HubConnectionBuilder()
-                .WithUrl(CurrentHubUrl, options =>
-                {
-                    options.AccessTokenProvider = () => Task.FromResult(token)!;
-                })
+                .WithUrl(CurrentHubUrl, options => { options.AccessTokenProvider = () => Task.FromResult(token)!; })
                 .WithAutomaticReconnect()
                 .Build();
 
@@ -77,13 +75,15 @@ namespace Pocket.Client.Services
                 {
                     await RegisterUserAsync(_lastRegisteredIdentity);
                 }
+
                 OnConnectionStateChanged?.Invoke(true);
             };
 
             // Map Hub events to C# events
             _hubConnection.On<EncryptedPayloadDto>("ReceivePayload", payload => OnPayloadReceived?.Invoke(payload));
             _hubConnection.On<Guid>("AcknowledgeDelivery", messageId => OnDeliveryAcknowledged?.Invoke(messageId));
-            _hubConnection.On<FriendRequestDto>("ReceiveFriendRequest", request => OnFriendRequestReceived?.Invoke(request));
+            _hubConnection.On<FriendRequestDto>("ReceiveFriendRequest",
+                request => OnFriendRequestReceived?.Invoke(request));
             _hubConnection.On<FriendAcceptDto>("ReceiveFriendAccept", accept => OnFriendAcceptReceived?.Invoke(accept));
 
             try
@@ -141,6 +141,7 @@ namespace Pocket.Client.Services
             {
                 return await _hubConnection!.InvokeAsync<UserIdentityDto?>("LookupUser", username);
             }
+
             return null;
         }
 
@@ -173,7 +174,8 @@ namespace Pocket.Client.Services
             };
 
             // Using an arbitrary key just to satisfy the token structure
-            var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes("SuperSecretDummyKeyForDevelopmentPurposesOnly!!!"));
+            var key = new SymmetricSecurityKey(
+                System.Text.Encoding.UTF8.GetBytes("SuperSecretDummyKeyForDevelopmentPurposesOnly!!!"));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(

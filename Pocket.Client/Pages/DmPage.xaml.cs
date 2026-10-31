@@ -10,5 +10,14 @@ namespace Pocket.Client.Pages
             InitializeComponent();
             BindingContext = viewModel;
         }
+
+        protected override async void OnAppearing()
+        {
+            base.OnAppearing();
+            if (BindingContext is DmPageModel vm)
+            {
+                await vm.LoadConversationAsync();
+            }
+        }
     }
 }

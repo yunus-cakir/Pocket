@@ -9,6 +9,8 @@ namespace Pocket.Client.Data
     public class LocalDatabase
     {
         private SQLiteAsyncConnection? _connection;
+        private readonly System.Threading.SemaphoreSlim _initLock = new(1, 1);
+        private bool _isInitialized;
 
         public LocalDatabase()
         {
@@ -16,15 +18,28 @@ namespace Pocket.Client.Data
 
         private async Task InitAsync()
         {
-            if (_connection is not null)
+            if (_isInitialized)
                 return;
 
-            _connection = new SQLiteAsyncConnection(DatabaseConstants.DatabasePath, DatabaseConstants.Flags);
+            await _initLock.WaitAsync();
+            try
+            {
+                if (_isInitialized)
+                    return;
 
-            await _connection.CreateTableAsync<User>();
-            await _connection.CreateTableAsync<Friend>();
-            await _connection.CreateTableAsync<MediaPost>();
-            await _connection.CreateTableAsync<DirectMessage>();
+                _connection = new SQLiteAsyncConnection(DatabaseConstants.DatabasePath, DatabaseConstants.Flags);
+
+                await _connection.CreateTableAsync<User>();
+                await _connection.CreateTableAsync<Friend>();
+                await _connection.CreateTableAsync<MediaPost>();
+                await _connection.CreateTableAsync<DirectMessage>();
+
+                _isInitialized = true;
+            }
+            finally
+            {
+                _initLock.Release();
+            }
         }
 
         #region User Operations
@@ -82,11 +97,20 @@ namespace Pocket.Client.Data
                 .ToListAsync();
         }
 
-        public async Task<List<MediaPost>> GetRollcallMediaPostsAsync()
+        public async Task<MediaPost?> GetMediaPostAsync(Guid id)
         {
             await InitAsync();
             return await _connection!.Table<MediaPost>()
-                .Where(m => m.IsIncludedInRollcall)
+                .Where(m => m.Id == id)
+                .FirstOrDefaultAsync();
+        }
+
+        public async Task<List<MediaPost>> GetRollcallMediaPostsAsync()
+        {
+            await InitAsync();
+            var cutoff = DateTime.UtcNow.AddDays(-7);
+            return await _connection!.Table<MediaPost>()
+                .Where(m => m.IsIncludedInRollcall && m.SentAt >= cutoff)
                 .OrderByDescending(m => m.SentAt)
                 .ToListAsync();
         }
@@ -112,6 +136,23 @@ namespace Pocket.Client.Data
         #endregion
 
         #region DirectMessage Operations
+        public async Task<DirectMessage?> GetDirectMessageAsync(Guid id)
+        {
+            await InitAsync();
+            return await _connection!.Table<DirectMessage>()
+                .Where(dm => dm.Id == id)
+                .FirstOrDefaultAsync();
+        }
+
+        public async Task<List<DirectMessage>> GetDirectMessagesForFriendAsync(string friendId)
+        {
+            await InitAsync();
+            return await _connection!.Table<DirectMessage>()
+                .Where(dm => dm.FriendId == friendId)
+                .OrderBy(dm => dm.SentAt)
+                .ToListAsync();
+        }
+
         public async Task<List<DirectMessage>> GetDirectMessagesForPostAsync(Guid mediaPostId)
         {
             await InitAsync();

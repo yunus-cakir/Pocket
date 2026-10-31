@@ -54,6 +54,7 @@ namespace Pocket.Client.Platforms.Android.Handlers
         internal void StartCamera(SurfaceTexture? surface)
         {
             if (surface == null) return;
+            if (_camera != null) return;
 
             try
             {
@@ -148,11 +149,27 @@ namespace Pocket.Client.Platforms.Android.Handlers
 
         internal void StopCamera()
         {
-            if (_camera != null)
+            var cam = _camera;
+            _camera = null;
+            if (cam != null)
             {
-                _camera.StopPreview();
-                _camera.Release();
-                _camera = null;
+                try
+                {
+                    cam.StopPreview();
+                }
+                catch (System.Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Camera StopPreview Error: {ex.Message}");
+                }
+
+                try
+                {
+                    cam.Release();
+                }
+                catch (System.Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Camera Release Error: {ex.Message}");
+                }
             }
         }
 

@@ -55,14 +55,18 @@
                     <CollectionView Grid.Row="1" ItemsSource="{Binding ShellModel.Friends}">
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="models:Friend">
-                                <Grid ColumnDefinitions="Auto, *" Margin="0,0,0,15">
+                                <Grid ColumnDefinitions="Auto, *, Auto" Margin="0,0,0,15">
+                                    <Grid.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding OpenChatCommand}" />
+                                    </Grid.GestureRecognizers>
                                     <Border Grid.Column="0" WidthRequest="50" HeightRequest="50" StrokeShape="RoundRectangle 25" Stroke="#222222" BackgroundColor="#1A1A1A">
                                         <Image Source="{Binding ProfilePictureUrl}" Aspect="AspectFill" />
                                     </Border>
                                     <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Margin="15,0,0,0">
                                         <Label Text="{Binding DisplayName}" TextColor="White" FontSize="16" FontAttributes="Bold" />
-                                        <Label Text="Pocket User" TextColor="Gray" FontSize="12" />
+                                        <Label Text="🔒 E2EE Sohbet için dokun" TextColor="Gray" FontSize="12" />
                                     </VerticalStackLayout>
+                                    <Label Grid.Column="2" Text="💬" FontSize="18" VerticalOptions="Center" Margin="10,0" />
                                 </Grid>
                             </DataTemplate>
                         </CollectionView.ItemTemplate>
@@ -161,9 +165,27 @@
                                     <Image Source="{Binding MediaLocalPath}" Aspect="AspectFill" HorizontalOptions="Fill" VerticalOptions="Fill" />
                                 </Border>
                                 
-                                <Border Grid.Row="2" IsVisible="{Binding Caption, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}" Stroke="#333333" StrokeShape="RoundRectangle 20" BackgroundColor="#1A1A1A" Padding="20,12" Margin="20,0" HorizontalOptions="Center" VerticalOptions="Center" MaximumWidthRequest="340">
-                                    <Label Text="{Binding Caption}" TextColor="White" FontSize="16" HorizontalOptions="Center" HorizontalTextAlignment="Center" />
-                                </Border>
+                                <VerticalStackLayout Grid.Row="2" Spacing="10" HorizontalOptions="Center" VerticalOptions="Center">
+                                    <Border IsVisible="{Binding Caption, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}" Stroke="#333333" StrokeShape="RoundRectangle 20" BackgroundColor="#1A1A1A" Padding="20,12" Margin="20,0" HorizontalOptions="Center" MaximumWidthRequest="340">
+                                        <Label Text="{Binding Caption}" TextColor="White" FontSize="16" HorizontalOptions="Center" HorizontalTextAlignment="Center" />
+                                    </Border>
+
+                                    <Border Stroke="#262626" StrokeShape="RoundRectangle 16" BackgroundColor="#111111" Padding="14,8" HorizontalOptions="Center">
+                                        <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                                            <Label Text="{Binding HeaderTitleText}" TextColor="White" FontSize="13" FontAttributes="Bold" VerticalOptions="Center" />
+                                            <Label Text="•" TextColor="#666666" FontSize="13" VerticalOptions="Center" />
+                                            <Label Text="{Binding StatusBadgeText}" TextColor="#10B981" FontSize="12" VerticalOptions="Center" />
+                                        </HorizontalStackLayout>
+                                    </Border>
+
+                                    <!-- Reactions & Threaded Reply Bar (BR-302) -->
+                                    <HorizontalStackLayout Spacing="10" HorizontalOptions="Center" Margin="0,4,0,0">
+                                        <Button Text="❤️" Command="{Binding ReactHeartCommand}" BackgroundColor="#1A1A1A" TextColor="White" FontSize="16" CornerRadius="18" HeightRequest="38" WidthRequest="48" Padding="0" />
+                                        <Button Text="🔥" Command="{Binding ReactFireCommand}" BackgroundColor="#1A1A1A" TextColor="White" FontSize="16" CornerRadius="18" HeightRequest="38" WidthRequest="48" Padding="0" />
+                                        <Button Text="😂" Command="{Binding ReactLaughCommand}" BackgroundColor="#1A1A1A" TextColor="White" FontSize="16" CornerRadius="18" HeightRequest="38" WidthRequest="48" Padding="0" />
+                                        <Button Text="💬 Yanıtla" Command="{Binding ReplyCommand}" BackgroundColor="#2563EB" TextColor="White" FontAttributes="Bold" FontSize="13" CornerRadius="18" HeightRequest="38" Padding="16,0" />
+                                    </HorizontalStackLayout>
+                                </VerticalStackLayout>
                                 <Grid Grid.Row="3" />
                             </Grid>
                         </DataTemplate>
@@ -193,7 +215,7 @@
             <!-- Chat Page (Column 2) -->
             <Grid x:Name="ChatPanel" Grid.Column="2" BackgroundColor="#000000">
                 <Grid Padding="20" RowDefinitions="Auto, *">
-                    <Grid Grid.Row="0" ColumnDefinitions="Auto, *, Auto" Margin="0, 20, 0, 0">
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto, *, Auto" Margin="0, 20, 0, 15">
                         <Border Grid.Column="0" WidthRequest="44" HeightRequest="44" StrokeShape="RoundRectangle 22" Stroke="#333333" BackgroundColor="#1A1A1A" HorizontalOptions="Start" VerticalOptions="Center">
                             <Label Text="🡐" TextColor="White" FontSize="20" FontAttributes="Bold" HorizontalOptions="Center" VerticalOptions="Center" />
                             <Border.GestureRecognizers>
@@ -201,14 +223,38 @@
                             </Border.GestureRecognizers>
                         </Border>
                         
-                        <Label Grid.Column="1" Text="Sohbetler" TextColor="White" FontSize="22" FontAttributes="Bold" HorizontalOptions="Center" VerticalOptions="Center" />
+                        <Label Grid.Column="1" Text="💬 Sohbetler (E2EE)" TextColor="White" FontSize="20" FontAttributes="Bold" HorizontalOptions="Center" VerticalOptions="Center" />
                         
-                        <BoxView Grid.Column="2" WidthRequest="44" Color="Transparent" />
+                        <Button Grid.Column="2" Text="+ Ekle" Command="{Binding ShellModel.AddFriendCommand}" BackgroundColor="#2563EB" TextColor="White" FontSize="12" CornerRadius="16" HeightRequest="34" Padding="12,0" VerticalOptions="Center" />
                     </Grid>
                     
-                    <VerticalStackLayout Grid.Row="1" VerticalOptions="Center" HorizontalOptions="Center" Spacing="10">
-                        <Label Text="💬 Direct Messages (Placeholder)" FontSize="20" TextColor="Gray" HorizontalOptions="Center" />
-                    </VerticalStackLayout>
+                    <CollectionView Grid.Row="1" ItemsSource="{Binding ShellModel.Friends}">
+                        <CollectionView.EmptyView>
+                            <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="12" Padding="20">
+                                <Label Text="🔒 Henüz sohbet yok" FontSize="18" FontAttributes="Bold" TextColor="White" HorizontalOptions="Center" />
+                                <Label Text="Uçtan uca şifreli ve gizli klavyeli (Incognito) mesajlaşmak için bir arkadaş ekleyin." FontSize="13" TextColor="#888888" HorizontalTextAlignment="Center" HorizontalOptions="Center" />
+                            </VerticalStackLayout>
+                        </CollectionView.EmptyView>
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="models:Friend">
+                                <Border Stroke="#222222" StrokeShape="RoundRectangle 16" BackgroundColor="#111111" Padding="14" Margin="0,0,0,12">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding OpenChatCommand}" />
+                                    </Border.GestureRecognizers>
+                                    <Grid ColumnDefinitions="Auto, *, Auto" ColumnSpacing="12">
+                                        <Border Grid.Column="0" WidthRequest="48" HeightRequest="48" StrokeShape="RoundRectangle 24" Stroke="#333333" BackgroundColor="#1A1A1A">
+                                            <Image Source="{Binding ProfilePictureUrl}" Aspect="AspectFill" />
+                                        </Border>
+                                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                                            <Label Text="{Binding DisplayName}" TextColor="White" FontSize="16" FontAttributes="Bold" />
+                                            <Label Text="🕵️ Gizli Mesajlaşma (E2EE) için dokun" TextColor="#10B981" FontSize="12" />
+                                        </VerticalStackLayout>
+                                        <Label Grid.Column="2" Text="➔" TextColor="White" FontSize="18" VerticalOptions="Center" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
                 </Grid>
             </Grid>
 

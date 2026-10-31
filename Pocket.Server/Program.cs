@@ -8,7 +8,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.WebHost.UseUrls("http://0.0.0.0:5200");
 
-builder.Services.AddSignalR();
+builder.Services.AddSignalR(options =>
+{
+    options.MaximumReceiveMessageSize = 15 * 1024 * 1024; // 15 MB for E2EE photo/video payloads
+});
 builder.Services.AddSingleton<TransientMemoryStore>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

@@ -27,7 +27,7 @@ namespace Pocket.Client.PageModels
 
         public bool HasSearchMessage => !string.IsNullOrEmpty(SearchMessage);
 
-        public ObservableCollection<Models.Friend> Friends { get; } = new();
+        public ObservableCollection<Models.Friend> Friends => _appShellModel.Friends;
 
         private readonly IRelayService _relayService;
         private readonly AppShellModel _appShellModel;

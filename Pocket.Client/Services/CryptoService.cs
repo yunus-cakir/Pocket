@@ -29,7 +29,12 @@ namespace Pocket.Client.Services
             using var peerEcdh = ECDiffieHellman.Create();
             peerEcdh.ImportSubjectPublicKeyInfo(Convert.FromBase64String(peerPublicKeyBase64), out _);
 
-            return myEcdh.DeriveKeyMaterial(peerEcdh.PublicKey);
+            var rawSecret = myEcdh.DeriveKeyFromHash(peerEcdh.PublicKey, HashAlgorithmName.SHA256);
+            return HKDF.DeriveKey(
+                HashAlgorithmName.SHA256,
+                rawSecret,
+                outputLength: 32,
+                info: Encoding.UTF8.GetBytes("Pocket.E2EE.AES256GCM.v1"));
         }
 
         public byte[] EncryptData(byte[] data, byte[] sharedSecret)
@@ -61,6 +66,11 @@ namespace Pocket.Client.Services
         {
             const int tagSize = 16;
             const int nonceSize = 12;
+
+            if (encryptedData == null || encryptedData.Length < nonceSize + tagSize)
+            {
+                throw new CryptographicException("Invalid encrypted payload length.");
+            }
 
             using var aes = new AesGcm(sharedSecret, tagSize);
 

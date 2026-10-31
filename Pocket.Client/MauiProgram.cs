@@ -24,6 +24,9 @@ namespace Pocket.Client
 #if ANDROID
                     handlers.AddHandler(typeof(Pocket.Client.Controls.CameraView), typeof(Pocket.Client.Platforms.Android.Handlers.CameraViewHandler));
                     handlers.AddHandler(typeof(Pocket.Client.Controls.HorizontalSwipeView), typeof(Pocket.Client.Platforms.Android.Handlers.HorizontalSwipeViewHandler));
+                    handlers.AddHandler(typeof(Pocket.Client.Controls.IncognitoEntry), typeof(Pocket.Client.Platforms.Android.Handlers.IncognitoEntryHandler));
+#elif IOS
+                    handlers.AddHandler(typeof(Pocket.Client.Controls.IncognitoEntry), typeof(Pocket.Client.Platforms.iOS.Handlers.IncognitoEntryHandler));
 #endif
                 });
 

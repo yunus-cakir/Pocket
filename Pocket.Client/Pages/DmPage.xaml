@@ -2,15 +2,172 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:pm="clr-namespace:Pocket.Client.PageModels"
+             xmlns:models="clr-namespace:Pocket.Client.Models"
+             xmlns:controls="clr-namespace:Pocket.Client.Controls"
              x:Class="Pocket.Client.Pages.DmPage"
              x:DataType="pm:DmPageModel"
              Title="Direct Messages"
-             BackgroundColor="#000000">
+             BackgroundColor="#000000"
+             Shell.NavBarIsVisible="False">
 
-    <Grid VerticalOptions="Center" HorizontalOptions="Center" BackgroundColor="#000000">
-        <VerticalStackLayout Spacing="10" HorizontalOptions="Center">
-            <Label Text="💬 Direct Messages (Placeholder)" FontSize="24" TextColor="White" HorizontalOptions="Center" />
-            <Label Text="{Binding FriendId, StringFormat='Friend ID: {0}'}" TextColor="Gray" HorizontalOptions="Center" />
-        </VerticalStackLayout>
+    <Grid RowDefinitions="Auto, *, Auto, Auto, Auto" BackgroundColor="#000000">
+
+        <!-- Row 0: Top Header -->
+        <Border Grid.Row="0" BackgroundColor="#111111" Stroke="#222222" StrokeThickness="1" StrokeShape="RoundRectangle 0,0,20,20" Padding="16,14">
+            <Grid ColumnDefinitions="Auto, *, Auto" ColumnSpacing="12">
+                <Border Grid.Column="0" WidthRequest="42" HeightRequest="42" StrokeShape="RoundRectangle 21" Stroke="#333333" BackgroundColor="#1A1A1A" VerticalOptions="Center">
+                    <Label Text="🡐" TextColor="White" FontSize="18" FontAttributes="Bold" HorizontalOptions="Center" VerticalOptions="Center" />
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding GoBackCommand}" />
+                    </Border.GestureRecognizers>
+                </Border>
+
+                <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                    <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                        <Label Text="{Binding FriendDisplayName}" TextColor="White" FontSize="18" FontAttributes="Bold" />
+                        <Label Text="{Binding FriendUsername}" TextColor="#888888" FontSize="13" VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                    <Label Text="🕵️ Gizli Klavye (Incognito) • 🔒 Uçtan Uca Şifreli" TextColor="#10B981" FontSize="11" />
+                </VerticalStackLayout>
+            </Grid>
+        </Border>
+
+        <!-- Row 1: Messages CollectionView -->
+        <CollectionView Grid.Row="1"
+                        x:Name="MessagesCollectionView"
+                        ItemsSource="{Binding Messages}"
+                        Margin="12,8"
+                        ItemsUpdatingScrollMode="KeepLastItemInView">
+            <CollectionView.EmptyView>
+                <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="8" Padding="30">
+                    <Label Text="🔐 Uçtan Uca Şifreli Sohbet" TextColor="White" FontSize="18" FontAttributes="Bold" HorizontalOptions="Center" />
+                    <Label Text="Gönderdiğiniz mesajlar ve fotoğraf reaksiyonları yalnızca cihazlarınızda saklanır ve klavye geçmişine kaydedilmez."
+                           TextColor="#888888" FontSize="13" HorizontalTextAlignment="Center" HorizontalOptions="Center" />
+                </VerticalStackLayout>
+            </CollectionView.EmptyView>
+
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="models:DirectMessage">
+                    <Grid Padding="4,6">
+                        <Border HorizontalOptions="{Binding BubbleAlignment}"
+                                BackgroundColor="{Binding BubbleColor}"
+                                Stroke="#333333"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 18"
+                                Padding="14,10"
+                                MaximumWidthRequest="300">
+                            <VerticalStackLayout Spacing="6">
+
+                                <!-- Threaded Photo Preview (BR-302) -->
+                                <Border IsVisible="{Binding HasMediaReference}"
+                                        BackgroundColor="#111111"
+                                        Stroke="#374151"
+                                        StrokeShape="RoundRectangle 12"
+                                        Padding="8">
+                                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10">
+                                        <Border Grid.Column="0" WidthRequest="48" HeightRequest="48" StrokeShape="RoundRectangle 8" Stroke="Transparent">
+                                            <Image Source="{Binding ReferencedPostPath}" Aspect="AspectFill" WidthRequest="48" HeightRequest="48" />
+                                        </Border>
+                                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                                            <Label Text="Fotoğrafa Yanıt" TextColor="#9CA3AF" FontSize="11" FontAttributes="Bold" />
+                                            <Label Text="{Binding ReferencedPostCaption}" TextColor="White" FontSize="12" LineBreakMode="TailTruncation" />
+                                        </VerticalStackLayout>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Emoji Reaction -->
+                                <Label IsVisible="{Binding HasReaction}"
+                                       Text="{Binding ReactionEmoji}"
+                                       FontSize="32"
+                                       HorizontalOptions="Start" />
+
+                                <!-- Message Text -->
+                                <Label IsVisible="{Binding HasText}"
+                                       Text="{Binding TextContent}"
+                                       TextColor="White"
+                                       FontSize="15" />
+
+                                <!-- E2EE & Timestamp Footer -->
+                                <Label Text="{Binding StatusText}"
+                                       TextColor="#D1D5DB"
+                                       FontSize="10"
+                                       HorizontalOptions="End" />
+                            </VerticalStackLayout>
+                        </Border>
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+
+        <!-- Row 2: Active Photo Reply Banner (BR-302) -->
+        <Border Grid.Row="2"
+                IsVisible="{Binding HasReplyPost}"
+                BackgroundColor="#18181B"
+                Stroke="#27272A"
+                StrokeThickness="1"
+                Margin="12,4,12,0"
+                Padding="10,8"
+                StrokeShape="RoundRectangle 14">
+            <Grid ColumnDefinitions="Auto, *, Auto" ColumnSpacing="10">
+                <Border Grid.Column="0" WidthRequest="42" HeightRequest="42" StrokeShape="RoundRectangle 8" Stroke="#333333">
+                    <Image Source="{Binding ReplyingToPost.MediaLocalPath}" Aspect="AspectFill" />
+                </Border>
+                <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                    <Label Text="📸 Fotoğrafa yanıt veriliyor" TextColor="#10B981" FontSize="12" FontAttributes="Bold" />
+                    <Label Text="{Binding ReplyingToPost.Caption}" TextColor="#D4D4D8" FontSize="12" LineBreakMode="TailTruncation" />
+                </VerticalStackLayout>
+                <Button Grid.Column="2"
+                        Text="✕"
+                        Command="{Binding ClearReplyPostCommand}"
+                        BackgroundColor="#27272A"
+                        TextColor="White"
+                        FontSize="13"
+                        WidthRequest="36"
+                        HeightRequest="36"
+                        CornerRadius="18"
+                        Padding="0"
+                        VerticalOptions="Center" />
+            </Grid>
+        </Border>
+
+        <!-- Row 3: Quick Emoji Reactions Bar (BR-302) -->
+        <HorizontalStackLayout Grid.Row="3" Spacing="10" HorizontalOptions="Center" Margin="12,6">
+            <Button Text="❤️" Command="{Binding SendReactionCommand}" CommandParameter="❤️" BackgroundColor="#1A1A1A" TextColor="White" FontSize="16" CornerRadius="18" HeightRequest="38" WidthRequest="52" Padding="0" />
+            <Button Text="🔥" Command="{Binding SendReactionCommand}" CommandParameter="🔥" BackgroundColor="#1A1A1A" TextColor="White" FontSize="16" CornerRadius="18" HeightRequest="38" WidthRequest="52" Padding="0" />
+            <Button Text="😂" Command="{Binding SendReactionCommand}" CommandParameter="😂" BackgroundColor="#1A1A1A" TextColor="White" FontSize="16" CornerRadius="18" HeightRequest="38" WidthRequest="52" Padding="0" />
+            <Button Text="😮" Command="{Binding SendReactionCommand}" CommandParameter="😮" BackgroundColor="#1A1A1A" TextColor="White" FontSize="16" CornerRadius="18" HeightRequest="38" WidthRequest="52" Padding="0" />
+            <Button Text="👏" Command="{Binding SendReactionCommand}" CommandParameter="👏" BackgroundColor="#1A1A1A" TextColor="White" FontSize="16" CornerRadius="18" HeightRequest="38" WidthRequest="52" Padding="0" />
+        </HorizontalStackLayout>
+
+        <!-- Row 4: Incognito Message Input Bar (BR-301) -->
+        <Border Grid.Row="4" BackgroundColor="#111111" Stroke="#222222" StrokeThickness="1" StrokeShape="RoundRectangle 20,20,0,0" Padding="12,10">
+            <Grid ColumnDefinitions="*, Auto" ColumnSpacing="10">
+                <Border Grid.Column="0" Stroke="#333333" StrokeThickness="1" StrokeShape="RoundRectangle 22" BackgroundColor="#1A1A1A" Padding="14,2" HeightRequest="46">
+                    <controls:IncognitoEntry Text="{Binding MessageText}"
+                                             Placeholder="Gizli mesaj yaz (Incognito)..."
+                                             PlaceholderColor="#71717A"
+                                             TextColor="White"
+                                             BackgroundColor="Transparent"
+                                             FontSize="14"
+                                             HorizontalOptions="Fill"
+                                             ReturnType="Send"
+                                             ReturnCommand="{Binding SendMessageCommand}"
+                                             VerticalOptions="Center" />
+                </Border>
+
+                <Button Grid.Column="1"
+                        Text="Gönder"
+                        Command="{Binding SendMessageCommand}"
+                        BackgroundColor="#2563EB"
+                        TextColor="White"
+                        FontAttributes="Bold"
+                        FontSize="14"
+                        CornerRadius="22"
+                        HeightRequest="46"
+                        Padding="20,0"
+                        VerticalOptions="Center" />
+            </Grid>
+        </Border>
+
     </Grid>
 </ContentPage>

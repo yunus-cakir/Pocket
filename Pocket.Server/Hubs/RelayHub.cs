@@ -86,25 +86,31 @@ namespace Pocket.Server.Hubs
 
         public async Task SendPayload(EncryptedPayloadDto payload)
         {
+            var authenticatedUserId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!string.IsNullOrEmpty(authenticatedUserId))
+            {
+                payload.SenderId = authenticatedUserId;
+            }
+
+            // Store transiently in memory until recipient explicitly confirms delivery (BR-201, BR-202)
+            _memoryStore.EnqueuePayload(payload);
+
             if (UserConnections.TryGetValue(payload.RecipientId, out var connections) && connections.Count > 0)
             {
-                // Recipient is online on one or more devices - relay directly to all
+                string[] targetIds;
                 lock (connections)
                 {
-                    foreach (var connectionId in connections)
-                    {
-                        Clients.Client(connectionId).ReceivePayload(payload);
-                    }
+                    targetIds = connections.ToArray();
                 }
-            }
-            else
-            {
-                // Recipient is completely offline - store transiently in memory
-                _memoryStore.EnqueuePayload(payload);
+
+                foreach (var connectionId in targetIds)
+                {
+                    await Clients.Client(connectionId).ReceivePayload(payload);
+                }
             }
         }
 
-        public Task ConfirmDelivery(string senderId, Guid messageId)
+        public async Task ConfirmDelivery(string senderId, Guid messageId)
         {
             var recipientId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             
@@ -115,16 +121,17 @@ namespace Pocket.Server.Hubs
 
             if (UserConnections.TryGetValue(senderId, out var senderConnections))
             {
+                string[] targetIds;
                 lock (senderConnections)
                 {
-                    foreach (var senderConnectionId in senderConnections)
-                    {
-                        Clients.Client(senderConnectionId).AcknowledgeDelivery(messageId);
-                    }
+                    targetIds = senderConnections.ToArray();
+                }
+
+                foreach (var senderConnectionId in targetIds)
+                {
+                    await Clients.Client(senderConnectionId).AcknowledgeDelivery(messageId);
                 }
             }
-
-            return Task.CompletedTask;
         }
 
         public Task<UserIdentityDto?> LookupUser(string username)
@@ -140,12 +147,15 @@ namespace Pocket.Server.Hubs
         {
             if (UserConnections.TryGetValue(request.RecipientId, out var connections))
             {
+                string[] targetIds;
                 lock (connections)
                 {
-                    foreach (var connectionId in connections)
-                    {
-                        Clients.Client(connectionId).ReceiveFriendRequest(request);
-                    }
+                    targetIds = connections.ToArray();
+                }
+
+                foreach (var connectionId in targetIds)
+                {
+                    await Clients.Client(connectionId).ReceiveFriendRequest(request);
                 }
             }
         }
@@ -154,12 +164,15 @@ namespace Pocket.Server.Hubs
         {
             if (UserConnections.TryGetValue(accept.RecipientId, out var connections))
             {
+                string[] targetIds;
                 lock (connections)
                 {
-                    foreach (var connectionId in connections)
-                    {
-                        Clients.Client(connectionId).ReceiveFriendAccept(accept);
-                    }
+                    targetIds = connections.ToArray();
+                }
+
+                foreach (var connectionId in targetIds)
+                {
+                    await Clients.Client(connectionId).ReceiveFriendAccept(accept);
                 }
             }
         }
