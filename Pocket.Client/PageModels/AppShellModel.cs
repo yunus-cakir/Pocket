@@ -43,6 +43,28 @@ namespace Pocket.Client.PageModels
         [ObservableProperty]
         private bool _isStreakOnWidget = true;
 
+        /// <summary>
+        /// When true, the shutter saves the exact preview frame (WYSIWYG colors).
+        /// When false, the camera's native still-capture pipeline is used (may alter tone/colors).
+        /// Persisted via <see cref="Pocket.Client.Controls.CameraView.CaptureFromPreviewPreferenceKey"/>.
+        /// </summary>
+        [ObservableProperty]
+        private bool _isCaptureFromPreview = Microsoft.Maui.Storage.Preferences.Get(
+            Pocket.Client.Controls.CameraView.CaptureFromPreviewPreferenceKey,
+            Pocket.Client.Controls.CameraView.CaptureFromPreviewDefault);
+
+        /// <summary>Show a vertical zoom slider on the right of the viewfinder after tap-to-focus.</summary>
+        [ObservableProperty]
+        private bool _isZoomSliderEnabled = Microsoft.Maui.Storage.Preferences.Get(
+            Pocket.Client.Controls.CameraView.ZoomSliderPreferenceKey,
+            Pocket.Client.Controls.CameraView.ZoomSliderDefault);
+
+        /// <summary>Show a horizontal exposure slider at the bottom of the viewfinder after tap-to-focus.</summary>
+        [ObservableProperty]
+        private bool _isExposureSliderEnabled = Microsoft.Maui.Storage.Preferences.Get(
+            Pocket.Client.Controls.CameraView.ExposureSliderPreferenceKey,
+            Pocket.Client.Controls.CameraView.ExposureSliderDefault);
+
         public ObservableCollection<Friend> Friends { get; } = new();
 
         public string FriendsCountText => Friends.Count == 1 ? "1 Friend" : $"{Friends.Count} Friends";
@@ -68,6 +90,39 @@ namespace Pocket.Client.PageModels
         private void ToggleStreakOnWidget()
         {
             IsStreakOnWidget = !IsStreakOnWidget;
+        }
+
+        [RelayCommand]
+        private void ToggleCaptureFromPreview()
+        {
+            IsCaptureFromPreview = !IsCaptureFromPreview;
+        }
+
+        partial void OnIsCaptureFromPreviewChanged(bool value)
+        {
+            Microsoft.Maui.Storage.Preferences.Set(Pocket.Client.Controls.CameraView.CaptureFromPreviewPreferenceKey, value);
+        }
+
+        [RelayCommand]
+        private void ToggleZoomSlider()
+        {
+            IsZoomSliderEnabled = !IsZoomSliderEnabled;
+        }
+
+        partial void OnIsZoomSliderEnabledChanged(bool value)
+        {
+            Microsoft.Maui.Storage.Preferences.Set(Pocket.Client.Controls.CameraView.ZoomSliderPreferenceKey, value);
+        }
+
+        [RelayCommand]
+        private void ToggleExposureSlider()
+        {
+            IsExposureSliderEnabled = !IsExposureSliderEnabled;
+        }
+
+        partial void OnIsExposureSliderEnabledChanged(bool value)
+        {
+            Microsoft.Maui.Storage.Preferences.Set(Pocket.Client.Controls.CameraView.ExposureSliderPreferenceKey, value);
         }
 
         private void UpdateFriendLastMessage(DirectMessage dm)

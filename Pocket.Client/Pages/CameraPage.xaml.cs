@@ -27,6 +27,7 @@ namespace Pocket.Client.Pages
             // Direction detection and touch routing happen at the native level —
             // only confirmed horizontal pans reach this handler.
             SwipeContainer.SwipePanUpdated += OnSwipePanUpdated;
+            cameraView.CapabilitiesChanged += OnCameraCapabilitiesChanged;
 
             viewModel.SnapToProfileAction = async () => await SnapToPanel(0);
             viewModel.SnapToCameraAction = async () => await SnapToPanel(1);
@@ -398,6 +399,7 @@ namespace Pocket.Client.Pages
             // Hide camera if off-screen to save resources
             if (_currentIndex != 1)
             {
+                HideCameraSliders(animated: false);
                 cameraView.IsVisible = false;
             }
         }
@@ -507,7 +509,185 @@ namespace Pocket.Client.Pages
 
         private void OnShutterTapped(object? sender, TappedEventArgs e)
         {
+            HideCameraSliders(animated: false);
             cameraView.CapturePhoto();
+        }
+
+        // ================================================================
+        // Tap-to-focus + optional Zoom / Exposure sliders (Settings > General)
+        // ================================================================
+
+        private const int SliderAutoHideMs = 4000;
+        private System.Threading.CancellationTokenSource? _sliderHideCts;
+        private bool _isDraggingSlider;
+        private int _focusRingToken;
+
+        private void OnCameraCapabilitiesChanged(object? sender, EventArgs e)
+        {
+            Dispatcher.Dispatch(() =>
+            {
+                // Camera (re)opened: zoom and exposure start from their defaults
+                ZoomSlider.Minimum = 0;
+                ZoomSlider.Maximum = Math.Max(1, cameraView.MaxZoom);
+                ZoomSlider.Value = 0;
+
+                ExposureSlider.Minimum = cameraView.MinExposure;
+                ExposureSlider.Maximum = cameraView.MaxExposure;
+                ExposureSlider.Value = 0;
+
+                UpdateZoomLabel(0);
+                UpdateExposureLabel(0);
+            });
+        }
+
+        private void OnCameraViewTapped(object? sender, TappedEventArgs e)
+        {
+            if (BindingContext is CameraPageModel vm && vm.IsPreviewing) return;
+
+            var pos = e.GetPosition(cameraView);
+            double w = cameraView.Width, h = cameraView.Height;
+            if (pos == null || w <= 0 || h <= 0) return;
+
+            cameraView.FocusAt(pos.Value.X / w, pos.Value.Y / h);
+            _ = ShowFocusRingAsync(pos.Value);
+
+            // New focus/metering point → exposure compensation starts again from 0 EV
+            if (cameraView.MaxExposure > cameraView.MinExposure)
+                ExposureSlider.Value = 0;
+
+            ShowCameraSliders();
+        }
+
+        private async Task ShowFocusRingAsync(Point center)
+        {
+            int token = ++_focusRingToken;
+            FocusRing.AbortAnimation("ScaleTo");
+            FocusRing.TranslationX = center.X - FocusRing.WidthRequest / 2;
+            FocusRing.TranslationY = center.Y - FocusRing.HeightRequest / 2;
+            FocusRing.Opacity = 1;
+            FocusRing.Scale = 1.4;
+            FocusRing.IsVisible = true;
+
+            await FocusRing.ScaleToAsync(1, 180, Easing.CubicOut);
+            await Task.Delay(900);
+            if (token != _focusRingToken) return;
+
+            await FocusRing.FadeToAsync(0, 250);
+            if (token == _focusRingToken) FocusRing.IsVisible = false;
+        }
+
+        private void ShowCameraSliders()
+        {
+            bool showZoom = CameraView.ZoomSliderEnabled && cameraView.MaxZoom > 0;
+            bool showExposure = CameraView.ExposureSliderEnabled && cameraView.MaxExposure > cameraView.MinExposure;
+
+            SetPanelVisible(ZoomSliderPanel, showZoom);
+            SetPanelVisible(ExposureSliderPanel, showExposure);
+
+            if (showZoom || showExposure)
+                ScheduleSliderAutoHide();
+        }
+
+        private static void SetPanelVisible(VisualElement panel, bool visible)
+        {
+            panel.AbortAnimation("FadeTo");
+            if (visible)
+            {
+                panel.IsVisible = true;
+                _ = panel.FadeToAsync(1, 150);
+            }
+            else
+            {
+                panel.Opacity = 0;
+                panel.IsVisible = false;
+            }
+        }
+
+        private void HideCameraSliders(bool animated = true)
+        {
+            _sliderHideCts?.Cancel();
+            _isDraggingSlider = false;
+
+            foreach (var panel in new VisualElement[] { ZoomSliderPanel, ExposureSliderPanel })
+            {
+                if (!panel.IsVisible) continue;
+                if (animated)
+                {
+                    _ = FadeOutAsync(panel);
+                }
+                else
+                {
+                    panel.AbortAnimation("FadeTo");
+                    panel.Opacity = 0;
+                    panel.IsVisible = false;
+                }
+            }
+        }
+
+        private static async Task FadeOutAsync(VisualElement panel)
+        {
+            bool finished = await panel.FadeToAsync(0, 200);
+            if (finished) panel.IsVisible = false;
+        }
+
+        private async void ScheduleSliderAutoHide()
+        {
+            _sliderHideCts?.Cancel();
+            var cts = new System.Threading.CancellationTokenSource();
+            _sliderHideCts = cts;
+
+            try
+            {
+                await Task.Delay(SliderAutoHideMs, cts.Token);
+            }
+            catch (TaskCanceledException)
+            {
+                return;
+            }
+
+            if (!_isDraggingSlider && _sliderHideCts == cts)
+                HideCameraSliders();
+        }
+
+        private void OnSliderDragStarted(object? sender, EventArgs e)
+        {
+            _isDraggingSlider = true;
+            _sliderHideCts?.Cancel();
+        }
+
+        private void OnSliderDragCompleted(object? sender, EventArgs e)
+        {
+            _isDraggingSlider = false;
+            ScheduleSliderAutoHide();
+        }
+
+        private void OnZoomSliderValueChanged(object? sender, double value)
+        {
+            int level = (int)Math.Round(value);
+            cameraView.SetZoom(level);
+            UpdateZoomLabel(level);
+        }
+
+        private void OnExposureSliderValueChanged(object? sender, double value)
+        {
+            int index = (int)Math.Round(value);
+            cameraView.SetExposure(index);
+            UpdateExposureLabel(index);
+        }
+
+        private void UpdateZoomLabel(int level)
+        {
+            var ratios = cameraView.ZoomRatios;
+            double ratio = ratios.Count > 0
+                ? ratios[Math.Clamp(level, 0, ratios.Count - 1)] / 100.0
+                : 1.0;
+            ZoomValueLabel.Text = $"{ratio:0.0}x";
+        }
+
+        private void UpdateExposureLabel(int index)
+        {
+            double ev = index * cameraView.ExposureStep;
+            ExposureValueLabel.Text = ev > 0.001 ? $"+{ev:0.0} EV" : $"{ev:0.0} EV";
         }
 
         private void OnPhotoCaptured(object? sender, string filePath)
