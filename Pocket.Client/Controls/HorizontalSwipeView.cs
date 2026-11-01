@@ -29,6 +29,19 @@ namespace Pocket.Client.Controls
     /// </summary>
     public class HorizontalSwipeView : ContentView
     {
+        public static readonly BindableProperty IsSwipeEnabledProperty =
+            BindableProperty.Create(
+                nameof(IsSwipeEnabled),
+                typeof(bool),
+                typeof(HorizontalSwipeView),
+                true);
+
+        public bool IsSwipeEnabled
+        {
+            get => (bool)GetValue(IsSwipeEnabledProperty);
+            set => SetValue(IsSwipeEnabledProperty, value);
+        }
+
         /// <summary>
         /// Raised when a horizontal pan gesture is detected, updated, or completed.
         /// Only horizontal swipes trigger this event; taps and vertical gestures are
@@ -41,6 +54,7 @@ namespace Pocket.Client.Controls
         /// </summary>
         internal void RaiseSwipePanUpdated(GestureStatus status, double totalX, double totalY)
         {
+            if (!IsSwipeEnabled) return;
             SwipePanUpdated?.Invoke(this, new SwipePanEventArgs(status, totalX, totalY));
         }
     }

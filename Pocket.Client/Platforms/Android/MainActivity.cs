@@ -44,6 +44,8 @@ namespace Pocket.Client
             if (Window == null)
                 return;
 
+            Window.SetSoftInputMode(global::Android.Views.SoftInput.AdjustNothing);
+
 #pragma warning disable CS0618, CA1422
             Window.SetStatusBarColor(global::Android.Graphics.Color.Black);
             Window.SetNavigationBarColor(global::Android.Graphics.Color.Black);

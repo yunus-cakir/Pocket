@@ -82,6 +82,202 @@ namespace Pocket.Client.Pages
                     await AnimateCloseActivitySheet();
                 });
             };
+
+            viewModel.PreviewStateChangedAction = (isPreviewing) =>
+            {
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    SetVerticalFeedScrollEnabled(!isPreviewing);
+                    if (!isPreviewing)
+                    {
+                        UnfocusCaptionEntry();
+                    }
+                });
+            };
+        }
+
+#if ANDROID
+        private LockableOnItemTouchListener? _feedScrollLockListener;
+
+        private sealed class LockableOnItemTouchListener : Java.Lang.Object, AndroidX.RecyclerView.Widget.RecyclerView.IOnItemTouchListener
+        {
+            public bool IsScrollLocked { get; set; }
+            private float _downX;
+            private float _downY;
+            private readonly int _touchSlop;
+
+            public LockableOnItemTouchListener(global::Android.Content.Context? context)
+            {
+                _touchSlop = context != null
+                    ? (global::Android.Views.ViewConfiguration.Get(context)?.ScaledTouchSlop ?? 24)
+                    : 24;
+            }
+
+            public bool OnInterceptTouchEvent(AndroidX.RecyclerView.Widget.RecyclerView rv, global::Android.Views.MotionEvent e)
+            {
+                if (!IsScrollLocked) return false;
+
+                switch (e.ActionMasked)
+                {
+                    case global::Android.Views.MotionEventActions.Down:
+                        _downX = e.GetX();
+                        _downY = e.GetY();
+                        return false;
+
+                    case global::Android.Views.MotionEventActions.Move:
+                        float dx = Math.Abs(e.GetX() - _downX);
+                        float dy = Math.Abs(e.GetY() - _downY);
+                        if (dy > _touchSlop && dy > dx)
+                        {
+                            // Intercept vertical drag so RecyclerView cannot scroll down to History while previewing
+                            return true;
+                        }
+                        return false;
+                }
+
+                return false;
+            }
+
+            public void OnTouchEvent(AndroidX.RecyclerView.Widget.RecyclerView rv, global::Android.Views.MotionEvent e)
+            {
+                // Consume vertical drag events silently when locked
+            }
+
+            public void OnRequestDisallowInterceptTouchEvent(bool disallowIntercept)
+            {
+            }
+        }
+#endif
+
+        private void SetVerticalFeedScrollEnabled(bool enabled)
+        {
+#if ANDROID
+            if (FeedCollectionView.Handler?.PlatformView is AndroidX.RecyclerView.Widget.RecyclerView rv)
+            {
+                if (_feedScrollLockListener == null)
+                {
+                    _feedScrollLockListener = new LockableOnItemTouchListener(rv.Context);
+                    rv.AddOnItemTouchListener(_feedScrollLockListener);
+                }
+                _feedScrollLockListener.IsScrollLocked = !enabled;
+                if (!enabled)
+                {
+                    rv.StopScroll();
+                }
+            }
+#endif
+        }
+
+        private void OnCaptionPillTapped(object? sender, TappedEventArgs e)
+        {
+            CaptionEntry.Focus();
+        }
+
+        private void OnPreviewImageTapped(object? sender, TappedEventArgs e)
+        {
+            UnfocusCaptionEntry();
+        }
+
+        private void OnCaptionEntryFocused(object? sender, FocusEventArgs e)
+        {
+            if (BindingContext is CameraPageModel vm)
+            {
+                vm.IsEditingCaption = true;
+            }
+#if ANDROID
+            RegisterKeyboardVisibilityWatcher();
+#endif
+        }
+
+        private void OnCaptionEntryUnfocused(object? sender, FocusEventArgs e)
+        {
+            if (BindingContext is CameraPageModel vm)
+            {
+                vm.IsEditingCaption = false;
+            }
+        }
+
+#if ANDROID
+        private KeyboardGlobalLayoutListener? _keyboardListener;
+
+        private void RegisterKeyboardVisibilityWatcher()
+        {
+            var activity = Platform.CurrentActivity;
+            var decorView = activity?.Window?.DecorView;
+            if (decorView?.ViewTreeObserver == null || _keyboardListener != null)
+                return;
+
+            _keyboardListener = new KeyboardGlobalLayoutListener(decorView, () =>
+            {
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (BindingContext is CameraPageModel vm && vm.IsEditingCaption)
+                    {
+                        UnfocusCaptionEntry();
+                    }
+                });
+            });
+            decorView.ViewTreeObserver.AddOnGlobalLayoutListener(_keyboardListener);
+        }
+
+        private sealed class KeyboardGlobalLayoutListener : Java.Lang.Object, global::Android.Views.ViewTreeObserver.IOnGlobalLayoutListener
+        {
+            private readonly global::Android.Views.View _decorView;
+            private readonly Action _onKeyboardHidden;
+            private bool _wasKeyboardOpen;
+
+            public KeyboardGlobalLayoutListener(global::Android.Views.View decorView, Action onKeyboardHidden)
+            {
+                _decorView = decorView;
+                _onKeyboardHidden = onKeyboardHidden;
+            }
+
+            public void OnGlobalLayout()
+            {
+                var rect = new global::Android.Graphics.Rect();
+                _decorView.GetWindowVisibleDisplayFrame(rect);
+                int screenHeight = _decorView.RootView?.Height ?? 0;
+                if (screenHeight <= 0) return;
+
+                int keypadHeight = screenHeight - rect.Bottom;
+                bool isKeyboardOpen = keypadHeight > screenHeight * 0.15;
+
+                if (_wasKeyboardOpen && !isKeyboardOpen)
+                {
+                    _wasKeyboardOpen = false;
+                    _onKeyboardHidden.Invoke();
+                }
+                else if (isKeyboardOpen)
+                {
+                    _wasKeyboardOpen = true;
+                }
+            }
+        }
+#endif
+
+        private void OnCaptionEntryCompleted(object? sender, EventArgs e)
+        {
+            UnfocusCaptionEntry();
+        }
+
+        private void UnfocusCaptionEntry()
+        {
+            if (CaptionEntry.IsFocused)
+            {
+                CaptionEntry.Unfocus();
+            }
+#if ANDROID
+            if (CaptionEntry.Handler?.PlatformView is global::Android.Views.View nativeView)
+            {
+                nativeView.ClearFocus();
+                var imm = nativeView.Context?.GetSystemService(global::Android.Content.Context.InputMethodService) as global::Android.Views.InputMethods.InputMethodManager;
+                imm?.HideSoftInputFromWindow(nativeView.WindowToken, global::Android.Views.InputMethods.HideSoftInputFlags.None);
+            }
+#endif
+            if (BindingContext is CameraPageModel vm)
+            {
+                vm.IsEditingCaption = false;
+            }
         }
 
         private double _sheetPanInitialTranslationY = 0;

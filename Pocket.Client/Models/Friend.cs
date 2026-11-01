@@ -11,6 +11,14 @@ namespace Pocket.Client.Models
         private string _profilePictureUrl = string.Empty;
         private string _lastMessagePreview = "Henüz mesaj yok";
         private string _lastMessageTimeText = string.Empty;
+        private bool _isSelectedForSend;
+
+        [Ignore]
+        public bool IsSelectedForSend
+        {
+            get => _isSelectedForSend;
+            set => SetProperty(ref _isSelectedForSend, value);
+        }
 
         [PrimaryKey]
         public string Id { get; set; } = string.Empty;

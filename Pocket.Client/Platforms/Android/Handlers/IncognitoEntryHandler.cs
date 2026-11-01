@@ -35,6 +35,8 @@ namespace Pocket.Client.Platforms.Android.Handlers
         protected override MauiAppCompatEditText CreatePlatformView()
         {
             var platformView = base.CreatePlatformView();
+            platformView.Background = null;
+            platformView.SetPadding(0, 0, 0, 0);
             ApplyIncognitoFlags(platformView);
             return platformView;
         }

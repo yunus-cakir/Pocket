@@ -13,8 +13,22 @@ namespace Pocket.Client.Platforms.Android.Handlers
     /// </summary>
     public class HorizontalSwipeViewHandler : ContentViewHandler
     {
-        public HorizontalSwipeViewHandler() : base(Mapper, CommandMapper)
+        public static readonly IPropertyMapper<HorizontalSwipeView, HorizontalSwipeViewHandler> SwipeMapper =
+            new PropertyMapper<HorizontalSwipeView, HorizontalSwipeViewHandler>(Mapper)
+            {
+                [nameof(HorizontalSwipeView.IsSwipeEnabled)] = MapIsSwipeEnabled
+            };
+
+        public HorizontalSwipeViewHandler() : base(SwipeMapper, CommandMapper)
         {
+        }
+
+        private static void MapIsSwipeEnabled(HorizontalSwipeViewHandler handler, HorizontalSwipeView view)
+        {
+            if (handler.PlatformView is SwipeInterceptLayout swipeLayout)
+            {
+                swipeLayout.IsSwipeEnabled = view.IsSwipeEnabled;
+            }
         }
 
         protected override ContentViewGroup CreatePlatformView()
@@ -37,6 +51,7 @@ namespace Pocket.Client.Platforms.Android.Handlers
                 // Wire the native pan callback to the cross-platform event.
                 if (VirtualView is HorizontalSwipeView swipeView)
                 {
+                    swipeLayout.IsSwipeEnabled = swipeView.IsSwipeEnabled;
                     swipeLayout.PanCallback = (status, totalX, totalY) =>
                     {
                         swipeView.RaiseSwipePanUpdated(status, totalX, totalY);

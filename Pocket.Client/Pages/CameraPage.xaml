@@ -17,7 +17,7 @@
         <toolkit:IsStringNotNullOrWhiteSpaceConverter x:Key="IsStringNotNullOrWhiteSpaceConverter" />
     </ContentPage.Resources>
 
-    <controls:HorizontalSwipeView x:Name="SwipeContainer">
+    <controls:HorizontalSwipeView x:Name="SwipeContainer" IsSwipeEnabled="{Binding IsNotPreviewing}">
         <Grid BackgroundColor="#000000">
         <!-- Container translated horizontally across 3 panels: 0=Profile, 1=Camera/Feed, 2=Chat -->
         <Grid x:Name="PanContainer" ColumnDefinitions="Auto, Auto, Auto" HorizontalOptions="Start" BackgroundColor="#000000">
@@ -487,10 +487,15 @@
                                     VerticalOptions="Start">
                                 <Grid>
                                     <controls:CameraView x:Name="cameraView" HorizontalOptions="Fill" VerticalOptions="Fill" />
-                                    <Image Source="{Binding CapturedImagePath}" IsVisible="{Binding IsPreviewing}" Aspect="AspectFill" HorizontalOptions="Fill" VerticalOptions="Fill" />
+                                    <Image Source="{Binding CapturedImagePath}" IsVisible="{Binding IsPreviewing}" Aspect="AspectFill" HorizontalOptions="Fill" VerticalOptions="Fill">
+                                        <Image.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnPreviewImageTapped" />
+                                        </Image.GestureRecognizers>
+                                    </Image>
 
-                                    <!-- Top-Left Flash Button (Unimplemented feature - noted) -->
-                                    <Border WidthRequest="38"
+                                    <!-- Top-Left Flash Button (Live Camera only, hidden on Preview - Unimplemented feature noted) -->
+                                    <Border IsVisible="{Binding IsNotPreviewing}"
+                                            WidthRequest="38"
                                             HeightRequest="38"
                                             StrokeShape="RoundRectangle 19"
                                             StrokeThickness="0"
@@ -505,33 +510,48 @@
                                               Data="M9,0 L1,10 L7,10 L5,18 L14,7.5 L8,7.5 L9,0 Z" />
                                     </Border>
 
-                                    <!-- Caption Entry Overlay when Previewing Captured Photo -->
-                                    <Border IsVisible="{Binding IsPreviewing}"
-                                            BackgroundColor="#99000000"
-                                            StrokeShape="RoundRectangle 20"
+                                    <!-- Caption Entry Pill Overlay when Previewing Captured Photo -->
+                                    <Border x:Name="CaptionPillBorder"
+                                            IsVisible="{Binding IsPreviewing}"
+                                            BackgroundColor="#8C3C3C40"
+                                            StrokeShape="RoundRectangle 22"
                                             StrokeThickness="0"
-                                            Padding="16,4"
-                                            Margin="22,0,22,18"
-                                            HeightRequest="44"
+                                            Padding="18,0"
+                                            Margin="20,0,20,18"
+                                            HeightRequest="42"
+                                            MinimumWidthRequest="156"
+                                            HorizontalOptions="Center"
                                             VerticalOptions="End">
-                                        <Entry Text="{Binding Caption}"
-                                               Placeholder="Add a message..."
-                                               PlaceholderColor="#D1D5DB"
-                                               TextColor="#FFFFFF"
-                                               FontFamily="OpenSansSemibold"
-                                               FontSize="15"
-                                               HorizontalTextAlignment="Center"
-                                               BackgroundColor="Transparent"
-                                               VerticalOptions="Center" />
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnCaptionPillTapped" />
+                                        </Border.GestureRecognizers>
+                                        <controls:IncognitoEntry x:Name="CaptionEntry"
+                                                                 Text="{Binding Caption}"
+                                                                 Placeholder="Add a message"
+                                                                 PlaceholderColor="#F3F4F6"
+                                                                 TextColor="#FFFFFF"
+                                                                 FontFamily="OpenSansSemibold"
+                                                                 FontAttributes="Bold"
+                                                                 FontSize="16"
+                                                                 HorizontalTextAlignment="Center"
+                                                                 BackgroundColor="Transparent"
+                                                                 MinimumHeightRequest="38"
+                                                                 MinimumWidthRequest="120"
+                                                                 ReturnType="Done"
+                                                                 Focused="OnCaptionEntryFocused"
+                                                                 Unfocused="OnCaptionEntryUnfocused"
+                                                                 Completed="OnCaptionEntryCompleted"
+                                                                 VerticalOptions="Center"
+                                                                 HorizontalOptions="Center" />
                                     </Border>
                                 </Grid>
                             </Border>
 
-                            <!-- Row 2: Shutter Controls -->
+                            <!-- Row 2: Shutter Controls & Preview Send Controls -->
                             <Grid Grid.Row="2" Padding="0,8,0,6">
 
                                 <!-- Shutter Row (Live Camera Mode - Image 3) -->
-                                <Grid IsVisible="{Binding IsPreviewing, Converter={StaticResource InvertedBoolConverter}}"
+                                <Grid IsVisible="{Binding IsNotPreviewing}"
                                       ColumnDefinitions="*, Auto, *"
                                       VerticalOptions="Center"
                                       Margin="24,0">
@@ -612,55 +632,54 @@
                                     </Grid>
                                 </Grid>
 
-                                <!-- Preview Mode Controls (When a photo is captured) -->
-                                <Grid IsVisible="{Binding IsPreviewing}"
+                                <!-- Preview Mode Controls (Visible when photo is captured and keyboard is not active) -->
+                                <Grid IsVisible="{Binding ShowPreviewControls}"
                                       ColumnDefinitions="*, Auto, *"
                                       VerticalOptions="Center"
                                       Margin="24,0">
-                                    <!-- Cancel -->
-                                    <Border Grid.Column="0"
-                                            WidthRequest="52"
-                                            HeightRequest="52"
-                                            StrokeShape="RoundRectangle 26"
+                                    <!-- Left: Plain White X Cancel Button -->
+                                    <Grid Grid.Column="0"
+                                          WidthRequest="56"
+                                          HeightRequest="56"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center"
+                                          BackgroundColor="Transparent">
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding CancelCommand}" />
+                                        </Grid.GestureRecognizers>
+                                        <Path Stroke="#FFFFFF"
+                                              StrokeThickness="3.2"
+                                              StrokeLineCap="Round"
+                                              HorizontalOptions="Center"
+                                              VerticalOptions="Center"
+                                              Data="M1,1 L19,19 M19,1 L1,19" />
+                                    </Grid>
+
+                                    <!-- Center: Large Solid Grey Circle with Tilted Outlined Paper Airplane Icon -->
+                                    <Border Grid.Column="1"
+                                            WidthRequest="92"
+                                            HeightRequest="92"
+                                            StrokeShape="RoundRectangle 46"
                                             StrokeThickness="0"
-                                            BackgroundColor="#1C1C1E"
+                                            BackgroundColor="#4E4E52"
                                             Padding="0"
                                             HorizontalOptions="Center"
                                             VerticalOptions="Center">
                                         <Border.GestureRecognizers>
-                                            <TapGestureRecognizer Command="{Binding CancelCommand}" />
+                                            <TapGestureRecognizer Command="{Binding SendCommand}" />
                                         </Border.GestureRecognizers>
                                         <Path Stroke="#FFFFFF"
-                                              StrokeThickness="2.4"
+                                              StrokeThickness="2.8"
                                               StrokeLineCap="Round"
+                                              StrokeLineJoin="Round"
+                                              Fill="Transparent"
                                               HorizontalOptions="Center"
                                               VerticalOptions="Center"
-                                              Data="M1,1 L13,13 M13,1 L1,13" />
+                                              Margin="-4,2,0,0"
+                                              Data="M34,4 L4,16.5 L16.5,21.5 L34,4 Z M16.5,21.5 L21.5,34 L34,4" />
                                     </Border>
 
-                                    <!-- Send Photo with Gold Ring -->
-                                    <Grid Grid.Column="1" WidthRequest="92" HeightRequest="92" HorizontalOptions="Center" VerticalOptions="Center">
-                                        <Border WidthRequest="90"
-                                                HeightRequest="90"
-                                                StrokeShape="RoundRectangle 45"
-                                                Stroke="#FFB800"
-                                                StrokeThickness="4.5"
-                                                BackgroundColor="#1C1C1E"
-                                                Padding="0"
-                                                HorizontalOptions="Center"
-                                                VerticalOptions="Center">
-                                            <Border.GestureRecognizers>
-                                                <TapGestureRecognizer Command="{Binding SendCommand}" />
-                                            </Border.GestureRecognizers>
-                                            <Path Fill="#FFFFFF"
-                                                  HorizontalOptions="Center"
-                                                  VerticalOptions="Center"
-                                                  Scale="1.2"
-                                                  Data="M2,21 L23,12 L2,3 L2,10 L17,12 L2,14 L2,21 Z" />
-                                        </Border>
-                                    </Grid>
-
-                                    <Grid Grid.Column="2" WidthRequest="52" HeightRequest="52" />
+                                    <Grid Grid.Column="2" WidthRequest="56" HeightRequest="56" />
                                 </Grid>
 
                             </Grid>
@@ -740,7 +759,8 @@
                 <!-- ============================================================== -->
                 <!-- PERSISTENT TOP OVERLAY BAR ON CAMERA/FEED (Images 3 & 4)       -->
                 <!-- ============================================================== -->
-                <Grid ColumnDefinitions="Auto, *, Auto"
+                <Grid IsVisible="{Binding IsNotPreviewing}"
+                      ColumnDefinitions="Auto, *, Auto"
                       Margin="16,14,16,0"
                       VerticalOptions="Start">
 
@@ -839,9 +859,170 @@
                 </Grid>
 
                 <!-- ============================================================== -->
+                <!-- PREVIEW TOP OVERLAY BAR ("Send to..." + Save to Gallery Icon)  -->
+                <!-- ============================================================== -->
+                <Grid IsVisible="{Binding ShowPreviewControls}"
+                      ColumnDefinitions="42, *, 42"
+                      Margin="16,14,16,0"
+                      VerticalOptions="Start">
+                    <BoxView Grid.Column="0" BackgroundColor="Transparent" Color="Transparent" />
+
+                    <Label Grid.Column="1"
+                           Text="Send to..."
+                           TextColor="#FFFFFF"
+                           FontFamily="OpenSansSemibold"
+                           FontSize="20"
+                           FontAttributes="Bold"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center" />
+
+                    <!-- Right: Save to Gallery Icon (UI only, unimplemented per user request - noted in TODO) -->
+                    <Grid Grid.Column="2"
+                          WidthRequest="42"
+                          HeightRequest="42"
+                          HorizontalOptions="End"
+                          VerticalOptions="Center">
+                        <Path Stroke="#D1D5DB"
+                              StrokeThickness="2.5"
+                              StrokeLineCap="Round"
+                              StrokeLineJoin="Round"
+                              HorizontalOptions="Center"
+                              VerticalOptions="Center"
+                              Data="M12,3 L12,15 M7,10 L12,15 L17,10 M4,15 L4,18 C4,19.66 5.34,21 7,21 L17,21 C18.66,21 20,19.66 20,18 L20,15" />
+                    </Grid>
+                </Grid>
+
+                <!-- ============================================================== -->
+                <!-- PREVIEW BOTTOM OVERLAY BAR (Recipient Selector: "All", Friends)-->
+                <!-- ============================================================== -->
+                <ScrollView IsVisible="{Binding ShowPreviewControls}"
+                            Orientation="Horizontal"
+                            HorizontalScrollBarVisibility="Never"
+                            HorizontalOptions="Center"
+                            VerticalOptions="End"
+                            Margin="16,0,16,22">
+                    <HorizontalStackLayout Spacing="22" HorizontalOptions="Center" VerticalOptions="End">
+
+                        <!-- "All" Option -->
+                        <VerticalStackLayout Spacing="5" HorizontalOptions="Center" VerticalOptions="Center">
+                            <VerticalStackLayout.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding SelectAllRecipientsCommand}" />
+                            </VerticalStackLayout.GestureRecognizers>
+                            <Border WidthRequest="46"
+                                    HeightRequest="46"
+                                    StrokeShape="RoundRectangle 23"
+                                    Stroke="#FFB800"
+                                    StrokeThickness="2.5"
+                                    BackgroundColor="#000000"
+                                    Padding="3"
+                                    HorizontalOptions="Center">
+                                <Border.Triggers>
+                                    <DataTrigger TargetType="Border" Binding="{Binding IsAllSelected}" Value="False">
+                                        <Setter Property="Stroke" Value="#2C2C2E" />
+                                    </DataTrigger>
+                                </Border.Triggers>
+                                <Border WidthRequest="36"
+                                        HeightRequest="36"
+                                        StrokeShape="RoundRectangle 18"
+                                        StrokeThickness="0"
+                                        BackgroundColor="#3A3A3C"
+                                        Padding="0"
+                                        HorizontalOptions="Center"
+                                        VerticalOptions="Center">
+                                    <!-- Two People Group Icon -->
+                                    <Path Fill="#FFFFFF"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center"
+                                          Scale="0.85"
+                                          Data="M7,7 C8.66,7 10,5.66 10,4 C10,2.34 8.66,1 7,1 C5.34,1 4,2.34 4,4 C4,5.66 5.34,7 7,7 Z M13.5,7.5 C14.88,7.5 16,6.38 16,5 C16,3.62 14.88,2.5 13.5,2.5 C12.12,2.5 11,3.62 11,5 C11,6.38 12.12,7.5 13.5,7.5 Z M7,9 C4.33,9 0,10.34 0,13 L0,14.5 L14,14.5 L14,13 C14,10.34 9.67,9 7,9 Z M13.5,9.5 C13,9.5 12.4,9.55 11.8,9.65 C13,10.5 13.8,11.65 13.8,13 L13.8,14.5 L19,14.5 L19,13 C19,10.9 15.8,9.5 13.5,9.5 Z" />
+                                </Border>
+                            </Border>
+                            <Label Text="All"
+                                   TextColor="#FFB800"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="13.5"
+                                   FontAttributes="Bold"
+                                   HorizontalOptions="Center"
+                                   HorizontalTextAlignment="Center">
+                                <Label.Triggers>
+                                    <DataTrigger TargetType="Label" Binding="{Binding IsAllSelected}" Value="False">
+                                        <Setter Property="TextColor" Value="#8E8E93" />
+                                    </DataTrigger>
+                                </Label.Triggers>
+                            </Label>
+                        </VerticalStackLayout>
+
+                        <!-- Friends List -->
+                        <HorizontalStackLayout BindableLayout.ItemsSource="{Binding ShellModel.Friends}"
+                                               Spacing="22"
+                                               VerticalOptions="Center">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="models:Friend">
+                                    <VerticalStackLayout Spacing="5" HorizontalOptions="Center" VerticalOptions="Center">
+                                        <VerticalStackLayout.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding Source={x:Reference thisPage}, Path=BindingContext.ToggleRecipientCommand}"
+                                                                  CommandParameter="{Binding .}" />
+                                        </VerticalStackLayout.GestureRecognizers>
+                                        <Border WidthRequest="46"
+                                                HeightRequest="46"
+                                                StrokeShape="RoundRectangle 23"
+                                                Stroke="#2C2C2E"
+                                                StrokeThickness="2.5"
+                                                BackgroundColor="#000000"
+                                                Padding="3"
+                                                HorizontalOptions="Center">
+                                            <Border.Triggers>
+                                                <DataTrigger TargetType="Border" Binding="{Binding IsSelectedForSend}" Value="True">
+                                                    <Setter Property="Stroke" Value="#FFB800" />
+                                                </DataTrigger>
+                                            </Border.Triggers>
+                                            <Border WidthRequest="36"
+                                                    HeightRequest="36"
+                                                    StrokeShape="RoundRectangle 18"
+                                                    StrokeThickness="0"
+                                                    BackgroundColor="#2C2C2E"
+                                                    Padding="0"
+                                                    HorizontalOptions="Center"
+                                                    VerticalOptions="Center">
+                                                <Grid>
+                                                    <Path Fill="#8E8E93"
+                                                          HorizontalOptions="Center"
+                                                          VerticalOptions="Center"
+                                                          Scale="0.9"
+                                                          Data="M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z" />
+                                                    <Image Source="{Binding ProfilePictureUrl}" Aspect="AspectFill" />
+                                                </Grid>
+                                            </Border>
+                                        </Border>
+                                        <Label Text="{Binding DisplayName}"
+                                               TextColor="#8E8E93"
+                                               FontFamily="OpenSansSemibold"
+                                               FontSize="13.5"
+                                               FontAttributes="Bold"
+                                               MaxLines="1"
+                                               LineBreakMode="TailTruncation"
+                                               MaximumWidthRequest="76"
+                                               HorizontalOptions="Center"
+                                               HorizontalTextAlignment="Center">
+                                            <Label.Triggers>
+                                                <DataTrigger TargetType="Label" Binding="{Binding IsSelectedForSend}" Value="True">
+                                                    <Setter Property="TextColor" Value="#FFB800" />
+                                                </DataTrigger>
+                                            </Label.Triggers>
+                                        </Label>
+                                    </VerticalStackLayout>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </HorizontalStackLayout>
+
+                    </HorizontalStackLayout>
+                </ScrollView>
+
+                <!-- ============================================================== -->
                 <!-- PERSISTENT BOTTOM OVERLAY ON CAMERA/FEED (History & Activity)  -->
                 <!-- ============================================================== -->
-                <VerticalStackLayout Spacing="16"
+                <VerticalStackLayout IsVisible="{Binding IsNotPreviewing}"
+                                     Spacing="16"
                                      Margin="18,0,18,90"
                                      VerticalOptions="End">
 

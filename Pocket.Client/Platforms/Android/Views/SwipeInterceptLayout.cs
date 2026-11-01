@@ -34,6 +34,11 @@ namespace Pocket.Client.Platforms.Android.Views
         /// </summary>
         public Action<GestureStatus, double, double>? PanCallback { get; set; }
 
+        /// <summary>
+        /// When false, horizontal swipe interception is disabled and all touches pass to child views.
+        /// </summary>
+        public bool IsSwipeEnabled { get; set; } = true;
+
         public SwipeInterceptLayout(Context context) : base(context)
         {
             _touchSlop = ViewConfiguration.Get(context)?.ScaledTouchSlop ?? 24;
@@ -41,7 +46,7 @@ namespace Pocket.Client.Platforms.Android.Views
 
         public override bool OnInterceptTouchEvent(MotionEvent? ev)
         {
-            if (ev == null) return false;
+            if (ev == null || !IsSwipeEnabled) return false;
 
             switch (ev.ActionMasked)
             {
@@ -100,7 +105,7 @@ namespace Pocket.Client.Platforms.Android.Views
             // This method is called in two scenarios:
             //   1. After OnInterceptTouchEvent returned true (horizontal swipe in progress).
             //   2. No child handled ACTION_DOWN (e.g., user touched empty space).
-            if (ev == null) return false;
+            if (ev == null || !IsSwipeEnabled) return false;
 
             switch (ev.ActionMasked)
             {

@@ -14,10 +14,21 @@ namespace Pocket.Client.Pages
         protected override async void OnAppearing()
         {
             base.OnAppearing();
+#if ANDROID
+            Platform.CurrentActivity?.Window?.SetSoftInputMode(global::Android.Views.SoftInput.AdjustResize);
+#endif
             if (BindingContext is DmPageModel vm)
             {
                 await vm.LoadConversationAsync();
             }
+        }
+
+        protected override void OnDisappearing()
+        {
+            base.OnDisappearing();
+#if ANDROID
+            Platform.CurrentActivity?.Window?.SetSoftInputMode(global::Android.Views.SoftInput.AdjustNothing);
+#endif
         }
     }
 }

@@ -19,7 +19,20 @@ namespace Pocket.Client.PageModels
         private readonly IRelayService _relayService;
 
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsBottomBarVisible))]
+        [NotifyPropertyChangedFor(nameof(IsNotPreviewing))]
+        [NotifyPropertyChangedFor(nameof(ShowPreviewControls))]
         private bool _isPreviewing;
+
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(ShowPreviewControls))]
+        private bool _isEditingCaption;
+
+        [ObservableProperty]
+        private bool _isAllSelected = true;
+
+        public bool IsNotPreviewing => !IsPreviewing;
+        public bool ShowPreviewControls => IsPreviewing && !IsEditingCaption;
 
         [ObservableProperty]
         private string _capturedImagePath = string.Empty;
@@ -40,7 +53,7 @@ namespace Pocket.Client.PageModels
         [NotifyPropertyChangedFor(nameof(ShowFeedSideButtonsInBottomBar))]
         private int _activePanelIndex = 1; // 0=Profile, 1=Camera/Feed, 2=Chat
 
-        public bool IsBottomBarVisible => ActivePanelIndex != 0;
+        public bool IsBottomBarVisible => ActivePanelIndex != 0 && !IsPreviewing;
         public bool IsCameraPanelActive => ActivePanelIndex == 1;
         public bool IsChatPanelActive => ActivePanelIndex == 2;
         public bool ShowHomePillInBottomBar => ActivePanelIndex == 1 && !IsViewingFeed;
@@ -149,6 +162,7 @@ namespace Pocket.Client.PageModels
         public Action? SnapToChatAction;
         public Action? ScrollToHistoryAction;
         public Action? ScrollToCameraAction;
+        public Action<bool>? PreviewStateChangedAction;
 
         public CameraPageModel(
             LocalDatabase database,
@@ -328,7 +342,47 @@ namespace Pocket.Client.PageModels
         public void OnPhotoCaptured(string imagePath)
         {
             CapturedImagePath = imagePath;
+            IsEditingCaption = false;
+            IsAllSelected = true;
+            foreach (var f in ShellModel.Friends)
+            {
+                f.IsSelectedForSend = false;
+            }
             IsPreviewing = true;
+            PreviewStateChangedAction?.Invoke(true);
+        }
+
+        [RelayCommand]
+        private void SelectAllRecipients()
+        {
+            IsAllSelected = true;
+            foreach (var f in ShellModel.Friends)
+            {
+                f.IsSelectedForSend = false;
+            }
+        }
+
+        [RelayCommand]
+        private void ToggleRecipient(Friend? friend)
+        {
+            if (friend == null) return;
+
+            if (IsAllSelected)
+            {
+                IsAllSelected = false;
+                foreach (var f in ShellModel.Friends)
+                {
+                    f.IsSelectedForSend = (f.Id == friend.Id);
+                }
+            }
+            else
+            {
+                friend.IsSelectedForSend = !friend.IsSelectedForSend;
+                if (!ShellModel.Friends.Any(f => f.IsSelectedForSend))
+                {
+                    IsAllSelected = true;
+                }
+            }
         }
 
         [RelayCommand]
@@ -371,9 +425,11 @@ namespace Pocket.Client.PageModels
         [RelayCommand]
         private void Cancel()
         {
+            IsEditingCaption = false;
             IsPreviewing = false;
             CapturedImagePath = string.Empty;
             Caption = string.Empty;
+            PreviewStateChangedAction?.Invoke(false);
         }
 
         [RelayCommand]
@@ -398,12 +454,21 @@ namespace Pocket.Client.PageModels
                 Debug.WriteLine($"Failed to delete temp cache file: {ex.Message}");
             }
 
-            var friends = await _database.GetFriendsAsync();
+            var allFriends = await _database.GetFriendsAsync();
+            var selectedFriendIds = ShellModel.Friends
+                .Where(f => f.IsSelectedForSend)
+                .Select(f => f.Id)
+                .ToHashSet();
+
+            var targetFriends = (IsAllSelected || selectedFriendIds.Count == 0)
+                ? allFriends
+                : allFriends.Where(f => selectedFriendIds.Contains(f.Id)).ToList();
+
             var sentCaption = Caption;
             var mediaPost = new MediaPost
             {
                 Id = Guid.NewGuid(),
-                FriendId = friends.Count == 1 ? friends[0].Id : string.Empty,
+                FriendId = targetFriends.Count == 1 ? targetFriends[0].Id : string.Empty,
                 IsIncoming = false,
                 MediaLocalPath = persistentPath,
                 MediaType = Shared.Enums.MediaType.Photo,
@@ -422,20 +487,22 @@ namespace Pocket.Client.PageModels
             FeedPosts.Insert(0, mediaPost);
             CurrentFeedPost = mediaPost;
 
+            IsEditingCaption = false;
             IsPreviewing = false;
             CapturedImagePath = string.Empty;
             Caption = string.Empty;
+            PreviewStateChangedAction?.Invoke(false);
 
             // E2EE Encryption & Transmission to Mutual Friends (BR-601, BR-201)
             var privateKey = await ShellModel.GetPrivateKeyAsync();
 
-            if (friends.Count > 0 && !string.IsNullOrEmpty(privateKey) && _relayService.IsConnected)
+            if (targetFriends.Count > 0 && !string.IsNullOrEmpty(privateKey) && _relayService.IsConnected)
             {
                 var photoBytes = await System.IO.File.ReadAllBytesAsync(persistentPath);
                 var captionBytes = Encoding.UTF8.GetBytes(sentCaption ?? string.Empty);
                 int sentCount = 0;
 
-                foreach (var friend in friends)
+                foreach (var friend in targetFriends)
                 {
                     if (string.IsNullOrEmpty(friend.PublicKey)) continue;
 

@@ -20,6 +20,7 @@
 * Local SQLite database models (`User`, `Friend`, `Message`) and `LocalDatabase` async repository initialization.
 
 ## ⏳ Planned Features (Not Yet Implemented)
+* **Save to Gallery (Galeriye Kaydet):** Save captured or received photos to the device's media gallery via the top-right download button on the photo preview ("Send to...") screen.
 * **E2EE Cryptographic Engine:** Client-side cryptographic key generation (ECDH) and payload encryption/decryption routines.
 * **Advanced Camera Integration:** Platform-specific camera handlers supporting tap-to-snap and hold-to-record capabilities without standard web views.
 * **Incognito Direct Messaging:** Custom MAUI `Entry` handlers that disable OS predictive text and keyboard learning (`ImeFlags.NoPersonalizedLearning` / `UITextAutocorrectionType.No`).
