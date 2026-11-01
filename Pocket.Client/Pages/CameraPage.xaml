@@ -954,21 +954,21 @@
                                            VerticalOptions="Center" />
                                 </Grid>
 
-                                <!-- Right: Quick Emojis (💗 🙃 😋) + Unimplemented Add-Emoji Icon (😊+) -->
+                                <!-- Right: Quick Emojis (En son kullanılan emojiler soldan başlar) + Add-Emoji Icon (😊+) -->
                                 <HorizontalStackLayout Grid.Column="1" Spacing="14" VerticalOptions="Center">
-                                    <Label Text="💗" FontSize="23" VerticalOptions="Center">
+                                    <Label Text="{Binding FirstRecentEmoji}" FontSize="23" VerticalOptions="Center">
                                         <Label.GestureRecognizers>
-                                            <TapGestureRecognizer Command="{Binding CurrentFeedPost.ReactHeartCommand}" />
+                                            <TapGestureRecognizer Command="{Binding SendFirstRecentEmojiCommand}" />
                                         </Label.GestureRecognizers>
                                     </Label>
-                                    <Label Text="🙃" FontSize="23" VerticalOptions="Center">
+                                    <Label Text="{Binding SecondRecentEmoji}" FontSize="23" VerticalOptions="Center">
                                         <Label.GestureRecognizers>
-                                            <TapGestureRecognizer Command="{Binding CurrentFeedPost.ReactFireCommand}" />
+                                            <TapGestureRecognizer Command="{Binding SendSecondRecentEmojiCommand}" />
                                         </Label.GestureRecognizers>
                                     </Label>
-                                    <Label Text="😋" FontSize="23" VerticalOptions="Center">
+                                    <Label Text="{Binding ThirdRecentEmoji}" FontSize="23" VerticalOptions="Center">
                                         <Label.GestureRecognizers>
-                                            <TapGestureRecognizer Command="{Binding CurrentFeedPost.ReactLaughCommand}" />
+                                            <TapGestureRecognizer Command="{Binding SendThirdRecentEmojiCommand}" />
                                         </Label.GestureRecognizers>
                                     </Label>
 
@@ -1139,57 +1139,71 @@
                 <!-- ============================================================== -->
                 <!-- ACTIVITY BOTTOM SHEET OVERLAY (Reactions on Own Post)          -->
                 <!-- ============================================================== -->
-                <Grid IsVisible="{Binding IsActivitySheetOpen}"
+                <Grid x:Name="ActivityOverlayGrid"
+                      IsVisible="False"
                       HorizontalOptions="Fill"
                       VerticalOptions="Fill">
                     <!-- Semi-transparent backdrop to dismiss sheet on tap outside -->
-                    <BoxView BackgroundColor="#77000000"
+                    <BoxView x:Name="ActivityBackdrop"
+                             BackgroundColor="#77000000"
                              Color="#77000000"
+                             Opacity="0"
                              HorizontalOptions="Fill"
                              VerticalOptions="Fill">
                         <BoxView.GestureRecognizers>
-                            <TapGestureRecognizer Command="{Binding CloseActivitySheetCommand}" />
+                            <TapGestureRecognizer Tapped="OnActivityBackdropTapped" />
                         </BoxView.GestureRecognizers>
                     </BoxView>
 
                     <!-- Rounded Top Bottom Sheet Card -->
-                    <Border VerticalOptions="End"
+                    <Border x:Name="ActivitySheetCard"
+                            VerticalOptions="End"
                             HorizontalOptions="Fill"
                             HeightRequest="380"
+                            TranslationY="400"
                             BackgroundColor="#1C1C1E"
                             StrokeShape="RoundRectangle 32,32,0,0"
                             StrokeThickness="0"
-                            Padding="20,12,20,24">
+                            Padding="20,10,20,24">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer />
                         </Border.GestureRecognizers>
-                        <Grid RowDefinitions="Auto, Auto, *">
-                            <!-- Top Drag Handle Pill -->
-                            <BoxView Grid.Row="0"
-                                     WidthRequest="38"
-                                     HeightRequest="5"
-                                     CornerRadius="2.5"
-                                     Color="#5A5A5E"
-                                     BackgroundColor="#5A5A5E"
-                                     HorizontalOptions="Center"
-                                     Margin="0,2,0,16">
-                                <BoxView.GestureRecognizers>
-                                    <TapGestureRecognizer Command="{Binding CloseActivitySheetCommand}" />
-                                </BoxView.GestureRecognizers>
-                            </BoxView>
+                        <Grid RowDefinitions="Auto, *">
+                            <!-- Drag Header Area: Handle pill + Title (Pannable to drag down) -->
+                            <Grid Grid.Row="0"
+                                  RowDefinitions="Auto, Auto"
+                                  BackgroundColor="Transparent"
+                                  Padding="0,4,0,16">
+                                <Grid.GestureRecognizers>
+                                    <PanGestureRecognizer PanUpdated="OnActivitySheetPanUpdated" />
+                                </Grid.GestureRecognizers>
 
-                            <!-- Sheet Title: "Activity" -->
-                            <Label Grid.Row="1"
-                                   Text="Activity"
-                                   TextColor="#FFFFFF"
-                                   FontFamily="OpenSansSemibold"
-                                   FontSize="19"
-                                   FontAttributes="Bold"
-                                   HorizontalOptions="Center"
-                                   Margin="0,0,0,20" />
+                                <!-- Top Drag Handle Pill -->
+                                <BoxView Grid.Row="0"
+                                         WidthRequest="38"
+                                         HeightRequest="5"
+                                         CornerRadius="2.5"
+                                         Color="#5A5A5E"
+                                         BackgroundColor="#5A5A5E"
+                                         HorizontalOptions="Center"
+                                         Margin="0,0,0,14">
+                                    <BoxView.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnActivityBackdropTapped" />
+                                    </BoxView.GestureRecognizers>
+                                </BoxView>
+
+                                <!-- Sheet Title: "Activity" -->
+                                <Label Grid.Row="1"
+                                       Text="Activity"
+                                       TextColor="#FFFFFF"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="19"
+                                       FontAttributes="Bold"
+                                       HorizontalOptions="Center" />
+                            </Grid>
 
                             <!-- Friends & Their Reactions List -->
-                            <CollectionView Grid.Row="2"
+                            <CollectionView Grid.Row="1"
                                             ItemsSource="{Binding CurrentFeedPost.ActivityItems}"
                                             BackgroundColor="Transparent"
                                             SelectionMode="None">

@@ -60,6 +60,86 @@ namespace Pocket.Client.Pages
 #endif
                 viewModel.IsViewingFeed = false;
             };
+
+            viewModel.OpenActivitySheetAction = () =>
+            {
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    ActivityOverlayGrid.IsVisible = true;
+                    ActivitySheetCard.TranslationY = 400;
+                    ActivityBackdrop.Opacity = 0;
+                    await Task.WhenAll(
+                        ActivitySheetCard.TranslateToAsync(0, 0, 260, Easing.CubicOut),
+                        ActivityBackdrop.FadeToAsync(1, 260, Easing.CubicOut)
+                    );
+                });
+            };
+
+            viewModel.CloseActivitySheetAction = () =>
+            {
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    await AnimateCloseActivitySheet();
+                });
+            };
+        }
+
+        private double _sheetPanInitialTranslationY = 0;
+
+        private async void OnActivityBackdropTapped(object? sender, TappedEventArgs e)
+        {
+            await AnimateCloseActivitySheet();
+        }
+
+        private async Task AnimateCloseActivitySheet()
+        {
+            if (!ActivityOverlayGrid.IsVisible)
+                return;
+
+            await Task.WhenAll(
+                ActivitySheetCard.TranslateToAsync(0, 420, 220, Easing.CubicIn),
+                ActivityBackdrop.FadeToAsync(0, 220, Easing.Linear)
+            );
+            ActivityOverlayGrid.IsVisible = false;
+            if (BindingContext is CameraPageModel vm)
+            {
+                vm.IsActivitySheetOpen = false;
+            }
+        }
+
+        private async void OnActivitySheetPanUpdated(object? sender, PanUpdatedEventArgs e)
+        {
+            switch (e.StatusType)
+            {
+                case GestureStatus.Started:
+                    _sheetPanInitialTranslationY = ActivitySheetCard.TranslationY;
+                    break;
+
+                case GestureStatus.Running:
+                    if (e.TotalY > 0)
+                    {
+                        ActivitySheetCard.TranslationY = _sheetPanInitialTranslationY + e.TotalY;
+                        double progress = Math.Clamp(1.0 - (ActivitySheetCard.TranslationY / 400.0), 0.0, 1.0);
+                        ActivityBackdrop.Opacity = progress;
+                    }
+                    break;
+
+                case GestureStatus.Completed:
+                case GestureStatus.Canceled:
+                    // "Biraz aşağı kaydırılıp bırakılırsa otomatik olarak kapanacak şekilde devamında kendi kaysın."
+                    if (ActivitySheetCard.TranslationY > 70)
+                    {
+                        await AnimateCloseActivitySheet();
+                    }
+                    else
+                    {
+                        await Task.WhenAll(
+                            ActivitySheetCard.TranslateToAsync(0, 0, 160, Easing.CubicOut),
+                            ActivityBackdrop.FadeToAsync(1, 160, Easing.Linear)
+                        );
+                    }
+                    break;
+            }
         }
 
         private void OnFeedScrolled(object? sender, ItemsViewScrolledEventArgs e)

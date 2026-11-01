@@ -47,10 +47,10 @@ namespace Pocket.Client.Models
             if (string.IsNullOrWhiteSpace(emoji))
                 return;
             Emojis.Remove(emoji);
-            Emojis.Add(emoji);
+            Emojis.Insert(0, emoji);
             while (Emojis.Count > 3)
             {
-                Emojis.RemoveAt(0);
+                Emojis.RemoveAt(Emojis.Count - 1);
             }
             EmojisText = string.Join("  ", Emojis);
         }

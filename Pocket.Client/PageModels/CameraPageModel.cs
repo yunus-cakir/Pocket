@@ -40,7 +40,19 @@ namespace Pocket.Client.PageModels
         private MediaPost? _currentFeedPost;
 
         [ObservableProperty]
+        private string _firstRecentEmoji = "💗";
+
+        [ObservableProperty]
+        private string _secondRecentEmoji = "🙃";
+
+        [ObservableProperty]
+        private string _thirdRecentEmoji = "😋";
+
+        [ObservableProperty]
         private bool _isActivitySheetOpen;
+
+        public Action? OpenActivitySheetAction;
+        public Action? CloseActivitySheetAction;
 
         [RelayCommand]
         private void OpenActivitySheet()
@@ -48,25 +60,47 @@ namespace Pocket.Client.PageModels
             if (CurrentFeedPost != null && CurrentFeedPost.HasActivity)
             {
                 IsActivitySheetOpen = true;
+                OpenActivitySheetAction?.Invoke();
             }
         }
 
         [RelayCommand]
         private void CloseActivitySheet()
         {
-            IsActivitySheetOpen = false;
+            if (CloseActivitySheetAction != null)
+            {
+                CloseActivitySheetAction.Invoke();
+            }
+            else
+            {
+                IsActivitySheetOpen = false;
+            }
         }
 
         partial void OnCurrentFeedPostChanged(MediaPost? value)
         {
-            IsActivitySheetOpen = false;
+            if (CloseActivitySheetAction != null)
+            {
+                CloseActivitySheetAction.Invoke();
+            }
+            else
+            {
+                IsActivitySheetOpen = false;
+            }
         }
 
         partial void OnIsViewingFeedChanged(bool value)
         {
             if (!value)
             {
-                IsActivitySheetOpen = false;
+                if (CloseActivitySheetAction != null)
+                {
+                    CloseActivitySheetAction.Invoke();
+                }
+                else
+                {
+                    IsActivitySheetOpen = false;
+                }
             }
         }
 
@@ -108,6 +142,59 @@ namespace Pocket.Client.PageModels
             ShellModel.OnMediaPostReceived += HandleMediaPostReceived;
             ShellModel.OnMediaPostDelivered += HandleMediaPostDelivered;
             ShellModel.OnDirectMessageReceived += HandleDirectMessageReceived;
+
+            LoadRecentEmojis();
+        }
+
+        private void LoadRecentEmojis()
+        {
+            var saved = Microsoft.Maui.Storage.Preferences.Default.Get("RecentEmojis", "💗,🙃,😋");
+            var parts = saved.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length > 0) FirstRecentEmoji = parts[0].Trim();
+            if (parts.Length > 1) SecondRecentEmoji = parts[1].Trim();
+            if (parts.Length > 2) ThirdRecentEmoji = parts[2].Trim();
+        }
+
+        public void UpdateRecentEmoji(string emoji)
+        {
+            if (string.IsNullOrWhiteSpace(emoji)) return;
+
+            var list = new System.Collections.Generic.List<string> { FirstRecentEmoji, SecondRecentEmoji, ThirdRecentEmoji };
+            list.Remove(emoji);
+            list.Insert(0, emoji); // En son kullanılan emoji en soldan başlar
+
+            FirstRecentEmoji = list.Count > 0 ? list[0] : "💗";
+            SecondRecentEmoji = list.Count > 1 ? list[1] : "🙃";
+            ThirdRecentEmoji = list.Count > 2 ? list[2] : "😋";
+
+            Microsoft.Maui.Storage.Preferences.Default.Set("RecentEmojis", $"{FirstRecentEmoji},{SecondRecentEmoji},{ThirdRecentEmoji}");
+        }
+
+        [RelayCommand]
+        private void SendFirstRecentEmoji()
+        {
+            SendRecentEmoji(FirstRecentEmoji);
+        }
+
+        [RelayCommand]
+        private void SendSecondRecentEmoji()
+        {
+            SendRecentEmoji(SecondRecentEmoji);
+        }
+
+        [RelayCommand]
+        private void SendThirdRecentEmoji()
+        {
+            SendRecentEmoji(ThirdRecentEmoji);
+        }
+
+        private void SendRecentEmoji(string emoji)
+        {
+            UpdateRecentEmoji(emoji);
+            if (CurrentFeedPost != null)
+            {
+                HandlePostReplyOrReact(CurrentFeedPost, emoji);
+            }
         }
 
         public ObservableCollection<MediaPost> FeedPosts { get; } = new();
@@ -168,6 +255,7 @@ namespace Pocket.Client.PageModels
 
             if (!string.IsNullOrEmpty(reactionEmoji))
             {
+                UpdateRecentEmoji(reactionEmoji);
                 // Send reaction silently in background without navigating to DM page or entering replying mode
                 _ = ShellModel.SendDirectMessageAsync(targetFriendId, null, reactionEmoji, post.Id);
                 return;
