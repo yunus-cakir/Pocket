@@ -5,66 +5,163 @@
              xmlns:models="clr-namespace:Pocket.Client.Models"
              x:Class="Pocket.Client.Pages.DmListPage"
              x:DataType="pm:DmListPageModel"
-             Title="Chats"
-             BackgroundColor="#000000">
+             Title="Friends"
+             BackgroundColor="#000000"
+             Shell.NavBarIsVisible="False">
 
-    <Grid RowDefinitions="Auto, *">
-        
-        <!-- Top Section: Search & Add -->
-        <VerticalStackLayout Grid.Row="0" Padding="20" Spacing="10" BackgroundColor="#111111">
-            <Label Text="Add Friend" FontSize="18" TextColor="White" FontAttributes="Bold" />
-            
-            <Grid ColumnDefinitions="*, Auto" ColumnSpacing="10">
-                <Entry Grid.Column="0" 
-                       Placeholder="Search username (must be online)" 
-                       Text="{Binding SearchQuery}"
-                       TextColor="White"
-                       PlaceholderColor="Gray"
-                       BackgroundColor="#222222" />
-                
-                <Button Grid.Column="1" 
-                        Text="Search" 
-                        Command="{Binding SearchUserCommand}" />
+    <Grid RowDefinitions="Auto, Auto, *" BackgroundColor="#000000">
+
+        <!-- Row 0: Top Header -->
+        <Grid Grid.Row="0" ColumnDefinitions="42, *, 42" Padding="16,14,16,8">
+            <Grid Grid.Column="0" WidthRequest="40" HeightRequest="40" HorizontalOptions="Start" VerticalOptions="Center">
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding GoBackCommand}" />
+                </Grid.GestureRecognizers>
+                <Path Stroke="#A1A1AA"
+                      StrokeThickness="2.2"
+                      StrokeLineCap="Round"
+                      StrokeLineJoin="Round"
+                      HorizontalOptions="Center"
+                      VerticalOptions="Center"
+                      Data="M15,6 L3,6 M8,1 L3,6 L8,11" />
             </Grid>
 
-            <ActivityIndicator IsRunning="{Binding IsSearching}" IsVisible="{Binding IsSearching}" Color="White" />
-            <Label Text="{Binding SearchMessage}" TextColor="LightCoral" IsVisible="{Binding HasSearchMessage}" />
+            <Label Grid.Column="1"
+                   Text="Add Friends"
+                   TextColor="#FFFFFF"
+                   FontFamily="OpenSansSemibold"
+                   FontSize="20"
+                   FontAttributes="Bold"
+                   HorizontalOptions="Center"
+                   VerticalOptions="Center" />
 
-            <Border IsVisible="{Binding HasSearchResult}"
-                    BackgroundColor="#333333" Padding="15" StrokeShape="RoundRectangle 10" Margin="0,10,0,0">
-                <Grid ColumnDefinitions="*, Auto">
-                    <VerticalStackLayout Grid.Column="0">
-                        <Label Text="{Binding SearchResult.Username}" TextColor="White" FontSize="16" FontAttributes="Bold" />
-                        <Label Text="Online" TextColor="LightGreen" FontSize="12" />
-                    </VerticalStackLayout>
-                    <Button Grid.Column="1" Text="Send Request" Command="{Binding SendFriendRequestCommand}" />
+            <BoxView Grid.Column="2" BackgroundColor="Transparent" Color="Transparent" />
+        </Grid>
+
+        <!-- Row 1: Search & Add Card -->
+        <Border Grid.Row="1"
+                Margin="16,8,16,12"
+                Padding="16"
+                BackgroundColor="#1C1C1E"
+                StrokeShape="RoundRectangle 22"
+                StrokeThickness="0">
+            <VerticalStackLayout Spacing="12">
+                <Grid ColumnDefinitions="*, Auto" ColumnSpacing="10">
+                    <Border Grid.Column="0"
+                            StrokeShape="RoundRectangle 18"
+                            StrokeThickness="0"
+                            BackgroundColor="#2C2C2E"
+                            Padding="14,0"
+                            HeightRequest="44">
+                        <Entry Placeholder="Search username..."
+                               Text="{Binding SearchQuery}"
+                               TextColor="#FFFFFF"
+                               PlaceholderColor="#8E8E93"
+                               FontFamily="OpenSansRegular"
+                               FontSize="15"
+                               BackgroundColor="Transparent"
+                               ReturnType="Search"
+                               ReturnCommand="{Binding SearchUserCommand}"
+                               VerticalOptions="Center" />
+                    </Border>
+
+                    <Border Grid.Column="1"
+                            BackgroundColor="#FFB800"
+                            StrokeShape="RoundRectangle 18"
+                            StrokeThickness="0"
+                            Padding="18,0"
+                            HeightRequest="44"
+                            VerticalOptions="Center">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding SearchUserCommand}" />
+                        </Border.GestureRecognizers>
+                        <Label Text="Search"
+                               TextColor="#000000"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="14"
+                               FontAttributes="Bold"
+                               VerticalOptions="Center"
+                               HorizontalOptions="Center" />
+                    </Border>
                 </Grid>
-            </Border>
-        </VerticalStackLayout>
 
-        <!-- Bottom Section: Chat List -->
-        <CollectionView Grid.Row="1" ItemsSource="{Binding Friends}" Margin="20">
+                <ActivityIndicator IsRunning="{Binding IsSearching}" IsVisible="{Binding IsSearching}" Color="#FFB800" />
+                <Label Text="{Binding SearchMessage}" TextColor="#FFB800" FontFamily="OpenSansSemibold" FontSize="13" IsVisible="{Binding HasSearchMessage}" />
+
+                <Border IsVisible="{Binding HasSearchResult}"
+                        BackgroundColor="#2C2C2E"
+                        Padding="14"
+                        StrokeShape="RoundRectangle 16"
+                        StrokeThickness="0">
+                    <Grid ColumnDefinitions="*, Auto">
+                        <VerticalStackLayout Grid.Column="0" VerticalOptions="Center" Spacing="2">
+                            <Label Text="{Binding SearchResult.Username}" TextColor="#FFFFFF" FontFamily="OpenSansSemibold" FontSize="16" FontAttributes="Bold" />
+                            <Label Text="Online" TextColor="#10B981" FontFamily="OpenSansSemibold" FontSize="12" />
+                        </VerticalStackLayout>
+                        <Border Grid.Column="1"
+                                BackgroundColor="#FFB800"
+                                StrokeShape="RoundRectangle 16"
+                                StrokeThickness="0"
+                                Padding="16,8"
+                                VerticalOptions="Center">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding SendFriendRequestCommand}" />
+                            </Border.GestureRecognizers>
+                            <Label Text="Add"
+                                   TextColor="#000000"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="13"
+                                   FontAttributes="Bold"
+                                   VerticalOptions="Center" />
+                        </Border>
+                    </Grid>
+                </Border>
+            </VerticalStackLayout>
+        </Border>
+
+        <!-- Row 2: Friends List -->
+        <CollectionView Grid.Row="2" ItemsSource="{Binding Friends}">
             <CollectionView.EmptyView>
-                <Label Text="No friends yet. Search a username above to add someone!" 
-                       TextColor="Gray" HorizontalOptions="Center" VerticalOptions="Center" />
+                <Label Text="No friends yet. Search a username above to add someone!"
+                       TextColor="#8E8E93"
+                       FontFamily="OpenSansRegular"
+                       FontSize="14"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center"
+                       Margin="32"
+                       HorizontalTextAlignment="Center" />
             </CollectionView.EmptyView>
             <CollectionView.ItemTemplate>
                 <DataTemplate x:DataType="models:Friend">
-                    <Grid Padding="10" ColumnDefinitions="Auto, *, Auto">
+                    <Grid ColumnDefinitions="Auto, *, Auto" Padding="16,10" ColumnSpacing="14">
                         <Grid.GestureRecognizers>
                             <TapGestureRecognizer Command="{Binding OpenChatCommand}" />
                         </Grid.GestureRecognizers>
-                        <BoxView Grid.Column="0" WidthRequest="40" HeightRequest="40" Color="Gray" CornerRadius="20" />
-                        <VerticalStackLayout Grid.Column="1" Margin="10,0,0,0">
-                            <Label Text="{Binding Username}" TextColor="White" FontSize="16" FontAttributes="Bold" />
-                            <Label Text="🔒 Sohbet için dokun" TextColor="#10B981" FontSize="13" />
+                        <Border Grid.Column="0"
+                                WidthRequest="54"
+                                HeightRequest="54"
+                                StrokeShape="RoundRectangle 27"
+                                Stroke="#262626"
+                                StrokeThickness="2"
+                                BackgroundColor="#1C1C1E"
+                                Padding="0">
+                            <Grid>
+                                <Path Fill="#8E8E93"
+                                      HorizontalOptions="Center"
+                                      VerticalOptions="Center"
+                                      Data="M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z" />
+                                <Image Source="{Binding ProfilePictureUrl}" Aspect="AspectFill" />
+                            </Grid>
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                            <Label Text="{Binding DisplayName}" TextColor="#FFFFFF" FontFamily="OpenSansSemibold" FontSize="17" FontAttributes="Bold" />
+                            <Label Text="{Binding LastMessagePreview}" TextColor="#8E8E93" FontFamily="OpenSansRegular" FontSize="14" LineBreakMode="TailTruncation" />
                         </VerticalStackLayout>
-                        <Label Grid.Column="2" Text="💬" FontSize="18" VerticalOptions="Center" />
+                        <Label Grid.Column="2" Text="{Binding LastMessageTimeText}" TextColor="#636366" FontFamily="OpenSansSemibold" FontSize="13" VerticalOptions="Center" />
                     </Grid>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
         </CollectionView>
 
     </Grid>
-
 </ContentPage>

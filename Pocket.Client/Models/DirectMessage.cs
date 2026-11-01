@@ -74,10 +74,13 @@ namespace Pocket.Client.Models
         public bool HasText => !string.IsNullOrWhiteSpace(TextContent);
 
         [Ignore]
+        public bool IsPostReactionOnly => !string.IsNullOrWhiteSpace(ReactionEmoji) && string.IsNullOrWhiteSpace(TextContent);
+
+        [Ignore]
         public LayoutOptions BubbleAlignment => IsIncoming ? LayoutOptions.Start : LayoutOptions.End;
 
         [Ignore]
-        public string BubbleColor => IsIncoming ? "#1F2937" : "#2563EB";
+        public string BubbleColor => IsIncoming ? "#1C1C1E" : "#2C2C2E";
 
         [Ignore]
         public string StatusText => IsIncoming

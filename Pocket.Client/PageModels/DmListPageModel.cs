@@ -97,5 +97,14 @@ namespace Pocket.Client.PageModels
             await Task.Delay(2000);
             SearchMessage = string.Empty;
         }
+
+        [RelayCommand]
+        private async Task GoBackAsync()
+        {
+            if (Microsoft.Maui.Controls.Shell.Current != null)
+            {
+                await Microsoft.Maui.Controls.Shell.Current.GoToAsync("..");
+            }
+        }
     }
 }

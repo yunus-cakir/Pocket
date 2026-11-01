@@ -31,6 +31,50 @@ namespace Pocket.Client.Pages
             viewModel.SnapToProfileAction = async () => await SnapToPanel(0);
             viewModel.SnapToCameraAction = async () => await SnapToPanel(1);
             viewModel.SnapToChatAction = async () => await SnapToPanel(2);
+            viewModel.ScrollToHistoryAction = () =>
+            {
+                if (viewModel.FeedPosts.Count > 0)
+                {
+                    viewModel.CurrentFeedPost = viewModel.FeedPosts[0];
+#if ANDROID
+                    if (FeedCollectionView.Handler?.PlatformView is AndroidX.RecyclerView.Widget.RecyclerView rv)
+                    {
+                        rv.SmoothScrollToPosition(1);
+                        viewModel.IsViewingFeed = true;
+                        return;
+                    }
+#endif
+                    FeedCollectionView.ScrollTo(0, position: ScrollToPosition.Start, animate: true);
+                    viewModel.IsViewingFeed = true;
+                }
+            };
+            viewModel.ScrollToCameraAction = () =>
+            {
+#if ANDROID
+                if (FeedCollectionView.Handler?.PlatformView is AndroidX.RecyclerView.Widget.RecyclerView rv)
+                {
+                    rv.SmoothScrollToPosition(0);
+                    viewModel.IsViewingFeed = false;
+                    return;
+                }
+#endif
+                viewModel.IsViewingFeed = false;
+            };
+        }
+
+        private void OnFeedScrolled(object? sender, ItemsViewScrolledEventArgs e)
+        {
+            if (BindingContext is CameraPageModel vm && this.Height > 0)
+            {
+                bool viewingFeed = e.VerticalOffset > (this.Height * 0.45);
+                vm.IsViewingFeed = viewingFeed;
+                if (viewingFeed && vm.FeedPosts.Count > 0)
+                {
+                    int postIndex = (int)Math.Round(e.VerticalOffset / this.Height) - 1;
+                    postIndex = Math.Clamp(postIndex, 0, vm.FeedPosts.Count - 1);
+                    vm.CurrentFeedPost = vm.FeedPosts[postIndex];
+                }
+            }
         }
 
         protected override void OnSizeAllocated(double width, double height)
@@ -48,6 +92,13 @@ namespace Pocket.Client.Pages
 
                 // Immediately jump to the correct panel without animation
                 PanContainer.TranslationX = -(_currentIndex * width);
+
+                if (height > 0 && BindingContext is CameraPageModel vm)
+                {
+                    vm.ViewportHeight = height;
+                    vm.CardSize = Math.Min(width - 12, Math.Max(320, height - 350));
+                    CameraHeaderGrid.HeightRequest = height;
+                }
             }
         }
 

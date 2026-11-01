@@ -40,7 +40,12 @@ namespace Pocket.Client.PageModels
         [ObservableProperty]
         private string _connectedAtText = "-";
 
+        [ObservableProperty]
+        private bool _isStreakOnWidget = true;
+
         public ObservableCollection<Friend> Friends { get; } = new();
+
+        public string FriendsCountText => Friends.Count == 1 ? "1 Friend" : $"{Friends.Count} Friends";
 
         public event Action<MediaPost>? OnMediaPostReceived;
         public event Action<Guid>? OnMediaPostDelivered;
@@ -53,7 +58,31 @@ namespace Pocket.Client.PageModels
             _cryptoService = cryptoService;
             _relayService = relayService;
 
+            Friends.CollectionChanged += (_, _) => OnPropertyChanged(nameof(FriendsCountText));
+            OnDirectMessageReceived += UpdateFriendLastMessage;
+
             _ = LoadUserAsync();
+        }
+
+        [RelayCommand]
+        private void ToggleStreakOnWidget()
+        {
+            IsStreakOnWidget = !IsStreakOnWidget;
+        }
+
+        private void UpdateFriendLastMessage(DirectMessage dm)
+        {
+            foreach (var f in Friends)
+            {
+                if (f.Id == dm.FriendId)
+                {
+                    f.LastMessagePreview = !string.IsNullOrWhiteSpace(dm.TextContent)
+                        ? dm.TextContent
+                        : (!string.IsNullOrWhiteSpace(dm.ReactionEmoji) ? dm.ReactionEmoji : "Fotoğrafa yanıt verdi");
+                    f.LastMessageTimeText = MediaPost.FormatRelativeTime(dm.SentAt);
+                    break;
+                }
+            }
         }
 
         public AppShellModel() : this(null!, null!, null!)
@@ -135,6 +164,21 @@ namespace Pocket.Client.PageModels
                 Friends.Clear();
                 foreach (var friend in friends)
                 {
+                    var dms = await _database.GetDirectMessagesForFriendAsync(friend.Id);
+                    var chatDms = dms.Where(d => !d.IsPostReactionOnly).ToList();
+                    if (chatDms.Count > 0)
+                    {
+                        var lastDm = chatDms[chatDms.Count - 1];
+                        friend.LastMessagePreview = !string.IsNullOrWhiteSpace(lastDm.TextContent)
+                            ? lastDm.TextContent
+                            : "Fotoğrafa yanıt verdi";
+                        friend.LastMessageTimeText = MediaPost.FormatRelativeTime(lastDm.SentAt);
+                    }
+                    else
+                    {
+                        friend.LastMessagePreview = "Sohbeti başlatmak için dokun";
+                        friend.LastMessageTimeText = MediaPost.FormatRelativeTime(friend.AddedAt);
+                    }
                     Friends.Add(friend);
                 }
 
@@ -211,6 +255,17 @@ namespace Pocket.Client.PageModels
 
             Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
             {
+                if (!dm.IsPostReactionOnly)
+                {
+                    var targetFriend = Friends.FirstOrDefault(f => f.Id == friendId);
+                    if (targetFriend != null)
+                    {
+                        targetFriend.LastMessagePreview = !string.IsNullOrWhiteSpace(dm.TextContent)
+                            ? dm.TextContent
+                            : "Fotoğrafa yanıt verdi";
+                        targetFriend.LastMessageTimeText = MediaPost.FormatRelativeTime(dm.SentAt);
+                    }
+                }
                 OnDirectMessageReceived?.Invoke(dm);
             });
 
@@ -339,6 +394,17 @@ namespace Pocket.Client.PageModels
 
                     Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
                     {
+                        if (!dm.IsPostReactionOnly)
+                        {
+                            var targetFriend = Friends.FirstOrDefault(f => f.Id == dm.FriendId);
+                            if (targetFriend != null)
+                            {
+                                targetFriend.LastMessagePreview = !string.IsNullOrWhiteSpace(dm.TextContent)
+                                    ? dm.TextContent
+                                    : "Fotoğrafa yanıt verdi";
+                                targetFriend.LastMessageTimeText = MediaPost.FormatRelativeTime(dm.SentAt);
+                            }
+                        }
                         OnDirectMessageReceived?.Invoke(dm);
                     });
 

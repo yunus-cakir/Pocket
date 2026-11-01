@@ -27,11 +27,72 @@ namespace Pocket.Client.PageModels
         [ObservableProperty]
         private string _caption = string.Empty;
 
+        [ObservableProperty]
+        private bool _isViewingFeed;
+
+        [ObservableProperty]
+        private double _viewportHeight = 840;
+
+        [ObservableProperty]
+        private double _cardSize = 399;
+
+        [ObservableProperty]
+        private MediaPost? _currentFeedPost;
+
+        [ObservableProperty]
+        private bool _isActivitySheetOpen;
+
+        [RelayCommand]
+        private void OpenActivitySheet()
+        {
+            if (CurrentFeedPost != null && CurrentFeedPost.HasActivity)
+            {
+                IsActivitySheetOpen = true;
+            }
+        }
+
+        [RelayCommand]
+        private void CloseActivitySheet()
+        {
+            IsActivitySheetOpen = false;
+        }
+
+        partial void OnCurrentFeedPostChanged(MediaPost? value)
+        {
+            IsActivitySheetOpen = false;
+        }
+
+        partial void OnIsViewingFeedChanged(bool value)
+        {
+            if (!value)
+            {
+                IsActivitySheetOpen = false;
+            }
+        }
+
+        partial void OnViewportHeightChanged(double value)
+        {
+            foreach (var post in FeedPosts)
+            {
+                post.ViewportHeight = value;
+            }
+        }
+
+        partial void OnCardSizeChanged(double value)
+        {
+            foreach (var post in FeedPosts)
+            {
+                post.CardSize = value;
+            }
+        }
+
         public AppShellModel ShellModel { get; }
 
         public Action? SnapToProfileAction;
         public Action? SnapToCameraAction;
         public Action? SnapToChatAction;
+        public Action? ScrollToHistoryAction;
+        public Action? ScrollToCameraAction;
 
         public CameraPageModel(
             LocalDatabase database,
@@ -46,16 +107,35 @@ namespace Pocket.Client.PageModels
 
             ShellModel.OnMediaPostReceived += HandleMediaPostReceived;
             ShellModel.OnMediaPostDelivered += HandleMediaPostDelivered;
+            ShellModel.OnDirectMessageReceived += HandleDirectMessageReceived;
         }
 
         public ObservableCollection<MediaPost> FeedPosts { get; } = new();
 
+        private void HandleDirectMessageReceived(DirectMessage dm)
+        {
+            if (dm.IsIncoming && dm.MediaPostId.HasValue && !string.IsNullOrWhiteSpace(dm.ReactionEmoji))
+            {
+                var targetPost = FeedPosts.FirstOrDefault(p => p.Id == dm.MediaPostId.Value);
+                if (targetPost != null)
+                {
+                    var friend = ShellModel.Friends.FirstOrDefault(f => f.Id == dm.FriendId);
+                    var friendName = friend?.DisplayName ?? "Friend";
+                    var friendAvatar = friend?.ProfilePictureUrl ?? string.Empty;
+                    targetPost.AddOrUpdateReaction(dm.FriendId, friendName, friendAvatar, dm.ReactionEmoji);
+                }
+            }
+        }
+
         private void HandleMediaPostReceived(MediaPost post)
         {
+            post.ViewportHeight = ViewportHeight;
+            post.CardSize = CardSize;
             post.OnReplyOrReactRequested = HandlePostReplyOrReact;
             if (FeedPosts.All(p => p.Id != post.Id))
             {
                 FeedPosts.Insert(0, post);
+                CurrentFeedPost ??= post;
             }
         }
 
@@ -86,39 +166,53 @@ namespace Pocket.Client.PageModels
                 return;
             }
 
+            if (!string.IsNullOrEmpty(reactionEmoji))
+            {
+                // Send reaction silently in background without navigating to DM page or entering replying mode
+                _ = ShellModel.SendDirectMessageAsync(targetFriendId, null, reactionEmoji, post.Id);
+                return;
+            }
+
             if (Microsoft.Maui.Controls.Shell.Current != null)
             {
                 await Microsoft.Maui.Controls.Shell.Current.GoToAsync(
                     $"{nameof(Pages.DmPage)}?FriendId={Uri.EscapeDataString(targetFriendId)}&MediaPostId={post.Id}");
-            }
-
-            if (!string.IsNullOrEmpty(reactionEmoji))
-            {
-                _ = ShellModel.SendDirectMessageAsync(targetFriendId, null, reactionEmoji, post.Id);
             }
         }
 
         public async Task LoadFeedAsync()
         {
             var friends = await _database.GetFriendsAsync();
-            var friendMap = friends.ToDictionary(f => f.Id, f => f.Username);
+            var friendMap = friends.ToDictionary(f => f.Id, f => f);
 
             var posts = await _database.GetAllMediaPostsAsync();
             FeedPosts.Clear();
             foreach (var post in posts)
             {
-                if (post.IsIncoming && !string.IsNullOrEmpty(post.FriendId) && friendMap.TryGetValue(post.FriendId, out var friendUsername))
+                if (post.IsIncoming && !string.IsNullOrEmpty(post.FriendId) && friendMap.TryGetValue(post.FriendId, out var senderFriend))
                 {
-                    post.SenderDisplayName = friendUsername;
+                    post.SenderDisplayName = senderFriend.Username;
                 }
                 else if (!post.IsIncoming)
                 {
                     post.SenderDisplayName = ShellModel.CurrentUser.Username;
                 }
 
+                var postDms = await _database.GetDirectMessagesForPostAsync(post.Id);
+                foreach (var dm in postDms.Where(d => d.IsIncoming && !string.IsNullOrWhiteSpace(d.ReactionEmoji)))
+                {
+                    friendMap.TryGetValue(dm.FriendId, out var reactFriend);
+                    var rName = reactFriend?.DisplayName ?? "Friend";
+                    var rAvatar = reactFriend?.ProfilePictureUrl ?? string.Empty;
+                    post.AddOrUpdateReaction(dm.FriendId, rName, rAvatar, dm.ReactionEmoji!);
+                }
+
+                post.ViewportHeight = ViewportHeight;
+                post.CardSize = CardSize;
                 post.OnReplyOrReactRequested = HandlePostReplyOrReact;
                 FeedPosts.Add(post);
             }
+            CurrentFeedPost = FeedPosts.FirstOrDefault();
         }
 
         public void OnPhotoCaptured(string imagePath)
@@ -143,6 +237,18 @@ namespace Pocket.Client.PageModels
         private void SnapToChat()
         {
             SnapToChatAction?.Invoke();
+        }
+
+        [RelayCommand]
+        private void ScrollToHistory()
+        {
+            ScrollToHistoryAction?.Invoke();
+        }
+
+        [RelayCommand]
+        private void ScrollToCamera()
+        {
+            ScrollToCameraAction?.Invoke();
         }
 
         [RelayCommand]
@@ -189,12 +295,15 @@ namespace Pocket.Client.PageModels
                 IsIncludedInRollcall = true,
                 SyncStatus = Shared.Enums.SyncStatus.Pending,
                 SenderDisplayName = ShellModel.CurrentUser.Username,
+                ViewportHeight = ViewportHeight,
+                CardSize = CardSize,
                 OnReplyOrReactRequested = HandlePostReplyOrReact
             };
 
             await _database.SaveMediaPostAsync(mediaPost);
 
             FeedPosts.Insert(0, mediaPost);
+            CurrentFeedPost = mediaPost;
 
             IsPreviewing = false;
             CapturedImagePath = string.Empty;

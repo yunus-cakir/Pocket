@@ -103,7 +103,7 @@ namespace Pocket.Client.PageModels
             }
 
             Messages.Clear();
-            foreach (var dm in dms)
+            foreach (var dm in dms.Where(d => !d.IsPostReactionOnly))
             {
                 if (dm.MediaPostId.HasValue && postMap.TryGetValue(dm.MediaPostId.Value, out var refPost))
                 {
@@ -116,6 +116,9 @@ namespace Pocket.Client.PageModels
 
         private void HandleDirectMessageReceived(DirectMessage dm)
         {
+            if (dm.IsPostReactionOnly)
+                return;
+
             if (dm.FriendId == FriendId && Messages.All(m => m.Id != dm.Id))
             {
                 Messages.Add(dm);
