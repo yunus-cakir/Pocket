@@ -31,6 +31,24 @@ namespace Pocket.Client.PageModels
         private bool _isViewingFeed;
 
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsBottomBarVisible))]
+        [NotifyPropertyChangedFor(nameof(IsCameraPanelActive))]
+        [NotifyPropertyChangedFor(nameof(IsChatPanelActive))]
+        [NotifyPropertyChangedFor(nameof(ShowHomePillInBottomBar))]
+        [NotifyPropertyChangedFor(nameof(ShowHomeIconInBottomBar))]
+        [NotifyPropertyChangedFor(nameof(ShowMiniShutterInBottomBar))]
+        [NotifyPropertyChangedFor(nameof(ShowFeedSideButtonsInBottomBar))]
+        private int _activePanelIndex = 1; // 0=Profile, 1=Camera/Feed, 2=Chat
+
+        public bool IsBottomBarVisible => ActivePanelIndex != 0;
+        public bool IsCameraPanelActive => ActivePanelIndex == 1;
+        public bool IsChatPanelActive => ActivePanelIndex == 2;
+        public bool ShowHomePillInBottomBar => ActivePanelIndex == 1 && !IsViewingFeed;
+        public bool ShowHomeIconInBottomBar => ActivePanelIndex == 2;
+        public bool ShowMiniShutterInBottomBar => ActivePanelIndex == 1 && IsViewingFeed;
+        public bool ShowFeedSideButtonsInBottomBar => ActivePanelIndex == 1 && IsViewingFeed;
+
+        [ObservableProperty]
         private double _viewportHeight = 840;
 
         [ObservableProperty]
@@ -91,6 +109,10 @@ namespace Pocket.Client.PageModels
 
         partial void OnIsViewingFeedChanged(bool value)
         {
+            OnPropertyChanged(nameof(ShowHomePillInBottomBar));
+            OnPropertyChanged(nameof(ShowMiniShutterInBottomBar));
+            OnPropertyChanged(nameof(ShowFeedSideButtonsInBottomBar));
+
             if (!value)
             {
                 if (CloseActivitySheetAction != null)
@@ -334,9 +356,16 @@ namespace Pocket.Client.PageModels
         }
 
         [RelayCommand]
-        private void ScrollToCamera()
+        private void OnCenterBottomTabTapped()
         {
-            ScrollToCameraAction?.Invoke();
+            if (ActivePanelIndex == 2)
+            {
+                SnapToCameraAction?.Invoke();
+            }
+            else if (ActivePanelIndex == 1 && IsViewingFeed)
+            {
+                ScrollToCameraAction?.Invoke();
+            }
         }
 
         [RelayCommand]

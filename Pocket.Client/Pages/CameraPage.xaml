@@ -18,6 +18,7 @@
     </ContentPage.Resources>
 
     <controls:HorizontalSwipeView x:Name="SwipeContainer">
+        <Grid BackgroundColor="#000000">
         <!-- Container translated horizontally across 3 panels: 0=Profile, 1=Camera/Feed, 2=Chat -->
         <Grid x:Name="PanContainer" ColumnDefinitions="Auto, Auto, Auto" HorizontalOptions="Start" BackgroundColor="#000000">
 
@@ -838,10 +839,10 @@
                 </Grid>
 
                 <!-- ============================================================== -->
-                <!-- PERSISTENT BOTTOM NAVIGATION OVERLAY ON CAMERA/FEED (Img 3 & 4)-->
+                <!-- PERSISTENT BOTTOM OVERLAY ON CAMERA/FEED (History & Activity)  -->
                 <!-- ============================================================== -->
                 <VerticalStackLayout Spacing="16"
-                                     Margin="18,0,18,18"
+                                     Margin="18,0,18,90"
                                      VerticalOptions="End">
 
                     <!-- History ⌄ Button (Visible on Camera Screen right above Bottom Pill - Image 3) -->
@@ -996,144 +997,6 @@
                             </Grid>
                         </Border>
                     </Grid>
-
-                    <Grid ColumnDefinitions="50, *, 50">
-
-                    <!-- Left: 2x2 Grid Gallery Button (Visible in Feed View - Image 4, Unimplemented feature noted) -->
-                    <Border Grid.Column="0"
-                            IsVisible="{Binding IsViewingFeed}"
-                            WidthRequest="48"
-                            HeightRequest="48"
-                            StrokeShape="RoundRectangle 24"
-                            StrokeThickness="0"
-                            BackgroundColor="#1C1C1E"
-                            Padding="0"
-                            HorizontalOptions="Start"
-                            VerticalOptions="Center">
-                        <Grid WidthRequest="20" HeightRequest="20" RowDefinitions="*, *" ColumnDefinitions="*, *" RowSpacing="3" ColumnSpacing="3" HorizontalOptions="Center" VerticalOptions="Center">
-                            <Border Grid.Row="0" Grid.Column="0" Stroke="#FFFFFF" StrokeThickness="2" StrokeShape="RoundRectangle 2.5" BackgroundColor="Transparent" Padding="0" />
-                            <Border Grid.Row="0" Grid.Column="1" Stroke="#FFFFFF" StrokeThickness="2" StrokeShape="RoundRectangle 2.5" BackgroundColor="Transparent" Padding="0" />
-                            <Border Grid.Row="1" Grid.Column="0" Stroke="#FFFFFF" StrokeThickness="2" StrokeShape="RoundRectangle 2.5" BackgroundColor="Transparent" Padding="0" />
-                            <Border Grid.Row="1" Grid.Column="1" Stroke="#FFFFFF" StrokeThickness="2" StrokeShape="RoundRectangle 2.5" BackgroundColor="Transparent" Padding="0" />
-                        </Grid>
-                    </Border>
-
-                    <!-- Center: Floating 3-Tab Pill Bar -->
-                    <Border Grid.Column="1"
-                            WidthRequest="190"
-                            HeightRequest="56"
-                            StrokeShape="RoundRectangle 28"
-                            StrokeThickness="0"
-                            BackgroundColor="#1C1C1E"
-                            Padding="5"
-                            HorizontalOptions="Center"
-                            VerticalOptions="Center">
-                        <Grid ColumnDefinitions="*, *, *">
-
-                            <!-- Tab 0: Calendar / Rollcall Icon (Unimplemented feature - noted) -->
-                            <Grid Grid.Column="0" HorizontalOptions="Fill" VerticalOptions="Fill">
-                                <Border WidthRequest="22"
-                                        HeightRequest="20"
-                                        StrokeShape="RoundRectangle 5"
-                                        StrokeThickness="0"
-                                        BackgroundColor="#8E8E93"
-                                        Padding="0"
-                                        HorizontalOptions="Center"
-                                        VerticalOptions="Center">
-                                    <Grid RowDefinitions="6, *" Padding="3,2">
-                                        <BoxView Grid.Row="0" HeightRequest="2" BackgroundColor="#1C1C1E" Color="#1C1C1E" VerticalOptions="End" />
-                                        <Grid Grid.Row="1" RowDefinitions="*, *" ColumnDefinitions="*, *, *" Margin="1,2,1,1">
-                                            <BoxView Grid.Row="0" Grid.Column="0" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
-                                            <BoxView Grid.Row="0" Grid.Column="1" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
-                                            <BoxView Grid.Row="0" Grid.Column="2" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
-                                            <BoxView Grid.Row="1" Grid.Column="0" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
-                                            <BoxView Grid.Row="1" Grid.Column="1" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
-                                            <BoxView Grid.Row="1" Grid.Column="2" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
-                                        </Grid>
-                                    </Grid>
-                                </Border>
-                            </Grid>
-
-                            <!-- Tab 1 (Center): Active Home Pill on Camera (Image 3) OR Mini Gold Shutter on Feed (Image 4) -->
-                            <Grid Grid.Column="1" HorizontalOptions="Fill" VerticalOptions="Fill">
-                                <Grid.GestureRecognizers>
-                                    <TapGestureRecognizer Command="{Binding ScrollToCameraCommand}" />
-                                </Grid.GestureRecognizers>
-
-                                <!-- Camera Mode: Active Home Pill (Image 3) -->
-                                <Border IsVisible="{Binding IsViewingFeed, Converter={StaticResource InvertedBoolConverter}}"
-                                        BackgroundColor="#3A3A3C"
-                                        StrokeShape="RoundRectangle 23"
-                                        StrokeThickness="0"
-                                        Padding="0"
-                                        HorizontalOptions="Fill"
-                                        VerticalOptions="Fill">
-                                    <Path Fill="#FFFFFF"
-                                          HorizontalOptions="Center"
-                                          VerticalOptions="Center"
-                                          Data="M10,1.5 L1,8.5 L1,18.5 C1,19.3 1.7,20 2.5,20 L7.5,20 L7.5,13.5 C7.5,12.7 8.2,12 9,12 L11,12 C11.8,12 12.5,12.7 12.5,13.5 L12.5,20 L17.5,20 C18.3,20 19,19.3 19,18.5 L19,8.5 L10,1.5 Z" />
-                                </Border>
-
-                                <!-- Feed Mode: Mini Gold-Ring Shutter Button (Image 4) -->
-                                <Grid IsVisible="{Binding IsViewingFeed}"
-                                      WidthRequest="40"
-                                      HeightRequest="40"
-                                      HorizontalOptions="Center"
-                                      VerticalOptions="Center">
-                                    <Border WidthRequest="38"
-                                            HeightRequest="38"
-                                            StrokeShape="RoundRectangle 19"
-                                            Stroke="#FFB800"
-                                            StrokeThickness="3"
-                                            BackgroundColor="Transparent"
-                                            Padding="0"
-                                            HorizontalOptions="Center"
-                                            VerticalOptions="Center" />
-                                    <Border WidthRequest="28"
-                                            HeightRequest="28"
-                                            StrokeShape="RoundRectangle 14"
-                                            StrokeThickness="0"
-                                            BackgroundColor="#FFFFFF"
-                                            Padding="0"
-                                            HorizontalOptions="Center"
-                                            VerticalOptions="Center" />
-                                </Grid>
-                            </Grid>
-
-                            <!-- Tab 2: Chat Bubble Icon (Active - Snaps to Chat) -->
-                            <Grid Grid.Column="2" HorizontalOptions="Fill" VerticalOptions="Fill">
-                                <Grid.GestureRecognizers>
-                                    <TapGestureRecognizer Command="{Binding SnapToChatCommand}" />
-                                </Grid.GestureRecognizers>
-                                <Path Fill="#8E8E93"
-                                      HorizontalOptions="Center"
-                                      VerticalOptions="Center"
-                                      Data="M10,1 C4.48,1 0,4.8 0,9.5 C0,11.6 0.9,13.5 2.4,15 L1,18.5 L5.2,16.9 C6.7,17.6 8.3,18 10,18 C15.52,18 20,14.2 20,9.5 C20,4.8 15.52,1 10,1 Z" />
-                            </Grid>
-
-                        </Grid>
-                    </Border>
-
-                    <!-- Right: Share Button (Visible in Feed View - Image 4, Unimplemented feature noted) -->
-                    <Border Grid.Column="2"
-                            IsVisible="{Binding IsViewingFeed}"
-                            WidthRequest="48"
-                            HeightRequest="48"
-                            StrokeShape="RoundRectangle 24"
-                            StrokeThickness="0"
-                            BackgroundColor="#1C1C1E"
-                            Padding="0"
-                            HorizontalOptions="End"
-                            VerticalOptions="Center">
-                        <Path Stroke="#FFFFFF"
-                              StrokeThickness="2"
-                              Fill="#FFFFFF"
-                              HorizontalOptions="Center"
-                              VerticalOptions="Center"
-                              Data="M14,3.5 C15,3.5 15.8,2.7 15.8,1.7 C15.8,0.7 15,0 14,0 C13,0 12.2,0.7 12.2,1.7 C12.2,2.7 13,3.5 14,3.5 Z M2.5,10.2 C3.5,10.2 4.3,9.4 4.3,8.4 C4.3,7.4 3.5,6.7 2.5,6.7 C1.5,6.7 0.7,7.4 0.7,8.4 C0.7,9.4 1.5,10.2 2.5,10.2 Z M14,17 C15,17 15.8,16.2 15.8,15.2 C15.8,14.2 15,13.5 14,13.5 C13,13.5 12.2,14.2 12.2,15.2 C12.2,16.2 13,17 14,17 Z M4.1,7.5 L12.4,2.6 M4.1,9.3 L12.4,14.2" />
-                    </Border>
-
-                    </Grid>
                 </VerticalStackLayout>
 
                 <!-- ============================================================== -->
@@ -1256,7 +1119,7 @@
             <!-- ================================================================== -->
             <!-- PANEL 2: CHAT LIST PAGE (Reference Image 2)                        -->
             <!-- ================================================================== -->
-            <Grid x:Name="ChatPanel" Grid.Column="2" BackgroundColor="#000000" RowDefinitions="Auto, *, Auto">
+            <Grid x:Name="ChatPanel" Grid.Column="2" BackgroundColor="#000000" RowDefinitions="Auto, *, 90">
 
                 <!-- Row 0: Top Header ("Chat" centered + Top-Right Profile Avatar) -->
                 <Grid Grid.Row="0" ColumnDefinitions="42, *, 42" Margin="16,14,16,12">
@@ -1372,95 +1235,201 @@
                     </CollectionView.ItemTemplate>
                 </CollectionView>
 
-                <!-- Row 2: Bottom Navigation Bar + Floating Gold Compose Button (Reference Image 2) -->
-                <Grid Grid.Row="2" ColumnDefinitions="56, *, 56" Margin="18,0,18,18" VerticalOptions="End">
-                    <BoxView Grid.Column="0" BackgroundColor="Transparent" Color="Transparent" />
-
-                    <!-- Center Floating 3-Tab Pill (Chat Tab Active) -->
-                    <Border Grid.Column="1"
-                            WidthRequest="190"
-                            HeightRequest="56"
-                            StrokeShape="RoundRectangle 28"
-                            StrokeThickness="0"
-                            BackgroundColor="#1C1C1E"
-                            Padding="5"
-                            HorizontalOptions="Center"
-                            VerticalOptions="Center">
-                        <Grid ColumnDefinitions="*, *, *">
-
-                            <!-- Tab 0: Calendar / Rollcall Icon (Unimplemented feature - noted) -->
-                            <Grid Grid.Column="0" HorizontalOptions="Fill" VerticalOptions="Fill">
-                                <Border WidthRequest="22"
-                                        HeightRequest="20"
-                                        StrokeShape="RoundRectangle 5"
-                                        StrokeThickness="0"
-                                        BackgroundColor="#8E8E93"
-                                        Padding="0"
-                                        HorizontalOptions="Center"
-                                        VerticalOptions="Center">
-                                    <Grid RowDefinitions="6, *" Padding="3,2">
-                                        <BoxView Grid.Row="0" HeightRequest="2" BackgroundColor="#1C1C1E" Color="#1C1C1E" VerticalOptions="End" />
-                                        <Grid Grid.Row="1" RowDefinitions="*, *" ColumnDefinitions="*, *, *" Margin="1,2,1,1">
-                                            <BoxView Grid.Row="0" Grid.Column="0" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
-                                            <BoxView Grid.Row="0" Grid.Column="1" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
-                                            <BoxView Grid.Row="0" Grid.Column="2" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
-                                            <BoxView Grid.Row="1" Grid.Column="0" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
-                                            <BoxView Grid.Row="1" Grid.Column="1" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
-                                            <BoxView Grid.Row="1" Grid.Column="2" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
-                                        </Grid>
-                                    </Grid>
-                                </Border>
-                            </Grid>
-
-                            <!-- Tab 1: Home Icon (Active - Snaps to Camera) -->
-                            <Grid Grid.Column="1" HorizontalOptions="Fill" VerticalOptions="Fill">
-                                <Grid.GestureRecognizers>
-                                    <TapGestureRecognizer Command="{Binding SnapToCameraCommand}" />
-                                </Grid.GestureRecognizers>
-                                <Path Fill="#8E8E93"
-                                      HorizontalOptions="Center"
-                                      VerticalOptions="Center"
-                                      Data="M10,1.5 L1,8.5 L1,18.5 C1,19.3 1.7,20 2.5,20 L7.5,20 L7.5,13.5 C7.5,12.7 8.2,12 9,12 L11,12 C11.8,12 12.5,12.7 12.5,13.5 L12.5,20 L17.5,20 C18.3,20 19,19.3 19,18.5 L19,8.5 L10,1.5 Z" />
-                            </Grid>
-
-                            <!-- Tab 2: Active Chat Pill -->
-                            <Border Grid.Column="2"
-                                    BackgroundColor="#3A3A3C"
-                                    StrokeShape="RoundRectangle 23"
-                                    StrokeThickness="0"
-                                    Padding="0"
-                                    HorizontalOptions="Fill"
-                                    VerticalOptions="Fill">
-                                <Path Fill="#FFFFFF"
-                                      HorizontalOptions="Center"
-                                      VerticalOptions="Center"
-                                      Data="M10,1 C4.48,1 0,4.8 0,9.5 C0,11.6 0.9,13.5 2.4,15 L1,18.5 L5.2,16.9 C6.7,17.6 8.3,18 10,18 C15.52,18 20,14.2 20,9.5 C20,4.8 15.52,1 10,1 Z" />
-                            </Border>
-
-                        </Grid>
-                    </Border>
-
-                    <!-- Right: Floating Gold Circle Pencil Button (Active - Opens Add Friend / New Chat) -->
-                    <Border Grid.Column="2"
-                            WidthRequest="56"
-                            HeightRequest="56"
-                            StrokeShape="RoundRectangle 28"
-                            StrokeThickness="0"
-                            BackgroundColor="#FFB800"
-                            Padding="0"
-                            HorizontalOptions="End"
-                            VerticalOptions="Center">
-                        <Border.GestureRecognizers>
-                            <TapGestureRecognizer Command="{Binding ShellModel.AddFriendCommand}" />
-                        </Border.GestureRecognizers>
-                        <Path Fill="#000000"
-                              HorizontalOptions="Center"
-                              VerticalOptions="Center"
-                              Data="M2,16.2 L2,20 L5.8,20 L17,8.8 L13.2,5 L2,16.2 Z M19.7,6.1 C20.1,5.7 20.1,5.1 19.7,4.7 L17.3,2.3 C16.9,1.9 16.3,1.9 15.9,2.3 L14.1,4.1 L17.9,7.9 L19.7,6.1 Z" />
-                    </Border>
-                </Grid>
+                <!-- Row 2: Bottom Spacer for Shared Persistent Bottom Bar -->
+                <BoxView Grid.Row="2" BackgroundColor="Transparent" Color="Transparent" />
 
             </Grid>
+
+        </Grid>
+
+        <!-- ================================================================== -->
+        <!-- SHARED PERSISTENT BOTTOM NAVIGATION PANEL (Camera/Feed & Chat/DM)  -->
+        <!-- ================================================================== -->
+        <Grid x:Name="SharedBottomBar"
+              IsVisible="{Binding IsBottomBarVisible}"
+              ColumnDefinitions="56, *, 56"
+              Margin="18,0,18,18"
+              VerticalOptions="End">
+
+            <!-- Left: 2x2 Grid Gallery Button (Visible in Feed View - Image 4, Unimplemented feature noted) -->
+            <Border Grid.Column="0"
+                    IsVisible="{Binding ShowFeedSideButtonsInBottomBar}"
+                    WidthRequest="48"
+                    HeightRequest="48"
+                    StrokeShape="RoundRectangle 24"
+                    StrokeThickness="0"
+                    BackgroundColor="#1C1C1E"
+                    Padding="0"
+                    HorizontalOptions="Start"
+                    VerticalOptions="Center">
+                <Grid WidthRequest="20" HeightRequest="20" RowDefinitions="*, *" ColumnDefinitions="*, *" RowSpacing="3" ColumnSpacing="3" HorizontalOptions="Center" VerticalOptions="Center">
+                    <Border Grid.Row="0" Grid.Column="0" Stroke="#FFFFFF" StrokeThickness="2" StrokeShape="RoundRectangle 2.5" BackgroundColor="Transparent" Padding="0" />
+                    <Border Grid.Row="0" Grid.Column="1" Stroke="#FFFFFF" StrokeThickness="2" StrokeShape="RoundRectangle 2.5" BackgroundColor="Transparent" Padding="0" />
+                    <Border Grid.Row="1" Grid.Column="0" Stroke="#FFFFFF" StrokeThickness="2" StrokeShape="RoundRectangle 2.5" BackgroundColor="Transparent" Padding="0" />
+                    <Border Grid.Row="1" Grid.Column="1" Stroke="#FFFFFF" StrokeThickness="2" StrokeShape="RoundRectangle 2.5" BackgroundColor="Transparent" Padding="0" />
+                </Grid>
+            </Border>
+
+            <!-- Center: Shared Floating 3-Tab Pill Bar -->
+            <Border Grid.Column="1"
+                    WidthRequest="190"
+                    HeightRequest="56"
+                    StrokeShape="RoundRectangle 28"
+                    StrokeThickness="0"
+                    BackgroundColor="#1C1C1E"
+                    Padding="5"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center">
+                <Grid ColumnDefinitions="*, *, *">
+
+                    <!-- Tab 0: Calendar / Rollcall Icon (Unimplemented feature - noted) -->
+                    <Grid Grid.Column="0" HorizontalOptions="Fill" VerticalOptions="Fill">
+                        <Border WidthRequest="22"
+                                HeightRequest="20"
+                                StrokeShape="RoundRectangle 5"
+                                StrokeThickness="0"
+                                BackgroundColor="#8E8E93"
+                                Padding="0"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center">
+                            <Grid RowDefinitions="6, *" Padding="3,2">
+                                <BoxView Grid.Row="0" HeightRequest="2" BackgroundColor="#1C1C1E" Color="#1C1C1E" VerticalOptions="End" />
+                                <Grid Grid.Row="1" RowDefinitions="*, *" ColumnDefinitions="*, *, *" Margin="1,2,1,1">
+                                    <BoxView Grid.Row="0" Grid.Column="0" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
+                                    <BoxView Grid.Row="0" Grid.Column="1" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
+                                    <BoxView Grid.Row="0" Grid.Column="2" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
+                                    <BoxView Grid.Row="1" Grid.Column="0" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
+                                    <BoxView Grid.Row="1" Grid.Column="1" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
+                                    <BoxView Grid.Row="1" Grid.Column="2" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- Tab 1 (Center): Active Home Pill (Camera) OR Inactive Home Icon (Chat) OR Mini Gold Shutter (Feed) -->
+                    <Grid Grid.Column="1" HorizontalOptions="Fill" VerticalOptions="Fill">
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding CenterBottomTabTappedCommand}" />
+                        </Grid.GestureRecognizers>
+
+                        <!-- Camera Mode: Active Home Pill -->
+                        <Border IsVisible="{Binding ShowHomePillInBottomBar}"
+                                BackgroundColor="#3A3A3C"
+                                StrokeShape="RoundRectangle 23"
+                                StrokeThickness="0"
+                                Padding="0"
+                                HorizontalOptions="Fill"
+                                VerticalOptions="Fill">
+                            <Path Fill="#FFFFFF"
+                                  HorizontalOptions="Center"
+                                  VerticalOptions="Center"
+                                  Data="M10,1.5 L1,8.5 L1,18.5 C1,19.3 1.7,20 2.5,20 L7.5,20 L7.5,13.5 C7.5,12.7 8.2,12 9,12 L11,12 C11.8,12 12.5,12.7 12.5,13.5 L12.5,20 L17.5,20 C18.3,20 19,19.3 19,18.5 L19,8.5 L10,1.5 Z" />
+                        </Border>
+
+                        <!-- Chat Mode: Inactive Home Icon -->
+                        <Path IsVisible="{Binding ShowHomeIconInBottomBar}"
+                              Fill="#8E8E93"
+                              HorizontalOptions="Center"
+                              VerticalOptions="Center"
+                              Data="M10,1.5 L1,8.5 L1,18.5 C1,19.3 1.7,20 2.5,20 L7.5,20 L7.5,13.5 C7.5,12.7 8.2,12 9,12 L11,12 C11.8,12 12.5,12.7 12.5,13.5 L12.5,20 L17.5,20 C18.3,20 19,19.3 19,18.5 L19,8.5 L10,1.5 Z" />
+
+                        <!-- Feed Mode: Mini Gold-Ring Shutter Button -->
+                        <Grid IsVisible="{Binding ShowMiniShutterInBottomBar}"
+                              WidthRequest="40"
+                              HeightRequest="40"
+                              HorizontalOptions="Center"
+                              VerticalOptions="Center">
+                            <Border WidthRequest="38"
+                                    HeightRequest="38"
+                                    StrokeShape="RoundRectangle 19"
+                                    Stroke="#FFB800"
+                                    StrokeThickness="3"
+                                    BackgroundColor="Transparent"
+                                    Padding="0"
+                                    HorizontalOptions="Center"
+                                    VerticalOptions="Center" />
+                            <Border WidthRequest="28"
+                                    HeightRequest="28"
+                                    StrokeShape="RoundRectangle 14"
+                                    StrokeThickness="0"
+                                    BackgroundColor="#FFFFFF"
+                                    Padding="0"
+                                    HorizontalOptions="Center"
+                                    VerticalOptions="Center" />
+                        </Grid>
+                    </Grid>
+
+                    <!-- Tab 2: Chat Bubble Icon (Active Pill on Chat, Inactive Icon on Camera/Feed) -->
+                    <Grid Grid.Column="2" HorizontalOptions="Fill" VerticalOptions="Fill">
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding SnapToChatCommand}" />
+                        </Grid.GestureRecognizers>
+
+                        <!-- Active Chat Pill -->
+                        <Border IsVisible="{Binding IsChatPanelActive}"
+                                BackgroundColor="#3A3A3C"
+                                StrokeShape="RoundRectangle 23"
+                                StrokeThickness="0"
+                                Padding="0"
+                                HorizontalOptions="Fill"
+                                VerticalOptions="Fill">
+                            <Path Fill="#FFFFFF"
+                                  HorizontalOptions="Center"
+                                  VerticalOptions="Center"
+                                  Data="M10,1 C4.48,1 0,4.8 0,9.5 C0,11.6 0.9,13.5 2.4,15 L1,18.5 L5.2,16.9 C6.7,17.6 8.3,18 10,18 C15.52,18 20,14.2 20,9.5 C20,4.8 15.52,1 10,1 Z" />
+                        </Border>
+
+                        <!-- Inactive Chat Icon -->
+                        <Path IsVisible="{Binding IsCameraPanelActive}"
+                              Fill="#8E8E93"
+                              HorizontalOptions="Center"
+                              VerticalOptions="Center"
+                              Data="M10,1 C4.48,1 0,4.8 0,9.5 C0,11.6 0.9,13.5 2.4,15 L1,18.5 L5.2,16.9 C6.7,17.6 8.3,18 10,18 C15.52,18 20,14.2 20,9.5 C20,4.8 15.52,1 10,1 Z" />
+                    </Grid>
+
+                </Grid>
+            </Border>
+
+            <!-- Right (Feed Mode): Share Button (Visible in Feed View - Image 4, Unimplemented feature noted) -->
+            <Border Grid.Column="2"
+                    IsVisible="{Binding ShowFeedSideButtonsInBottomBar}"
+                    WidthRequest="48"
+                    HeightRequest="48"
+                    StrokeShape="RoundRectangle 24"
+                    StrokeThickness="0"
+                    BackgroundColor="#1C1C1E"
+                    Padding="0"
+                    HorizontalOptions="End"
+                    VerticalOptions="Center">
+                <Path Stroke="#FFFFFF"
+                      StrokeThickness="2"
+                      Fill="#FFFFFF"
+                      HorizontalOptions="Center"
+                      VerticalOptions="Center"
+                      Data="M14,3.5 C15,3.5 15.8,2.7 15.8,1.7 C15.8,0.7 15,0 14,0 C13,0 12.2,0.7 12.2,1.7 C12.2,2.7 13,3.5 14,3.5 Z M2.5,10.2 C3.5,10.2 4.3,9.4 4.3,8.4 C4.3,7.4 3.5,6.7 2.5,6.7 C1.5,6.7 0.7,7.4 0.7,8.4 C0.7,9.4 1.5,10.2 2.5,10.2 Z M14,17 C15,17 15.8,16.2 15.8,15.2 C15.8,14.2 15,13.5 14,13.5 C13,13.5 12.2,14.2 12.2,15.2 C12.2,16.2 13,17 14,17 Z M4.1,7.5 L12.4,2.6 M4.1,9.3 L12.4,14.2" />
+            </Border>
+
+            <!-- Right (Chat Mode): Floating Gold Circle Pencil Button (Active - Opens Add Friend / New Chat) -->
+            <Border Grid.Column="2"
+                    IsVisible="{Binding IsChatPanelActive}"
+                    WidthRequest="56"
+                    HeightRequest="56"
+                    StrokeShape="RoundRectangle 28"
+                    StrokeThickness="0"
+                    BackgroundColor="#FFB800"
+                    Padding="0"
+                    HorizontalOptions="End"
+                    VerticalOptions="Center">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding ShellModel.AddFriendCommand}" />
+                </Border.GestureRecognizers>
+                <Path Fill="#000000"
+                      HorizontalOptions="Center"
+                      VerticalOptions="Center"
+                      Data="M2,16.2 L2,20 L5.8,20 L17,8.8 L13.2,5 L2,16.2 Z M19.7,6.1 C20.1,5.7 20.1,5.1 19.7,4.7 L17.3,2.3 C16.9,1.9 16.3,1.9 15.9,2.3 L14.1,4.1 L17.9,7.9 L19.7,6.1 Z" />
+            </Border>
+
+        </Grid>
 
         </Grid>
     </controls:HorizontalSwipeView>

@@ -185,6 +185,10 @@ namespace Pocket.Client.Pages
         private async Task SnapToPanel(int index)
         {
             _currentIndex = Math.Max(0, Math.Min(2, index));
+            if (BindingContext is CameraPageModel vm)
+            {
+                vm.ActivePanelIndex = _currentIndex;
+            }
             double targetX = -(_currentIndex * this.Width);
 
             // Dynamic animation duration based on distance to feel natural
@@ -237,6 +241,16 @@ namespace Pocket.Client.Pages
                     var newTranslation = _panX + e.TotalX;
                     newTranslation = Math.Max(-this.Width * 2, Math.Min(0, newTranslation));
                     PanContainer.TranslationX = newTranslation;
+
+                    if (this.Width > 0 && BindingContext is CameraPageModel panVm)
+                    {
+                        int nearestIndex = (int)Math.Round(-newTranslation / this.Width);
+                        nearestIndex = Math.Clamp(nearestIndex, 0, 2);
+                        if (panVm.ActivePanelIndex != nearestIndex)
+                        {
+                            panVm.ActivePanelIndex = nearestIndex;
+                        }
+                    }
                     break;
 
                 case GestureStatus.Completed:
