@@ -22,10 +22,21 @@ namespace Pocket.Client.PageModels
         [NotifyPropertyChangedFor(nameof(IsBottomBarVisible))]
         [NotifyPropertyChangedFor(nameof(IsNotPreviewing))]
         [NotifyPropertyChangedFor(nameof(ShowPreviewControls))]
+        [NotifyPropertyChangedFor(nameof(ShowSaveToGalleryButton))]
+        [NotifyPropertyChangedFor(nameof(ShowHistoryButton))]
+        [NotifyPropertyChangedFor(nameof(ShowFeedOverlayBar))]
+        [NotifyPropertyChangedFor(nameof(ShowFeedNoActivityPill))]
+        [NotifyPropertyChangedFor(nameof(ShowFeedActivityPill))]
+        [NotifyPropertyChangedFor(nameof(ShowFeedReplyBar))]
         private bool _isPreviewing;
 
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(ShowSaveToGalleryButton))]
+        private bool _isFromGallery;
+
+        [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(ShowPreviewControls))]
+        [NotifyPropertyChangedFor(nameof(ShowSaveToGalleryButton))]
         private bool _isEditingCaption;
 
         [ObservableProperty]
@@ -33,6 +44,7 @@ namespace Pocket.Client.PageModels
 
         public bool IsNotPreviewing => !IsPreviewing;
         public bool ShowPreviewControls => IsPreviewing && !IsEditingCaption;
+        public bool ShowSaveToGalleryButton => ShowPreviewControls && !IsFromGallery;
 
         [ObservableProperty]
         private string _capturedImagePath = string.Empty;
@@ -41,6 +53,11 @@ namespace Pocket.Client.PageModels
         private string _caption = string.Empty;
 
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(ShowHistoryButton))]
+        [NotifyPropertyChangedFor(nameof(ShowFeedOverlayBar))]
+        [NotifyPropertyChangedFor(nameof(ShowFeedNoActivityPill))]
+        [NotifyPropertyChangedFor(nameof(ShowFeedActivityPill))]
+        [NotifyPropertyChangedFor(nameof(ShowFeedReplyBar))]
         private bool _isViewingFeed;
 
         [ObservableProperty]
@@ -51,6 +68,11 @@ namespace Pocket.Client.PageModels
         [NotifyPropertyChangedFor(nameof(ShowHomeIconInBottomBar))]
         [NotifyPropertyChangedFor(nameof(ShowMiniShutterInBottomBar))]
         [NotifyPropertyChangedFor(nameof(ShowFeedSideButtonsInBottomBar))]
+        [NotifyPropertyChangedFor(nameof(ShowHistoryButton))]
+        [NotifyPropertyChangedFor(nameof(ShowFeedOverlayBar))]
+        [NotifyPropertyChangedFor(nameof(ShowFeedNoActivityPill))]
+        [NotifyPropertyChangedFor(nameof(ShowFeedActivityPill))]
+        [NotifyPropertyChangedFor(nameof(ShowFeedReplyBar))]
         private int _activePanelIndex = 1; // 0=Profile, 1=Camera/Feed, 2=Chat
 
         public bool IsBottomBarVisible => ActivePanelIndex != 0 && !IsPreviewing;
@@ -61,6 +83,12 @@ namespace Pocket.Client.PageModels
         public bool ShowMiniShutterInBottomBar => ActivePanelIndex == 1 && IsViewingFeed;
         public bool ShowFeedSideButtonsInBottomBar => ActivePanelIndex == 1 && IsViewingFeed;
 
+        public bool ShowHistoryButton => !IsPreviewing && !IsViewingFeed;
+        public bool ShowFeedOverlayBar => !IsPreviewing && IsViewingFeed && ActivePanelIndex == 1 && CurrentFeedPost != null;
+        public bool ShowFeedNoActivityPill => ShowFeedOverlayBar && CurrentFeedPost!.HasNoActivity;
+        public bool ShowFeedActivityPill => ShowFeedOverlayBar && CurrentFeedPost!.ShowActivityPill;
+        public bool ShowFeedReplyBar => ShowFeedOverlayBar && CurrentFeedPost!.IsIncoming;
+
         [ObservableProperty]
         private double _viewportHeight = 840;
 
@@ -68,6 +96,10 @@ namespace Pocket.Client.PageModels
         private double _cardSize = 399;
 
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(ShowFeedOverlayBar))]
+        [NotifyPropertyChangedFor(nameof(ShowFeedNoActivityPill))]
+        [NotifyPropertyChangedFor(nameof(ShowFeedActivityPill))]
+        [NotifyPropertyChangedFor(nameof(ShowFeedReplyBar))]
         private MediaPost? _currentFeedPost;
 
         [ObservableProperty]
@@ -246,6 +278,11 @@ namespace Pocket.Client.PageModels
                     var friendName = friend?.DisplayName ?? "Friend";
                     var friendAvatar = friend?.ProfilePictureUrl ?? string.Empty;
                     targetPost.AddOrUpdateReaction(dm.FriendId, friendName, friendAvatar, dm.ReactionEmoji);
+                    if (ReferenceEquals(CurrentFeedPost, targetPost))
+                    {
+                        OnPropertyChanged(nameof(ShowFeedNoActivityPill));
+                        OnPropertyChanged(nameof(ShowFeedActivityPill));
+                    }
                 }
             }
         }
@@ -310,7 +347,7 @@ namespace Pocket.Client.PageModels
             var friendMap = friends.ToDictionary(f => f.Id, f => f);
 
             var posts = await _database.GetAllMediaPostsAsync();
-            FeedPosts.Clear();
+            var preparedPosts = new System.Collections.Generic.List<MediaPost>(posts.Count);
             foreach (var post in posts)
             {
                 if (post.IsIncoming && !string.IsNullOrEmpty(post.FriendId) && friendMap.TryGetValue(post.FriendId, out var senderFriend))
@@ -334,14 +371,61 @@ namespace Pocket.Client.PageModels
                 post.ViewportHeight = ViewportHeight;
                 post.CardSize = CardSize;
                 post.OnReplyOrReactRequested = HandlePostReplyOrReact;
-                FeedPosts.Add(post);
+                preparedPosts.Add(post);
             }
-            CurrentFeedPost = FeedPosts.FirstOrDefault();
+
+            // If the feed list ids haven't changed, update existing items in place so RecyclerView doesn't lose scroll/layout state
+            bool sameSequence = FeedPosts.Count == preparedPosts.Count &&
+                                FeedPosts.Select(p => p.Id).SequenceEqual(preparedPosts.Select(p => p.Id));
+
+            if (sameSequence)
+            {
+                for (int i = 0; i < preparedPosts.Count; i++)
+                {
+                    var existing = FeedPosts[i];
+                    var updated = preparedPosts[i];
+                    existing.SenderDisplayName = updated.SenderDisplayName;
+                    existing.ViewportHeight = ViewportHeight;
+                    existing.CardSize = CardSize;
+                    existing.OnReplyOrReactRequested = HandlePostReplyOrReact;
+                    existing.ActivityItems.Clear();
+                    foreach (var item in updated.ActivityItems)
+                    {
+                        existing.ActivityItems.Add(item);
+                    }
+                    existing.NotifyActivityChanged();
+                }
+            }
+            else
+            {
+                FeedPosts.Clear();
+                foreach (var post in preparedPosts)
+                {
+                    FeedPosts.Add(post);
+                }
+            }
+
+            if (FeedPosts.Count == 0)
+            {
+                CurrentFeedPost = null;
+                IsViewingFeed = false;
+            }
+            else if (CurrentFeedPost == null || FeedPosts.All(p => p.Id != CurrentFeedPost.Id))
+            {
+                CurrentFeedPost = FeedPosts.FirstOrDefault();
+            }
+
+            OnPropertyChanged(nameof(ShowFeedOverlayBar));
+            OnPropertyChanged(nameof(ShowFeedNoActivityPill));
+            OnPropertyChanged(nameof(ShowFeedActivityPill));
+            OnPropertyChanged(nameof(ShowFeedReplyBar));
         }
 
-        public void OnPhotoCaptured(string imagePath)
+        public void OnPhotoCaptured(string imagePath, bool isFromGallery = false)
         {
+            IsViewingFeed = false;
             CapturedImagePath = imagePath;
+            IsFromGallery = isFromGallery;
             IsEditingCaption = false;
             IsAllSelected = true;
             foreach (var f in ShellModel.Friends)
@@ -425,6 +509,18 @@ namespace Pocket.Client.PageModels
         [RelayCommand]
         private void Cancel()
         {
+            if (!string.IsNullOrEmpty(CapturedImagePath) && System.IO.File.Exists(CapturedImagePath))
+            {
+                try
+                {
+                    System.IO.File.Delete(CapturedImagePath);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Failed to delete temp cache file on cancel: {ex.Message}");
+                }
+            }
+
             IsEditingCaption = false;
             IsPreviewing = false;
             CapturedImagePath = string.Empty;
@@ -487,6 +583,7 @@ namespace Pocket.Client.PageModels
             FeedPosts.Insert(0, mediaPost);
             CurrentFeedPost = mediaPost;
 
+            IsViewingFeed = false;
             IsEditingCaption = false;
             IsPreviewing = false;
             CapturedImagePath = string.Empty;

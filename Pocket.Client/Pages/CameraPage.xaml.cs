@@ -28,6 +28,7 @@ namespace Pocket.Client.Pages
             // only confirmed horizontal pans reach this handler.
             SwipeContainer.SwipePanUpdated += OnSwipePanUpdated;
             cameraView.CapabilitiesChanged += OnCameraCapabilitiesChanged;
+            cameraView.DeviceOrientationChanged += OnDeviceOrientationChanged;
 
             viewModel.SnapToProfileAction = async () => await SnapToPanel(0);
             viewModel.SnapToCameraAction = async () => await SnapToPanel(1);
@@ -36,6 +37,7 @@ namespace Pocket.Client.Pages
             {
                 if (viewModel.FeedPosts.Count > 0)
                 {
+                    _isScrollingToCamera = false;
                     viewModel.CurrentFeedPost = viewModel.FeedPosts[0];
 #if ANDROID
                     if (FeedCollectionView.Handler?.PlatformView is AndroidX.RecyclerView.Widget.RecyclerView rv)
@@ -51,15 +53,16 @@ namespace Pocket.Client.Pages
             };
             viewModel.ScrollToCameraAction = () =>
             {
+                _isScrollingToCamera = true;
+                viewModel.IsViewingFeed = false;
 #if ANDROID
                 if (FeedCollectionView.Handler?.PlatformView is AndroidX.RecyclerView.Widget.RecyclerView rv)
                 {
                     rv.SmoothScrollToPosition(0);
-                    viewModel.IsViewingFeed = false;
                     return;
                 }
 #endif
-                viewModel.IsViewingFeed = false;
+                _isScrollingToCamera = false;
             };
 
             viewModel.OpenActivitySheetAction = () =>
@@ -78,10 +81,7 @@ namespace Pocket.Client.Pages
 
             viewModel.CloseActivitySheetAction = () =>
             {
-                MainThread.BeginInvokeOnMainThread(async () =>
-                {
-                    await AnimateCloseActivitySheet();
-                });
+                MainThread.BeginInvokeOnMainThread(async () => { await AnimateCloseActivitySheet(); });
             };
 
             viewModel.PreviewStateChangedAction = (isPreviewing) =>
@@ -89,6 +89,7 @@ namespace Pocket.Client.Pages
                 MainThread.BeginInvokeOnMainThread(() =>
                 {
                     SetVerticalFeedScrollEnabled(!isPreviewing);
+                    UpdateOrientationLockButtonVisibility(isPreviewing);
                     if (!isPreviewing)
                     {
                         UnfocusCaptionEntry();
@@ -100,7 +101,8 @@ namespace Pocket.Client.Pages
 #if ANDROID
         private LockableOnItemTouchListener? _feedScrollLockListener;
 
-        private sealed class LockableOnItemTouchListener : Java.Lang.Object, AndroidX.RecyclerView.Widget.RecyclerView.IOnItemTouchListener
+        private sealed class LockableOnItemTouchListener : Java.Lang.Object,
+            AndroidX.RecyclerView.Widget.RecyclerView.IOnItemTouchListener
         {
             public bool IsScrollLocked { get; set; }
             private float _downX;
@@ -114,7 +116,8 @@ namespace Pocket.Client.Pages
                     : 24;
             }
 
-            public bool OnInterceptTouchEvent(AndroidX.RecyclerView.Widget.RecyclerView rv, global::Android.Views.MotionEvent e)
+            public bool OnInterceptTouchEvent(AndroidX.RecyclerView.Widget.RecyclerView rv,
+                global::Android.Views.MotionEvent e)
             {
                 if (!IsScrollLocked) return false;
 
@@ -133,6 +136,7 @@ namespace Pocket.Client.Pages
                             // Intercept vertical drag so RecyclerView cannot scroll down to History while previewing
                             return true;
                         }
+
                         return false;
                 }
 
@@ -160,6 +164,7 @@ namespace Pocket.Client.Pages
                     _feedScrollLockListener = new LockableOnItemTouchListener(rv.Context);
                     rv.AddOnItemTouchListener(_feedScrollLockListener);
                 }
+
                 _feedScrollLockListener.IsScrollLocked = !enabled;
                 if (!enabled)
                 {
@@ -221,7 +226,8 @@ namespace Pocket.Client.Pages
             decorView.ViewTreeObserver.AddOnGlobalLayoutListener(_keyboardListener);
         }
 
-        private sealed class KeyboardGlobalLayoutListener : Java.Lang.Object, global::Android.Views.ViewTreeObserver.IOnGlobalLayoutListener
+        private sealed class KeyboardGlobalLayoutListener : Java.Lang.Object,
+            global::Android.Views.ViewTreeObserver.IOnGlobalLayoutListener
         {
             private readonly global::Android.Views.View _decorView;
             private readonly Action _onKeyboardHidden;
@@ -271,8 +277,11 @@ namespace Pocket.Client.Pages
             if (CaptionEntry.Handler?.PlatformView is global::Android.Views.View nativeView)
             {
                 nativeView.ClearFocus();
-                var imm = nativeView.Context?.GetSystemService(global::Android.Content.Context.InputMethodService) as global::Android.Views.InputMethods.InputMethodManager;
-                imm?.HideSoftInputFromWindow(nativeView.WindowToken, global::Android.Views.InputMethods.HideSoftInputFlags.None);
+                var imm =
+                    nativeView.Context?.GetSystemService(global::Android.Content.Context.InputMethodService) as
+                        global::Android.Views.InputMethods.InputMethodManager;
+                imm?.HideSoftInputFromWindow(nativeView.WindowToken,
+                    global::Android.Views.InputMethods.HideSoftInputFlags.None);
             }
 #endif
             if (BindingContext is CameraPageModel vm)
@@ -319,6 +328,7 @@ namespace Pocket.Client.Pages
                         double progress = Math.Clamp(1.0 - (ActivitySheetCard.TranslationY / 400.0), 0.0, 1.0);
                         ActivityBackdrop.Opacity = progress;
                     }
+
                     break;
 
                 case GestureStatus.Completed:
@@ -335,14 +345,176 @@ namespace Pocket.Client.Pages
                             ActivityBackdrop.FadeToAsync(1, 160, Easing.Linear)
                         );
                     }
+
                     break;
             }
         }
 
+        private bool _isScrollingToCamera;
+
+#if ANDROID
+        private AndroidX.RecyclerView.Widget.RecyclerView? _attachedFeedRecyclerView;
+        private FeedNativeScrollListener? _feedNativeScrollListener;
+
+        private sealed class FeedNativeScrollListener : AndroidX.RecyclerView.Widget.RecyclerView.OnScrollListener
+        {
+            private readonly CameraPage _page;
+
+            public FeedNativeScrollListener(CameraPage page)
+            {
+                _page = page;
+            }
+
+            public override void OnScrolled(AndroidX.RecyclerView.Widget.RecyclerView recyclerView, int dx, int dy)
+            {
+                base.OnScrolled(recyclerView, dx, dy);
+                _page.UpdateViewingFeedStateFromRecyclerView(recyclerView);
+            }
+
+            public override void OnScrollStateChanged(AndroidX.RecyclerView.Widget.RecyclerView recyclerView,
+                int newState)
+            {
+                base.OnScrollStateChanged(recyclerView, newState);
+                if (newState == AndroidX.RecyclerView.Widget.RecyclerView.ScrollStateDragging)
+                {
+                    _page._isScrollingToCamera = false;
+                }
+                else if (newState == AndroidX.RecyclerView.Widget.RecyclerView.ScrollStateIdle)
+                {
+                    if (_page._isScrollingToCamera)
+                    {
+                        _page._isScrollingToCamera = false;
+                        recyclerView.ScrollToPosition(0);
+                    }
+
+                    _page.UpdateViewingFeedStateFromRecyclerView(recyclerView);
+                }
+            }
+        }
+
+        private void OnNativeFeedLayoutChange(object? sender, global::Android.Views.View.LayoutChangeEventArgs e)
+        {
+            if (sender is AndroidX.RecyclerView.Widget.RecyclerView rv)
+            {
+                UpdateViewingFeedStateFromRecyclerView(rv);
+            }
+        }
+
+        private void UpdateViewingFeedStateFromRecyclerView(AndroidX.RecyclerView.Widget.RecyclerView rv)
+        {
+            if (BindingContext is not CameraPageModel vm || rv.Height <= 0)
+                return;
+
+            if (vm.FeedPosts.Count == 0 || rv.ChildCount == 0)
+            {
+                _isScrollingToCamera = false;
+                if (vm.IsViewingFeed)
+                    vm.IsViewingFeed = false;
+                return;
+            }
+
+            // Adapter position 0 is CollectionView.Header (Camera view / Home).
+            // Check if the Camera Header view itself is visible and covers more than half the screen.
+            if (rv.GetLayoutManager() is AndroidX.RecyclerView.Widget.LinearLayoutManager llm)
+            {
+                var headerView = llm.FindViewByPosition(0);
+                if (headerView != null && headerView.Bottom >= rv.Height * 0.55f)
+                {
+                    _isScrollingToCamera = false;
+                    if (vm.IsViewingFeed)
+                        vm.IsViewingFeed = false;
+                    return;
+                }
+            }
+
+            int centerY = rv.Height / 2;
+            int centerAdapterPos = -1;
+
+            for (int i = 0; i < rv.ChildCount; i++)
+            {
+                var child = rv.GetChildAt(i);
+                if (child != null && child.Top <= centerY && child.Bottom >= centerY)
+                {
+                    centerAdapterPos = rv.GetChildAdapterPosition(child);
+                    break;
+                }
+            }
+
+            if (centerAdapterPos < 0 &&
+                rv.GetLayoutManager() is AndroidX.RecyclerView.Widget.LinearLayoutManager fallbackLlm)
+            {
+                centerAdapterPos = fallbackLlm.FindFirstVisibleItemPosition();
+            }
+
+            if (centerAdapterPos <= 0)
+            {
+                _isScrollingToCamera = false;
+                if (vm.IsViewingFeed)
+                    vm.IsViewingFeed = false;
+                return;
+            }
+
+            // While smooth-scrolling back up to the Camera Header (position 0), do not re-enable IsViewingFeed
+            if (_isScrollingToCamera)
+            {
+                if (vm.IsViewingFeed)
+                    vm.IsViewingFeed = false;
+                return;
+            }
+
+            if (!vm.IsViewingFeed)
+            {
+                vm.IsViewingFeed = true;
+            }
+
+            int postIndex = Math.Clamp(centerAdapterPos - 1, 0, vm.FeedPosts.Count - 1);
+            var post = vm.FeedPosts[postIndex];
+            if (!ReferenceEquals(vm.CurrentFeedPost, post))
+            {
+                vm.CurrentFeedPost = post;
+            }
+        }
+#endif
+
+        private void OnFeedCollectionViewHandlerChanged(object? sender, EventArgs e)
+        {
+#if ANDROID
+            if (_attachedFeedRecyclerView != null)
+            {
+                if (_feedNativeScrollListener != null)
+                    _attachedFeedRecyclerView.RemoveOnScrollListener(_feedNativeScrollListener);
+                _attachedFeedRecyclerView.LayoutChange -= OnNativeFeedLayoutChange;
+                _attachedFeedRecyclerView = null;
+            }
+
+            if (FeedCollectionView.Handler?.PlatformView is AndroidX.RecyclerView.Widget.RecyclerView rv)
+            {
+                _attachedFeedRecyclerView = rv;
+                _feedNativeScrollListener ??= new FeedNativeScrollListener(this);
+                rv.AddOnScrollListener(_feedNativeScrollListener);
+                rv.LayoutChange += OnNativeFeedLayoutChange;
+                rv.Post(() => UpdateViewingFeedStateFromRecyclerView(rv));
+            }
+#endif
+        }
+
         private void OnFeedScrolled(object? sender, ItemsViewScrolledEventArgs e)
         {
+#if ANDROID
+            if (FeedCollectionView.Handler?.PlatformView is AndroidX.RecyclerView.Widget.RecyclerView rv)
+            {
+                UpdateViewingFeedStateFromRecyclerView(rv);
+                return;
+            }
+#endif
             if (BindingContext is CameraPageModel vm && this.Height > 0)
             {
+                if (vm.FeedPosts.Count == 0 || e.FirstVisibleItemIndex <= 0 && e.VerticalOffset <= (this.Height * 0.45))
+                {
+                    vm.IsViewingFeed = false;
+                    return;
+                }
+
                 bool viewingFeed = e.VerticalOffset > (this.Height * 0.45);
                 vm.IsViewingFeed = viewingFeed;
                 if (viewingFeed && vm.FeedPosts.Count > 0)
@@ -374,6 +546,7 @@ namespace Pocket.Client.Pages
                 {
                     vm.ViewportHeight = height;
                     vm.CardSize = Math.Min(width - 12, Math.Max(320, height - 350));
+                    CameraHeaderGrid.WidthRequest = width;
                     CameraHeaderGrid.HeightRequest = height;
                 }
             }
@@ -386,6 +559,7 @@ namespace Pocket.Client.Pages
             {
                 vm.ActivePanelIndex = _currentIndex;
             }
+
             double targetX = -(_currentIndex * this.Width);
 
             // Dynamic animation duration based on distance to feel natural
@@ -432,6 +606,7 @@ namespace Pocket.Client.Pages
                     {
                         _velocity = deltaX / (double)deltaTime * Stopwatch.Frequency;
                     }
+
                     _lastPanTime = currentTime;
                     _lastPanX = e.TotalX;
 
@@ -449,6 +624,7 @@ namespace Pocket.Client.Pages
                             panVm.ActivePanelIndex = nearestIndex;
                         }
                     }
+
                     break;
 
                 case GestureStatus.Completed:
@@ -487,6 +663,13 @@ namespace Pocket.Client.Pages
             if (BindingContext is CameraPageModel vm)
             {
                 await vm.LoadFeedAsync();
+#if ANDROID
+                if (FeedCollectionView.Handler?.PlatformView is AndroidX.RecyclerView.Widget.RecyclerView rv)
+                {
+                    UpdateViewingFeedStateFromRecyclerView(rv);
+                    rv.Post(() => UpdateViewingFeedStateFromRecyclerView(rv));
+                }
+#endif
             }
 
             await CheckAndRequestCameraPermission();
@@ -507,10 +690,400 @@ namespace Pocket.Client.Pages
             }
         }
 
-        private void OnShutterTapped(object? sender, TappedEventArgs e)
+        private bool _isCapturingWithFlash;
+        private bool _isPickingFromGallery;
+
+        private async void OnGalleryTapped(object? sender, TappedEventArgs e)
         {
+            if (_isPickingFromGallery) return;
+            if (BindingContext is CameraPageModel vm && vm.IsPreviewing) return;
+
             HideCameraSliders(animated: false);
+            _isPickingFromGallery = true;
+
+            try
+            {
+                string? tempPath = await PickPhotoToTempCacheAsync();
+                if (!string.IsNullOrEmpty(tempPath) && System.IO.File.Exists(tempPath))
+                {
+                    OnPhotoCaptured(this, tempPath);
+                    OnPhotoCapturedCore(tempPath, isFromGallery: true);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[PhotoPicker] Failed to pick photo: {ex.Message}");
+            }
+            finally
+            {
+                _isPickingFromGallery = false;
+            }
+        }
+
+        private static async Task<string?> PickPhotoToTempCacheAsync()
+        {
+#if ANDROID
+            var uri = await MainActivity.PickSinglePhotoAsync();
+            if (uri == null)
+                return null;
+
+            var resolver = Platform.CurrentActivity?.ContentResolver
+                           ?? global::Android.App.Application.Context?.ContentResolver;
+            if (resolver == null)
+                return null;
+
+            return await Task.Run(() =>
+            {
+                int rotationDegrees = 0;
+                try
+                {
+                    if (global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.N)
+                    {
+                        using var exifStream = resolver.OpenInputStream(uri);
+                        if (exifStream != null)
+                        {
+                            var exif = new global::Android.Media.ExifInterface(exifStream);
+                            int orientation = exif.GetAttributeInt(
+                                global::Android.Media.ExifInterface.TagOrientation,
+                                (int)global::Android.Media.Orientation.Normal);
+
+                            rotationDegrees = orientation switch
+                            {
+                                (int)global::Android.Media.Orientation.Rotate90 => 90,
+                                (int)global::Android.Media.Orientation.Rotate180 => 180,
+                                (int)global::Android.Media.Orientation.Rotate270 => 270,
+                                _ => 0
+                            };
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[PhotoPicker] EXIF read skipped: {ex.Message}");
+                }
+
+                var tempPath = System.IO.Path.Combine(
+                    Microsoft.Maui.Storage.FileSystem.CacheDirectory,
+                    $"picked_{Guid.NewGuid()}.jpg");
+
+                using var inputStream = resolver.OpenInputStream(uri);
+                if (inputStream == null)
+                    return null;
+
+                using var decoded = global::Android.Graphics.BitmapFactory.DecodeStream(inputStream);
+                if (decoded == null)
+                {
+                    using var fallbackIn = resolver.OpenInputStream(uri);
+                    if (fallbackIn == null) return null;
+                    using var outFile = System.IO.File.Create(tempPath);
+                    fallbackIn.CopyTo(outFile);
+                    return tempPath;
+                }
+
+                global::Android.Graphics.Bitmap finalBitmap = decoded;
+                try
+                {
+                    int w = decoded.Width;
+                    int h = decoded.Height;
+                    const int maxDim = 1920;
+                    float scale = (w > maxDim || h > maxDim)
+                        ? Math.Min((float)maxDim / w, (float)maxDim / h)
+                        : 1f;
+
+                    if (rotationDegrees != 0 || scale < 0.999f)
+                    {
+                        using var matrix = new global::Android.Graphics.Matrix();
+                        if (scale < 0.999f)
+                            matrix.PostScale(scale, scale);
+                        if (rotationDegrees != 0)
+                            matrix.PostRotate(rotationDegrees);
+
+                        finalBitmap = global::Android.Graphics.Bitmap.CreateBitmap(
+                            decoded, 0, 0, w, h, matrix, true)!;
+                    }
+
+                    using var outStream = System.IO.File.Create(tempPath);
+                    finalBitmap.Compress(global::Android.Graphics.Bitmap.CompressFormat.Jpeg!, 95, outStream);
+                }
+                finally
+                {
+                    if (!ReferenceEquals(finalBitmap, decoded))
+                        finalBitmap.Dispose();
+                }
+
+                return tempPath;
+            });
+#else
+            var result = await Microsoft.Maui.Media.MediaPicker.Default.PickPhotoAsync();
+            if (result == null)
+                return null;
+
+            var tempPath = System.IO.Path.Combine(
+                Microsoft.Maui.Storage.FileSystem.CacheDirectory,
+                $"picked_{Guid.NewGuid()}.jpg");
+
+            await using var inStream = await result.OpenReadAsync();
+            await using var outStream = System.IO.File.Create(tempPath);
+            await inStream.CopyToAsync(outStream);
+            return tempPath;
+#endif
+        }
+
+        private void OnFlashTapped(object? sender, TappedEventArgs e)
+        {
+            cameraView.IsFlashEnabled = !cameraView.IsFlashEnabled;
+            UpdateFlashButtonAppearance();
+        }
+
+        private void UpdateFlashButtonAppearance()
+        {
+            bool on = cameraView.IsFlashEnabled;
+            FlashButtonBorder.BackgroundColor = on
+                ? Color.FromArgb("#F5B301")
+                : Color.FromArgb("#4D000000");
+            FlashButtonIcon.Fill = new SolidColorBrush(on
+                ? Color.FromArgb("#000000")
+                : Color.FromArgb("#FFFFFF"));
+        }
+
+        private const int OrientationLockAutoHideMs = 5000;
+        private System.Threading.CancellationTokenSource? _orientationLockHideCts;
+        private bool _isOrientationLockShown;
+
+        private void OnDeviceOrientationChanged(object? sender, int degrees)
+        {
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (!cameraView.IsOrientationLocked)
+                {
+                    RotateCameraButtonsToOrientation(degrees);
+                }
+
+                if (BindingContext is CameraPageModel vm && vm.IsPreviewing)
+                    return;
+
+                ShowOrientationLockButton();
+                if (!cameraView.IsOrientationLocked)
+                {
+                    ScheduleOrientationLockAutoHide();
+                }
+            });
+        }
+
+        private void OnOrientationLockTapped(object? sender, TappedEventArgs e)
+        {
+            bool newLocked = !cameraView.IsOrientationLocked;
+            cameraView.SetOrientationLock(newLocked);
+            UpdateOrientationLockButtonAppearance();
+
+            if (newLocked)
+            {
+                // Pause auto-hide while locked so the yellow lock icon stays visible until unlocked
+                _orientationLockHideCts?.Cancel();
+                ShowOrientationLockButton();
+            }
+            else
+            {
+                // Unlocked: rotate buttons to the current physical orientation and start the 5-second auto-hide countdown
+                RotateCameraButtonsToOrientation(cameraView.DeviceOrientationDegrees);
+                ScheduleOrientationLockAutoHide();
+            }
+        }
+
+        private void RotateCameraButtonsToOrientation(int deviceOrientationDegrees)
+        {
+            // Device orientation is CW tilt of the phone (90 = right side down, 270 = left side down),
+            // so counter-rotating by -deviceOrientationDegrees keeps the icons upright in real-world space.
+            double targetAngle = (360 - (deviceOrientationDegrees % 360)) % 360;
+            bool isLandscape = (deviceOrientationDegrees % 180) != 0;
+
+            // Reserve vertical space for the rotated pill badges in landscape so they don't overlap
+            // the reset buttons or slider tracks while keeping the ZoomSlider track at full 180px height.
+            ZoomValueBadgeSlot.HeightRequest = isLandscape ? 42 : 24;
+            ExposureValueBadgeSlot.HeightRequest = isLandscape ? 54 : 24;
+
+            _ = RotateElementShortestPathAsync(FlashButtonBorder, targetAngle);
+            _ = RotateElementShortestPathAsync(OrientationLockButtonBorder, targetAngle);
+            _ = RotateElementShortestPathAsync(ZoomResetButton, targetAngle);
+            _ = RotateElementShortestPathAsync(ZoomValueBadge, targetAngle);
+            _ = RotateElementShortestPathAsync(ExposureResetButton, targetAngle);
+            _ = RotateElementShortestPathAsync(ExposureValueBadge, targetAngle);
+        }
+
+        private static async Task RotateElementShortestPathAsync(VisualElement element, double targetAngle)
+        {
+            element.AbortAnimation("RotateTo");
+            double current = ((element.Rotation % 360) + 360) % 360;
+            double delta = targetAngle - current;
+            if (delta > 180)
+                delta -= 360;
+            else if (delta < -180)
+                delta += 360;
+
+            if (Math.Abs(delta) < 0.5)
+            {
+                element.Rotation = targetAngle;
+                return;
+            }
+
+            await element.RotateToAsync(element.Rotation + delta, 220, Easing.CubicOut);
+            element.Rotation = targetAngle;
+        }
+
+        private void UpdateOrientationLockButtonAppearance()
+        {
+            bool locked = cameraView.IsOrientationLocked;
+            OrientationLockButtonBorder.BackgroundColor = locked
+                ? Color.FromArgb("#F5B301")
+                : Color.FromArgb("#4D000000");
+            OrientationLockButtonIcon.Fill = new SolidColorBrush(locked
+                ? Color.FromArgb("#000000")
+                : Color.FromArgb("#FFFFFF"));
+        }
+
+        private void ShowOrientationLockButton()
+        {
+            _isOrientationLockShown = true;
+            if (BindingContext is CameraPageModel vm && vm.IsPreviewing)
+            {
+                OrientationLockButtonBorder.IsVisible = false;
+                return;
+            }
+
+            OrientationLockButtonBorder.AbortAnimation("FadeTo");
+            OrientationLockButtonBorder.IsVisible = true;
+            _ = OrientationLockButtonBorder.FadeToAsync(1, 150);
+        }
+
+        private void HideOrientationLockButton(bool animated = true)
+        {
+            _orientationLockHideCts?.Cancel();
+            _isOrientationLockShown = false;
+
+            if (!OrientationLockButtonBorder.IsVisible)
+                return;
+
+            if (animated)
+            {
+                _ = FadeOutAsync(OrientationLockButtonBorder);
+            }
+            else
+            {
+                OrientationLockButtonBorder.AbortAnimation("FadeTo");
+                OrientationLockButtonBorder.Opacity = 0;
+                OrientationLockButtonBorder.IsVisible = false;
+            }
+        }
+
+        private void UpdateOrientationLockButtonVisibility(bool isPreviewing)
+        {
+            if (isPreviewing)
+            {
+                OrientationLockButtonBorder.AbortAnimation("FadeTo");
+                OrientationLockButtonBorder.IsVisible = false;
+            }
+            else if (cameraView.IsOrientationLocked || _isOrientationLockShown)
+            {
+                OrientationLockButtonBorder.IsVisible = true;
+                OrientationLockButtonBorder.Opacity = 1;
+            }
+        }
+
+        private async void ScheduleOrientationLockAutoHide()
+        {
+            _orientationLockHideCts?.Cancel();
+            var cts = new System.Threading.CancellationTokenSource();
+            _orientationLockHideCts = cts;
+
+            try
+            {
+                await Task.Delay(OrientationLockAutoHideMs, cts.Token);
+            }
+            catch (TaskCanceledException)
+            {
+                return;
+            }
+
+            if (!cameraView.IsOrientationLocked && _orientationLockHideCts == cts)
+            {
+                HideOrientationLockButton();
+            }
+        }
+
+        private async void OnFlipCameraTapped(object? sender, TappedEventArgs e)
+        {
+            if (BindingContext is CameraPageModel vm && vm.IsPreviewing) return;
+
+            HideCameraSliders(animated: false);
+            cameraView.SwitchCamera();
+
+            FlipCameraButton.AbortAnimation("RotateTo");
+            await FlipCameraButton.RotateToAsync(FlipCameraButton.Rotation + 180, 220, Easing.CubicOut);
+        }
+
+        private async void OnShutterTapped(object? sender, TappedEventArgs e)
+        {
+            if (_isCapturingWithFlash) return;
+            HideCameraSliders(animated: false);
+
+            // When flash is enabled but the active camera has no hardware flash (front camera or
+            // emulator virtual camera), use a full-screen white overlay + max screen brightness
+            // as a "screen flash" before grabbing the frame.
+            if (cameraView.IsFlashEnabled && !cameraView.HasFlash)
+            {
+                _isCapturingWithFlash = true;
+                try
+                {
+                    await CaptureWithScreenFlashAsync();
+                }
+                finally
+                {
+                    _isCapturingWithFlash = false;
+                }
+
+                return;
+            }
+
             cameraView.CapturePhoto();
+        }
+
+        private async Task CaptureWithScreenFlashAsync()
+        {
+#if ANDROID
+            var window = Platform.CurrentActivity?.Window;
+            float savedBrightness = -1f;
+            if (window?.Attributes is global::Android.Views.WindowManagerLayoutParams lp)
+            {
+                savedBrightness = lp.ScreenBrightness;
+                lp.ScreenBrightness = 1.0f;
+                window.Attributes = lp;
+            }
+#endif
+            try
+            {
+                ScreenFlashOverlay.AbortAnimation("FadeTo");
+                ScreenFlashOverlay.Opacity = 0;
+                ScreenFlashOverlay.IsVisible = true;
+                await ScreenFlashOverlay.FadeToAsync(0.95, 90, Easing.CubicOut);
+                await Task.Delay(320); // let face/scene illumination + auto-exposure settle
+
+                cameraView.CapturePhoto();
+
+                await Task.Delay(120);
+                await ScreenFlashOverlay.FadeToAsync(0, 220, Easing.CubicIn);
+            }
+            finally
+            {
+                ScreenFlashOverlay.IsVisible = false;
+                ScreenFlashOverlay.Opacity = 0;
+#if ANDROID
+                if (window?.Attributes is global::Android.Views.WindowManagerLayoutParams restoreLp)
+                {
+                    restoreLp.ScreenBrightness = savedBrightness;
+                    window.Attributes = restoreLp;
+                }
+#endif
+            }
         }
 
         // ================================================================
@@ -535,8 +1108,26 @@ namespace Pocket.Client.Pages
                 ExposureSlider.Maximum = cameraView.MaxExposure;
                 ExposureSlider.Value = 0;
 
-                UpdateZoomLabel(0);
-                UpdateExposureLabel(0);
+                double zoomLevel = 0;
+                if (CameraView.KeepLastZoom && cameraView.MaxZoom > 0)
+                {
+                    zoomLevel = Math.Clamp(Preferences.Get(CameraView.LastZoomLevelPreferenceKey, 0d), 0,
+                        cameraView.MaxZoom);
+                    ZoomSlider.Value = zoomLevel;
+                    if (zoomLevel != 0) cameraView.SetZoom(zoomLevel);
+                }
+
+                double exposureIndex = 0;
+                if (CameraView.KeepLastExposure && cameraView.MaxExposure > cameraView.MinExposure)
+                {
+                    exposureIndex = Math.Clamp(Preferences.Get(CameraView.LastExposureIndexPreferenceKey, 0d),
+                        cameraView.MinExposure, cameraView.MaxExposure);
+                    ExposureSlider.Value = exposureIndex;
+                    if (exposureIndex != 0) cameraView.SetExposure(exposureIndex);
+                }
+
+                UpdateZoomLabel(zoomLevel);
+                UpdateExposureLabel(exposureIndex);
             });
         }
 
@@ -551,8 +1142,8 @@ namespace Pocket.Client.Pages
             cameraView.FocusAt(pos.Value.X / w, pos.Value.Y / h);
             _ = ShowFocusRingAsync(pos.Value);
 
-            // New focus/metering point → exposure compensation starts again from 0 EV
-            if (cameraView.MaxExposure > cameraView.MinExposure)
+            // New focus/metering point → exposure compensation starts again from 0 EV (unless 'keep last exposure' is on)
+            if (!CameraView.KeepLastExposure && cameraView.MaxExposure > cameraView.MinExposure)
                 ExposureSlider.Value = 0;
 
             ShowCameraSliders();
@@ -661,42 +1252,74 @@ namespace Pocket.Client.Pages
             ScheduleSliderAutoHide();
         }
 
+        private void OnResetZoomTapped(object? sender, EventArgs e)
+        {
+            ZoomSlider.Value = 0;
+            cameraView.SetZoom(0);
+            Preferences.Set(CameraView.LastZoomLevelPreferenceKey, 0d);
+            UpdateZoomLabel(0);
+            ScheduleSliderAutoHide();
+        }
+
+        private void OnResetExposureTapped(object? sender, EventArgs e)
+        {
+            ExposureSlider.Value = 0;
+            cameraView.SetExposure(0);
+            Preferences.Set(CameraView.LastExposureIndexPreferenceKey, 0d);
+            UpdateExposureLabel(0);
+            ScheduleSliderAutoHide();
+        }
+
         private void OnZoomSliderValueChanged(object? sender, double value)
         {
-            int level = (int)Math.Round(value);
-            cameraView.SetZoom(level);
-            UpdateZoomLabel(level);
+            // Continuous value (no rounding) so zoom follows the finger smoothly
+            cameraView.SetZoom(value);
+            Preferences.Set(CameraView.LastZoomLevelPreferenceKey, value);
+            UpdateZoomLabel(value);
         }
 
         private void OnExposureSliderValueChanged(object? sender, double value)
         {
-            int index = (int)Math.Round(value);
-            cameraView.SetExposure(index);
-            UpdateExposureLabel(index);
+            // Continuous value (no rounding) so the preview brightness follows the finger smoothly
+            cameraView.SetExposure(value);
+            Preferences.Set(CameraView.LastExposureIndexPreferenceKey, value);
+            UpdateExposureLabel(value);
         }
 
-        private void UpdateZoomLabel(int level)
+        private void UpdateZoomLabel(double level)
         {
             var ratios = cameraView.ZoomRatios;
-            double ratio = ratios.Count > 0
-                ? ratios[Math.Clamp(level, 0, ratios.Count - 1)] / 100.0
-                : 1.0;
+            double ratio = 1.0;
+            if (ratios.Count > 0)
+            {
+                double clamped = Math.Clamp(level, 0, ratios.Count - 1);
+                int lower = (int)Math.Floor(clamped);
+                int upper = Math.Min(lower + 1, ratios.Count - 1);
+                double t = clamped - lower;
+                ratio = (ratios[lower] + (ratios[upper] - ratios[lower]) * t) / 100.0;
+            }
+
             ZoomValueLabel.Text = $"{ratio:0.0}x";
         }
 
-        private void UpdateExposureLabel(int index)
+        private void UpdateExposureLabel(double index)
         {
             double ev = index * cameraView.ExposureStep;
-            ExposureValueLabel.Text = ev > 0.001 ? $"+{ev:0.0} EV" : $"{ev:0.0} EV";
+            ExposureValueLabel.Text = ev > 0.05 ? $"+{ev:0.0} EV" : ev < -0.05 ? $"{ev:0.0} EV" : "0.0 EV";
         }
 
         private void OnPhotoCaptured(object? sender, string filePath)
+        {
+            OnPhotoCapturedCore(filePath, isFromGallery: false);
+        }
+
+        private void OnPhotoCapturedCore(string filePath, bool isFromGallery)
         {
             Dispatcher.Dispatch(() =>
             {
                 if (BindingContext is CameraPageModel vm)
                 {
-                    vm.OnPhotoCaptured(filePath);
+                    vm.OnPhotoCaptured(filePath, isFromGallery);
                 }
             });
         }

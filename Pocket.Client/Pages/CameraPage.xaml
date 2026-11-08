@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:pm="clr-namespace:Pocket.Client.PageModels"
@@ -572,6 +572,110 @@
                             </Border>
                         </Grid>
 
+                        <!-- Keep last zoom -->
+                        <Grid ColumnDefinitions="36, *, Auto" Padding="16,12">
+                            <Grid Grid.Column="0" WidthRequest="22" HeightRequest="22" HorizontalOptions="Start" VerticalOptions="Center">
+                                <Path Fill="#9CA3AF"
+                                      HorizontalOptions="Center"
+                                      VerticalOptions="Center"
+                                      Data="M7.5,0 C11.64,0 15,3.36 15,7.5 C15,9.2 14.43,10.77 13.48,12.03 L18,16.55 L16.55,18 L12.03,13.48 C10.77,14.43 9.2,15 7.5,15 C3.36,15 0,11.64 0,7.5 C0,3.36 3.36,0 7.5,0 Z M7.5,2 C4.46,2 2,4.46 2,7.5 C2,10.54 4.46,13 7.5,13 C10.54,13 13,10.54 13,7.5 C13,4.46 10.54,2 7.5,2 Z M8.5,4 L8.5,6.5 L11,6.5 L11,8.5 L8.5,8.5 L8.5,11 L6.5,11 L6.5,8.5 L4,8.5 L4,6.5 L6.5,6.5 L6.5,4 Z" />
+                            </Grid>
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2" Margin="6,0,10,0">
+                                <Label Text="Keep last zoom"
+                                       TextColor="#FFFFFF"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="16"
+                                       FontAttributes="Bold" />
+                                <Label Text="Stay at the last zoom level instead of resetting"
+                                       TextColor="#8E8E93"
+                                       FontFamily="OpenSansRegular"
+                                       FontSize="14" />
+                            </VerticalStackLayout>
+                            <Border Grid.Column="2"
+                                    WidthRequest="54"
+                                    HeightRequest="32"
+                                    StrokeShape="RoundRectangle 16"
+                                    StrokeThickness="0"
+                                    BackgroundColor="#F5B301"
+                                    Padding="3"
+                                    VerticalOptions="Center">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding ShellModel.ToggleKeepLastZoomCommand}" />
+                                </Border.GestureRecognizers>
+                                <Border WidthRequest="26"
+                                        HeightRequest="26"
+                                        StrokeShape="RoundRectangle 13"
+                                        StrokeThickness="0"
+                                        BackgroundColor="#FFFFFF"
+                                        Padding="0"
+                                        HorizontalOptions="End"
+                                        VerticalOptions="Center">
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsKeepLastZoom}" Value="False">
+                                            <Setter Property="HorizontalOptions" Value="Start" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                </Border>
+                                <Border.Triggers>
+                                    <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsKeepLastZoom}" Value="False">
+                                        <Setter Property="BackgroundColor" Value="#3A3A3C" />
+                                    </DataTrigger>
+                                </Border.Triggers>
+                            </Border>
+                        </Grid>
+
+                        <!-- Keep last exposure -->
+                        <Grid ColumnDefinitions="36, *, Auto" Padding="16,12">
+                            <Grid Grid.Column="0" WidthRequest="22" HeightRequest="22" HorizontalOptions="Start" VerticalOptions="Center">
+                                <Path Fill="#9CA3AF"
+                                      HorizontalOptions="Center"
+                                      VerticalOptions="Center"
+                                      Data="M9,4.5 C11.49,4.5 13.5,6.51 13.5,9 C13.5,11.49 11.49,13.5 9,13.5 C6.51,13.5 4.5,11.49 4.5,9 C4.5,6.51 6.51,4.5 9,4.5 Z M8,0 L10,0 L10,3 L8,3 Z M8,15 L10,15 L10,18 L8,18 Z M0,8 L3,8 L3,10 L0,10 Z M15,8 L18,8 L18,10 L15,10 Z M2.64,3.05 L4.05,1.64 L6.17,3.76 L4.76,5.17 Z M11.83,12.24 L13.24,10.83 L15.36,12.95 L13.95,14.36 Z M2.64,14.95 L4.76,12.83 L6.17,14.24 L4.05,16.36 Z M11.83,3.76 L13.95,1.64 L15.36,3.05 L13.24,5.17 Z" />
+                            </Grid>
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2" Margin="6,0,10,0">
+                                <Label Text="Keep last exposure"
+                                       TextColor="#FFFFFF"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="16"
+                                       FontAttributes="Bold" />
+                                <Label Text="Stay at the last brightness instead of resetting"
+                                       TextColor="#8E8E93"
+                                       FontFamily="OpenSansRegular"
+                                       FontSize="14" />
+                            </VerticalStackLayout>
+                            <Border Grid.Column="2"
+                                    WidthRequest="54"
+                                    HeightRequest="32"
+                                    StrokeShape="RoundRectangle 16"
+                                    StrokeThickness="0"
+                                    BackgroundColor="#F5B301"
+                                    Padding="3"
+                                    VerticalOptions="Center">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding ShellModel.ToggleKeepLastExposureCommand}" />
+                                </Border.GestureRecognizers>
+                                <Border WidthRequest="26"
+                                        HeightRequest="26"
+                                        StrokeShape="RoundRectangle 13"
+                                        StrokeThickness="0"
+                                        BackgroundColor="#FFFFFF"
+                                        Padding="0"
+                                        HorizontalOptions="End"
+                                        VerticalOptions="Center">
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsKeepLastExposure}" Value="False">
+                                            <Setter Property="HorizontalOptions" Value="Start" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                </Border>
+                                <Border.Triggers>
+                                    <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsKeepLastExposure}" Value="False">
+                                        <Setter Property="BackgroundColor" Value="#3A3A3C" />
+                                    </DataTrigger>
+                                </Border.Triggers>
+                            </Border>
+                        </Grid>
+
                         <!-- Relay Server Settings Card (Preserves existing network configuration functionality) -->
                         <Border Margin="16,24,16,10"
                                 Padding="16"
@@ -617,7 +721,8 @@
                                 ItemsSource="{Binding FeedPosts}"
                                 BackgroundColor="#000000"
                                 Scrolled="OnFeedScrolled"
-                                ItemsUpdatingScrollMode="KeepItemsInView">
+                                HandlerChanged="OnFeedCollectionViewHandlerChanged"
+                                ItemsUpdatingScrollMode="KeepScrollOffset">
                     <CollectionView.ItemsLayout>
                         <LinearItemsLayout Orientation="Vertical" SnapPointsType="MandatorySingle" SnapPointsAlignment="Start" />
                     </CollectionView.ItemsLayout>
@@ -626,7 +731,7 @@
                     <CollectionView.Header>
                         <Grid x:Name="CameraHeaderGrid"
                               HeightRequest="{Binding ViewportHeight}"
-                              RowDefinitions="72, Auto, *, 128"
+                              RowDefinitions="72, Auto, *, 76"
                               BackgroundColor="#000000">
 
                             <!-- Row 0: Top Spacer for Persistent Top Header -->
@@ -656,7 +761,7 @@
                                             WidthRequest="64"
                                             HeightRequest="64"
                                             StrokeShape="RoundRectangle 32"
-                                            Stroke="#F5B301"
+                                            Stroke="#FFFFFF"
                                             StrokeThickness="2"
                                             BackgroundColor="Transparent"
                                             HorizontalOptions="Start"
@@ -670,9 +775,42 @@
                                                          HorizontalOptions="End"
                                                          VerticalOptions="Center"
                                                          Margin="0,0,10,0">
-                                        <Border BackgroundColor="#66000000" StrokeThickness="0" StrokeShape="RoundRectangle 10" Padding="6,2" HorizontalOptions="Center" InputTransparent="True">
-                                            <Label x:Name="ZoomValueLabel" Text="1.0x" TextColor="#FFFFFF" FontFamily="OpenSansSemibold" FontSize="12" FontAttributes="Bold" />
+                                        <Border x:Name="ZoomResetButton"
+                                                WidthRequest="32"
+                                                HeightRequest="32"
+                                                StrokeShape="RoundRectangle 16"
+                                                StrokeThickness="0"
+                                                BackgroundColor="#66000000"
+                                                Padding="0"
+                                                HorizontalOptions="Center">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnResetZoomTapped" />
+                                            </Border.GestureRecognizers>
+                                            <Path WidthRequest="24"
+                                                  HeightRequest="24"
+                                                  Stroke="#FFFFFF"
+                                                  StrokeThickness="2"
+                                                  StrokeLineCap="Round"
+                                                  StrokeLineJoin="Round"
+                                                  HorizontalOptions="Center"
+                                                  VerticalOptions="Center"
+                                                  Data="M 5.5,9.5 C 6.6,6.8 9.1,5 12,5 C 15.9,5 19,8.1 19,12 C 19,15.9 15.9,19 12,19 C 9.8,19 7.8,18 6.5,16.4 M 3.5,5.5 L 5.2,9.8 L 9.5,8.5" />
                                         </Border>
+                                        <Grid x:Name="ZoomValueBadgeSlot"
+                                              HeightRequest="24"
+                                              HorizontalOptions="Center"
+                                              InputTransparent="True">
+                                            <Border x:Name="ZoomValueBadge"
+                                                    BackgroundColor="#66000000"
+                                                    StrokeThickness="0"
+                                                    StrokeShape="RoundRectangle 10"
+                                                    Padding="6,2"
+                                                    HorizontalOptions="Center"
+                                                    VerticalOptions="Center"
+                                                    InputTransparent="True">
+                                                <Label x:Name="ZoomValueLabel" Text="1.0x" TextColor="#FFFFFF" FontFamily="OpenSansSemibold" FontSize="12" FontAttributes="Bold" />
+                                            </Border>
+                                        </Grid>
                                         <controls:CameraSlider x:Name="ZoomSlider"
                                                                IsVertical="True"
                                                                WidthRequest="36"
@@ -684,32 +822,80 @@
                                     </VerticalStackLayout>
 
                                     <!-- Horizontal exposure slider (bottom) - shown after tap-to-focus when enabled in Settings > General -->
-                                    <VerticalStackLayout x:Name="ExposureSliderPanel"
-                                                         IsVisible="False"
-                                                         Opacity="0"
-                                                         Spacing="2"
-                                                         HorizontalOptions="Fill"
-                                                         VerticalOptions="End"
-                                                         Margin="56,0,56,12">
-                                        <Border BackgroundColor="#66000000" StrokeThickness="0" StrokeShape="RoundRectangle 10" Padding="6,2" HorizontalOptions="Center" InputTransparent="True">
-                                            <Label x:Name="ExposureValueLabel" Text="0.0 EV" TextColor="#FFFFFF" FontFamily="OpenSansSemibold" FontSize="12" FontAttributes="Bold" />
+                                    <Grid x:Name="ExposureSliderPanel"
+                                          IsVisible="False"
+                                          Opacity="0"
+                                          ColumnDefinitions="Auto, *"
+                                          ColumnSpacing="8"
+                                          HorizontalOptions="Fill"
+                                          VerticalOptions="End"
+                                          Margin="32,0,32,12">
+                                        <Border x:Name="ExposureResetButton"
+                                                Grid.Column="0"
+                                                WidthRequest="32"
+                                                HeightRequest="32"
+                                                StrokeShape="RoundRectangle 16"
+                                                StrokeThickness="0"
+                                                BackgroundColor="#66000000"
+                                                Padding="0"
+                                                VerticalOptions="End"
+                                                Margin="0,0,0,2">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnResetExposureTapped" />
+                                            </Border.GestureRecognizers>
+                                            <Path WidthRequest="24"
+                                                  HeightRequest="24"
+                                                  Stroke="#FFFFFF"
+                                                  StrokeThickness="2"
+                                                  StrokeLineCap="Round"
+                                                  StrokeLineJoin="Round"
+                                                  HorizontalOptions="Center"
+                                                  VerticalOptions="Center"
+                                                  Data="M 5.5,9.5 C 6.6,6.8 9.1,5 12,5 C 15.9,5 19,8.1 19,12 C 19,15.9 15.9,19 12,19 C 9.8,19 7.8,18 6.5,16.4 M 3.5,5.5 L 5.2,9.8 L 9.5,8.5" />
                                         </Border>
-                                        <controls:CameraSlider x:Name="ExposureSlider"
-                                                               ShowCenterTick="True"
-                                                               HeightRequest="36"
-                                                               HorizontalOptions="Fill"
-                                                               ValueChanged="OnExposureSliderValueChanged"
-                                                               DragStarted="OnSliderDragStarted"
-                                                               DragCompleted="OnSliderDragCompleted" />
-                                    </VerticalStackLayout>
+                                        <VerticalStackLayout Grid.Column="1"
+                                                             Spacing="4"
+                                                             HorizontalOptions="Fill"
+                                                             VerticalOptions="End">
+                                            <Grid x:Name="ExposureValueBadgeSlot"
+                                                  HeightRequest="24"
+                                                  HorizontalOptions="Center"
+                                                  InputTransparent="True">
+                                                <Border x:Name="ExposureValueBadge"
+                                                        BackgroundColor="#66000000"
+                                                        StrokeThickness="0"
+                                                        StrokeShape="RoundRectangle 10"
+                                                        Padding="6,2"
+                                                        HorizontalOptions="Center"
+                                                        VerticalOptions="Center"
+                                                        InputTransparent="True">
+                                                    <Label x:Name="ExposureValueLabel"
+                                                           Text="0.0 EV"
+                                                           TextColor="#FFFFFF"
+                                                           FontFamily="OpenSansSemibold"
+                                                           FontSize="12"
+                                                           FontAttributes="Bold"
+                                                           HorizontalOptions="Center" />
+                                                </Border>
+                                            </Grid>
+                                            <controls:CameraSlider x:Name="ExposureSlider"
+                                                                   ShowCenterTick="True"
+                                                                   HeightRequest="36"
+                                                                   HorizontalOptions="Fill"
+                                                                   ValueChanged="OnExposureSliderValueChanged"
+                                                                   DragStarted="OnSliderDragStarted"
+                                                                   DragCompleted="OnSliderDragCompleted" />
+                                        </VerticalStackLayout>
+                                    </Grid>
                                     <Image Source="{Binding CapturedImagePath}" IsVisible="{Binding IsPreviewing}" Aspect="AspectFill" HorizontalOptions="Fill" VerticalOptions="Fill">
                                         <Image.GestureRecognizers>
                                             <TapGestureRecognizer Tapped="OnPreviewImageTapped" />
                                         </Image.GestureRecognizers>
                                     </Image>
 
-                                    <!-- Top-Left Flash Button (Live Camera only, hidden on Preview - Unimplemented feature noted) -->
-                                    <Border IsVisible="{Binding IsNotPreviewing}"
+                                    <!-- Top-Left Flash Button (Live Camera only, hidden on Preview) -->
+                                    <Border x:Name="FlashButtonBorder"
+                                            IsVisible="{Binding IsNotPreviewing}"
                                             WidthRequest="38"
                                             HeightRequest="38"
                                             StrokeShape="RoundRectangle 19"
@@ -719,10 +905,41 @@
                                             HorizontalOptions="Start"
                                             VerticalOptions="Start"
                                             Margin="18,18,0,0">
-                                        <Path Fill="#FFFFFF"
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnFlashTapped" />
+                                        </Border.GestureRecognizers>
+                                        <Path x:Name="FlashButtonIcon"
+                                              WidthRequest="15"
+                                              HeightRequest="18"
+                                              Fill="#FFFFFF"
                                               HorizontalOptions="Center"
                                               VerticalOptions="Center"
                                               Data="M9,0 L1,10 L7,10 L5,18 L14,7.5 L8,7.5 L9,0 Z" />
+                                    </Border>
+
+                                    <!-- Orientation Lock Button (Below Flash Button; appears for 5s when device rotates, stays visible when locked) -->
+                                    <Border x:Name="OrientationLockButtonBorder"
+                                            IsVisible="False"
+                                            Opacity="0"
+                                            WidthRequest="38"
+                                            HeightRequest="38"
+                                            StrokeShape="RoundRectangle 19"
+                                            StrokeThickness="0"
+                                            BackgroundColor="#4D000000"
+                                            Padding="0"
+                                            HorizontalOptions="Start"
+                                            VerticalOptions="Start"
+                                            Margin="18,64,0,0">
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnOrientationLockTapped" />
+                                        </Border.GestureRecognizers>
+                                        <Path x:Name="OrientationLockButtonIcon"
+                                              WidthRequest="16"
+                                              HeightRequest="18"
+                                              Fill="#FFFFFF"
+                                              HorizontalOptions="Center"
+                                              VerticalOptions="Center"
+                                              Data="M 8,0 C 5.24,0 3,2.24 3,5 L 3,7 L 2,7 C 0.9,7 0,7.9 0,9 L 0,16 C 0,17.1 0.9,18 2,18 L 14,18 C 15.1,18 16,17.1 16,16 L 16,9 C 16,7.9 15.1,7 14,7 L 13,7 L 13,5 C 13,2.24 10.76,0 8,0 Z M 8,2 C 9.66,2 11,3.34 11,5 L 11,7 L 5,7 L 5,5 C 5,3.34 6.34,2 8,2 Z M 8,11 C 9.1,11 10,11.9 10,13 C 10,14.1 9.1,15 8,15 C 6.9,15 6,14.1 6,13 C 6,11.9 6.9,11 8,11 Z" />
                                     </Border>
 
                                     <!-- Caption Entry Pill Overlay when Previewing Captured Photo -->
@@ -763,51 +980,30 @@
                             </Border>
 
                             <!-- Row 2: Shutter Controls & Preview Send Controls -->
-                            <Grid Grid.Row="2" Padding="0,8,0,6">
+                            <Grid Grid.Row="2" Padding="0">
 
                                 <!-- Shutter Row (Live Camera Mode - Image 3) -->
                                 <Grid IsVisible="{Binding IsNotPreviewing}"
                                       ColumnDefinitions="*, Auto, *"
                                       VerticalOptions="Center"
-                                      Margin="24,0">
+                                      Margin="0">
 
-                                    <!-- Left: Stacked Photo Gallery Button (Unimplemented feature - noted) -->
-                                    <Grid Grid.Column="0" WidthRequest="54" HeightRequest="54" HorizontalOptions="Center" VerticalOptions="Center">
-                                        <!-- Tilted Back Card -->
-                                        <Border WidthRequest="38"
-                                                HeightRequest="42"
-                                                StrokeShape="RoundRectangle 10"
-                                                Stroke="#E5E7EB"
-                                                StrokeThickness="1.5"
-                                                BackgroundColor="#3A3A3C"
-                                                Rotation="-10"
-                                                TranslationX="-3"
-                                                TranslationY="-2"
-                                                Padding="0"
-                                                HorizontalOptions="Center"
-                                                VerticalOptions="Center" />
-                                        <!-- Front Photo Thumbnail Card -->
-                                        <Border WidthRequest="40"
-                                                HeightRequest="42"
-                                                StrokeShape="RoundRectangle 10"
-                                                Stroke="#2C2C2E"
-                                                StrokeThickness="1.5"
-                                                BackgroundColor="#1C1C1E"
-                                                Rotation="3"
-                                                TranslationX="2"
-                                                TranslationY="1"
-                                                Padding="0"
-                                                HorizontalOptions="Center"
-                                                VerticalOptions="Center">
-                                            <Grid BackgroundColor="#38BDF8">
-                                                <BoxView VerticalOptions="End" HeightRequest="18" BackgroundColor="#22C55E" Color="#22C55E" />
-                                                <Path Fill="#FFFFFF"
-                                                      Opacity="0.85"
-                                                      HorizontalOptions="Center"
-                                                      VerticalOptions="Center"
-                                                      Data="M6,14 L12,7 L17,12 L21,9 L26,14 Z" />
-                                            </Grid>
-                                        </Border>
+                                    <!-- Left: Stacked Photo Gallery Button (Opens standard Android Photo Picker) -->
+                                    <Grid Grid.Column="0"
+                                          WidthRequest="60"
+                                          HeightRequest="60"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center"
+                                          BackgroundColor="Transparent">
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnGalleryTapped" />
+                                        </Grid.GestureRecognizers>
+                                        <Path WidthRequest="37"
+                                              HeightRequest="36"
+                                              Fill="#FFFFFF"
+                                              HorizontalOptions="Center"
+                                              VerticalOptions="Center"
+                                              Data="M4.2,23.5 L2.2,11.2 C1.5,7.2 4.1,3.5 8.1,2.8 L20.2,0.8 C23.3,0.3 26.2,1.8 27.6,4.5 L12.5,4.5 C7.8,4.5 4.2,8.1 4.2,12.8 L4.2,23.5 Z M13,7 L28,7 C31.9,7 35,10.1 35,14 L35,28 C35,31.9 31.9,35 28,35 L13,35 C9.1,35 6,31.9 6,28 L6,14 C6,10.1 9.1,7 13,7 Z M13,10.5 C11.1,10.5 9.5,12.1 9.5,14 L9.5,24.6 L13.8,20.8 C14.9,19.9 16.5,20 17.5,21 L19.8,23.3 L25.2,17.5 C26.3,16.3 28.1,16.3 29.2,17.5 L31.5,20 L31.5,14 C31.5,12.1 29.9,10.5 28,10.5 L13,10.5 Z M16,13.5 C17.9,13.5 19.5,15.1 19.5,17 C19.5,18.9 17.9,20.5 16,20.5 C14.1,20.5 12.5,18.9 12.5,17 C12.5,15.1 14.1,13.5 16,13.5 Z" />
                                     </Grid>
 
                                     <!-- Center: Locket Gold-Ring Shutter Button (Active) -->
@@ -835,15 +1031,26 @@
                                         </Border>
                                     </Grid>
 
-                                    <!-- Right: Camera Flip / Switch Button (Unimplemented feature - noted) -->
-                                    <Grid Grid.Column="2" WidthRequest="54" HeightRequest="54" HorizontalOptions="Center" VerticalOptions="Center">
-                                        <Path Stroke="#FFFFFF"
-                                              StrokeThickness="2.4"
+                                    <!-- Right: Camera Flip / Switch Button -->
+                                    <Grid x:Name="FlipCameraButton"
+                                          Grid.Column="2"
+                                          WidthRequest="60"
+                                          HeightRequest="60"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center"
+                                          BackgroundColor="Transparent">
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnFlipCameraTapped" />
+                                        </Grid.GestureRecognizers>
+                                        <Path WidthRequest="34"
+                                              HeightRequest="28"
+                                              Stroke="#FFFFFF"
+                                              StrokeThickness="2.6"
                                               StrokeLineCap="Round"
                                               StrokeLineJoin="Round"
                                               HorizontalOptions="Center"
                                               VerticalOptions="Center"
-                                              Data="M3,10 C4.5,5.5 9,3 14,4.2 C16.5,4.8 18.6,6.4 19.8,8.5 M20,4 L20,9 L15,9 M21,14 C19.5,18.5 15,21 10,19.8 C7.5,19.2 5.4,17.6 4.2,15.5 M4,20 L4,15 L9,15" />
+                                              Data="M 13.6,4.2 C 14.7,3.8 15.8,3.6 17,3.6 C 22.7,3.6 27.3,8.3 27.3,14 L 27.3,17.7 M 22.8,13.2 L 27.3,17.7 L 31.8,13.2 M 20.4,23.8 C 19.3,24.2 18.2,24.4 17,24.4 C 11.3,24.4 6.7,19.7 6.7,14 L 6.7,10.3 M 2.2,14.8 L 6.7,10.3 L 11.2,14.8" />
                                     </Grid>
                                 </Grid>
 
@@ -851,7 +1058,7 @@
                                 <Grid IsVisible="{Binding ShowPreviewControls}"
                                       ColumnDefinitions="*, Auto, *"
                                       VerticalOptions="Center"
-                                      Margin="24,0">
+                                      Margin="0">
                                     <!-- Left: Plain White X Cancel Button -->
                                     <Grid Grid.Column="0"
                                           WidthRequest="56"
@@ -862,7 +1069,9 @@
                                         <Grid.GestureRecognizers>
                                             <TapGestureRecognizer Command="{Binding CancelCommand}" />
                                         </Grid.GestureRecognizers>
-                                        <Path Stroke="#FFFFFF"
+                                        <Path WidthRequest="20"
+                                              HeightRequest="20"
+                                              Stroke="#FFFFFF"
                                               StrokeThickness="3.2"
                                               StrokeLineCap="Round"
                                               HorizontalOptions="Center"
@@ -883,7 +1092,9 @@
                                         <Border.GestureRecognizers>
                                             <TapGestureRecognizer Command="{Binding SendCommand}" />
                                         </Border.GestureRecognizers>
-                                        <Path Stroke="#FFFFFF"
+                                        <Path WidthRequest="38"
+                                              HeightRequest="38"
+                                              Stroke="#FFFFFF"
                                               StrokeThickness="2.8"
                                               StrokeLineCap="Round"
                                               StrokeLineJoin="Round"
@@ -988,7 +1199,9 @@
                             BackgroundColor="#1C1C1E"
                             Padding="0"
                             VerticalOptions="Center">
-                        <Path Fill="#FFFFFF"
+                        <Path WidthRequest="19"
+                              HeightRequest="16"
+                              Fill="#FFFFFF"
                               Stroke="#FFFFFF"
                               StrokeThickness="1"
                               HorizontalOptions="Center"
@@ -1011,7 +1224,9 @@
                         </Border.GestureRecognizers>
                         <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
                             <!-- People Icon -->
-                            <Path Fill="#FFFFFF"
+                            <Path WidthRequest="19"
+                                  HeightRequest="16"
+                                  Fill="#FFFFFF"
                                   VerticalOptions="Center"
                                   Data="M7,7 C8.66,7 10,5.66 10,4 C10,2.34 8.66,1 7,1 C5.34,1 4,2.34 4,4 C4,5.66 5.34,7 7,7 Z M13.5,7.5 C14.88,7.5 16,6.38 16,5 C16,3.62 14.88,2.5 13.5,2.5 C12.12,2.5 11,3.62 11,5 C11,6.38 12.12,7.5 13.5,7.5 Z M7,9 C4.33,9 0,10.34 0,13 L0,14.5 L14,14.5 L14,13 C14,10.34 9.67,9 7,9 Z M13.5,9.5 C13,9.5 12.4,9.55 11.8,9.65 C13,10.5 13.8,11.65 13.8,13 L13.8,14.5 L19,14.5 L19,13 C19,10.9 15.8,9.5 13.5,9.5 Z" />
                             <Label Text="{Binding ShellModel.FriendsCountText}"
@@ -1040,7 +1255,9 @@
                                    FontSize="15"
                                    FontAttributes="Bold"
                                    VerticalOptions="Center" />
-                            <Path Stroke="#FFFFFF"
+                            <Path WidthRequest="11"
+                                  HeightRequest="7"
+                                  Stroke="#FFFFFF"
                                   StrokeThickness="2.2"
                                   StrokeLineCap="Round"
                                   StrokeLineJoin="Round"
@@ -1063,7 +1280,9 @@
                             <TapGestureRecognizer Command="{Binding SnapToProfileCommand}" />
                         </Border.GestureRecognizers>
                         <Grid>
-                            <Path Fill="#8E8E93"
+                            <Path WidthRequest="24"
+                                  HeightRequest="24"
+                                  Fill="#8E8E93"
                                   HorizontalOptions="Center"
                                   VerticalOptions="Center"
                                   Scale="0.95"
@@ -1092,7 +1311,9 @@
                            VerticalOptions="Center" />
 
                     <!-- Right: Save to Gallery Icon (UI only, unimplemented per user request - noted in TODO) -->
+                    <!-- Right: Save to Gallery Icon (Hidden when photo is selected from gallery) -->
                     <Grid Grid.Column="2"
+                          IsVisible="{Binding ShowSaveToGalleryButton}"
                           WidthRequest="42"
                           HeightRequest="42"
                           HorizontalOptions="End"
@@ -1236,13 +1457,13 @@
                 <!-- ============================================================== -->
                 <!-- PERSISTENT BOTTOM OVERLAY ON CAMERA/FEED (History & Activity)  -->
                 <!-- ============================================================== -->
-                <VerticalStackLayout IsVisible="{Binding IsNotPreviewing}"
-                                     Spacing="16"
-                                     Margin="18,0,18,90"
-                                     VerticalOptions="End">
+                <Grid IsVisible="{Binding IsNotPreviewing}"
+                      Margin="18,0,18,90"
+                      HorizontalOptions="Fill"
+                      VerticalOptions="End">
 
                     <!-- History ⌄ Button (Visible on Camera Screen right above Bottom Pill - Image 3) -->
-                    <HorizontalStackLayout IsVisible="{Binding IsViewingFeed, Converter={StaticResource InvertedBoolConverter}}"
+                    <HorizontalStackLayout IsVisible="{Binding ShowHistoryButton}"
                                            Spacing="6"
                                            HorizontalOptions="Center"
                                            Padding="12,4">
@@ -1265,11 +1486,11 @@
                     </HorizontalStackLayout>
 
                     <!-- Feed Activity Pill ("✨ No activity yet!") or Incoming Reply/React Bar ("Send message...") -->
-                    <Grid IsVisible="{Binding IsViewingFeed}"
+                    <Grid IsVisible="{Binding ShowFeedOverlayBar}"
                           HorizontalOptions="Fill">
 
                         <!-- Own Post (No Activity): "✨ No activity yet!" Pill (Reference Image 4) -->
-                        <Border IsVisible="{Binding CurrentFeedPost.HasNoActivity, FallbackValue=False}"
+                        <Border IsVisible="{Binding ShowFeedNoActivityPill}"
                                 BackgroundColor="#1C1C1E"
                                 StrokeShape="RoundRectangle 22"
                                 StrokeThickness="0"
@@ -1290,7 +1511,7 @@
                         </Border>
 
                         <!-- Own Post (Has Activity): "✨ Activity [Avatar]" Pill -->
-                        <Border IsVisible="{Binding CurrentFeedPost.ShowActivityPill, FallbackValue=False}"
+                        <Border IsVisible="{Binding ShowFeedActivityPill}"
                                 BackgroundColor="#222224"
                                 StrokeShape="RoundRectangle 24"
                                 StrokeThickness="0"
@@ -1330,7 +1551,7 @@
                         </Border>
 
                         <!-- Friend's Post: Wide Reply & Emoji Reactions Bar ("Send message...") -->
-                        <Border IsVisible="{Binding CurrentFeedPost.IsIncoming, FallbackValue=False}"
+                        <Border IsVisible="{Binding ShowFeedReplyBar}"
                                 BackgroundColor="#222224"
                                 StrokeShape="RoundRectangle 26"
                                 StrokeThickness="0"
@@ -1393,7 +1614,7 @@
                             </Grid>
                         </Border>
                     </Grid>
-                </VerticalStackLayout>
+                </Grid>
 
                 <!-- ============================================================== -->
                 <!-- ACTIVITY BOTTOM SHEET OVERLAY (Reactions on Own Post)          -->
@@ -1716,7 +1937,9 @@
                                 Padding="0"
                                 HorizontalOptions="Fill"
                                 VerticalOptions="Fill">
-                            <Path Fill="#FFFFFF"
+                            <Path WidthRequest="20"
+                                  HeightRequest="21"
+                                  Fill="#FFFFFF"
                                   HorizontalOptions="Center"
                                   VerticalOptions="Center"
                                   Data="M10,1.5 L1,8.5 L1,18.5 C1,19.3 1.7,20 2.5,20 L7.5,20 L7.5,13.5 C7.5,12.7 8.2,12 9,12 L11,12 C11.8,12 12.5,12.7 12.5,13.5 L12.5,20 L17.5,20 C18.3,20 19,19.3 19,18.5 L19,8.5 L10,1.5 Z" />
@@ -1724,6 +1947,8 @@
 
                         <!-- Chat Mode: Inactive Home Icon -->
                         <Path IsVisible="{Binding ShowHomeIconInBottomBar}"
+                              WidthRequest="20"
+                              HeightRequest="21"
                               Fill="#8E8E93"
                               HorizontalOptions="Center"
                               VerticalOptions="Center"
@@ -1769,7 +1994,9 @@
                                 Padding="0"
                                 HorizontalOptions="Fill"
                                 VerticalOptions="Fill">
-                            <Path Fill="#FFFFFF"
+                            <Path WidthRequest="20"
+                                  HeightRequest="20"
+                                  Fill="#FFFFFF"
                                   HorizontalOptions="Center"
                                   VerticalOptions="Center"
                                   Data="M10,1 C4.48,1 0,4.8 0,9.5 C0,11.6 0.9,13.5 2.4,15 L1,18.5 L5.2,16.9 C6.7,17.6 8.3,18 10,18 C15.52,18 20,14.2 20,9.5 C20,4.8 15.52,1 10,1 Z" />
@@ -1777,6 +2004,8 @@
 
                         <!-- Inactive Chat Icon -->
                         <Path IsVisible="{Binding IsCameraPanelActive}"
+                              WidthRequest="20"
+                              HeightRequest="20"
                               Fill="#8E8E93"
                               HorizontalOptions="Center"
                               VerticalOptions="Center"
@@ -1797,7 +2026,9 @@
                     Padding="0"
                     HorizontalOptions="End"
                     VerticalOptions="Center">
-                <Path Stroke="#FFFFFF"
+                <Path WidthRequest="17"
+                      HeightRequest="17"
+                      Stroke="#FFFFFF"
                       StrokeThickness="2"
                       Fill="#FFFFFF"
                       HorizontalOptions="Center"
@@ -1819,13 +2050,25 @@
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Command="{Binding ShellModel.AddFriendCommand}" />
                 </Border.GestureRecognizers>
-                <Path Fill="#000000"
+                <Path WidthRequest="22"
+                      HeightRequest="22"
+                      Fill="#000000"
                       HorizontalOptions="Center"
                       VerticalOptions="Center"
                       Data="M2,16.2 L2,20 L5.8,20 L17,8.8 L13.2,5 L2,16.2 Z M19.7,6.1 C20.1,5.7 20.1,5.1 19.7,4.7 L17.3,2.3 C16.9,1.9 16.3,1.9 15.9,2.3 L14.1,4.1 L17.9,7.9 L19.7,6.1 Z" />
             </Border>
 
         </Grid>
+
+        <!-- Full-screen white overlay for front-camera / no-hardware-flash "screen flash" -->
+        <BoxView x:Name="ScreenFlashOverlay"
+                 IsVisible="False"
+                 Opacity="0"
+                 BackgroundColor="#FFFFFF"
+                 Color="#FFFFFF"
+                 InputTransparent="True"
+                 HorizontalOptions="Fill"
+                 VerticalOptions="Fill" />
 
         </Grid>
     </controls:HorizontalSwipeView>

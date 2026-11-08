@@ -65,6 +65,18 @@ namespace Pocket.Client.PageModels
             Pocket.Client.Controls.CameraView.ExposureSliderPreferenceKey,
             Pocket.Client.Controls.CameraView.ExposureSliderDefault);
 
+        /// <summary>Keep the last zoom level instead of resetting it to 1.0x.</summary>
+        [ObservableProperty]
+        private bool _isKeepLastZoom = Microsoft.Maui.Storage.Preferences.Get(
+            Pocket.Client.Controls.CameraView.KeepZoomPreferenceKey,
+            Pocket.Client.Controls.CameraView.KeepZoomDefault);
+
+        /// <summary>Keep the last exposure compensation instead of resetting it to 0 EV.</summary>
+        [ObservableProperty]
+        private bool _isKeepLastExposure = Microsoft.Maui.Storage.Preferences.Get(
+            Pocket.Client.Controls.CameraView.KeepExposurePreferenceKey,
+            Pocket.Client.Controls.CameraView.KeepExposureDefault);
+
         public ObservableCollection<Friend> Friends { get; } = new();
 
         public string FriendsCountText => Friends.Count == 1 ? "1 Friend" : $"{Friends.Count} Friends";
@@ -123,6 +135,28 @@ namespace Pocket.Client.PageModels
         partial void OnIsExposureSliderEnabledChanged(bool value)
         {
             Microsoft.Maui.Storage.Preferences.Set(Pocket.Client.Controls.CameraView.ExposureSliderPreferenceKey, value);
+        }
+
+        [RelayCommand]
+        private void ToggleKeepLastZoom()
+        {
+            IsKeepLastZoom = !IsKeepLastZoom;
+        }
+
+        partial void OnIsKeepLastZoomChanged(bool value)
+        {
+            Microsoft.Maui.Storage.Preferences.Set(Pocket.Client.Controls.CameraView.KeepZoomPreferenceKey, value);
+        }
+
+        [RelayCommand]
+        private void ToggleKeepLastExposure()
+        {
+            IsKeepLastExposure = !IsKeepLastExposure;
+        }
+
+        partial void OnIsKeepLastExposureChanged(bool value)
+        {
+            Microsoft.Maui.Storage.Preferences.Set(Pocket.Client.Controls.CameraView.KeepExposurePreferenceKey, value);
         }
 
         private void UpdateFriendLastMessage(DirectMessage dm)

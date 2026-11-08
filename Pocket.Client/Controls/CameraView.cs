@@ -29,6 +29,22 @@ namespace Pocket.Client.Controls
         public static bool ExposureSliderEnabled =>
             Microsoft.Maui.Storage.Preferences.Get(ExposureSliderPreferenceKey, ExposureSliderDefault);
 
+        /// <summary>Preferences key: keep the last zoom level between taps and camera restarts (General settings).</summary>
+        public const string KeepZoomPreferenceKey = "KeepLastZoom";
+        public const bool KeepZoomDefault = false;
+        public const string LastZoomLevelPreferenceKey = "LastZoomLevelValue"; // double (fractional level)
+
+        /// <summary>Preferences key: keep the last exposure compensation between taps and camera restarts (General settings).</summary>
+        public const string KeepExposurePreferenceKey = "KeepLastExposure";
+        public const bool KeepExposureDefault = false;
+        public const string LastExposureIndexPreferenceKey = "LastExposureIndexValue"; // double (fractional index)
+
+        public static bool KeepLastZoom =>
+            Microsoft.Maui.Storage.Preferences.Get(KeepZoomPreferenceKey, KeepZoomDefault);
+
+        public static bool KeepLastExposure =>
+            Microsoft.Maui.Storage.Preferences.Get(KeepExposurePreferenceKey, KeepExposureDefault);
+
         // ---- Camera capabilities (reported by the platform handler when the camera opens) ----
 
         /// <summary>Maximum zoom level index (0 = zoom not supported).</summary>
@@ -44,9 +60,71 @@ namespace Pocket.Client.Controls
         /// <summary>EV value of one exposure compensation step.</summary>
         public float ExposureStep { get; private set; }
 
+        /// <summary>True when the active camera has a hardware flash (torch) unit.</summary>
+        public bool HasFlash { get; private set; }
+
+        /// <summary>True when the active camera is the front (selfie) camera.</summary>
+        public bool IsFrontCamera { get; private set; }
+
+        /// <summary>Number of cameras available on the device (flip is a no-op when &lt; 2).</summary>
+        public int CameraCount { get; private set; }
+
+        /// <summary>
+        /// Flash toggle state. Read by the platform handler at capture time: when the active camera has a
+        /// hardware flash it fires during capture; otherwise the page performs a "screen flash".
+        /// </summary>
+        public bool IsFlashEnabled { get; set; }
+
+        /// <summary>Preferences key remembering the last used camera facing (true = front).</summary>
+        public const string UseFrontCameraPreferenceKey = "UseFrontCamera";
+
+        /// <summary>
+        /// Current physical device orientation in degrees (0, 90, 180, 270) reported by the platform accelerometer.
+        /// </summary>
+        public int DeviceOrientationDegrees { get; private set; }
+
+        /// <summary>
+        /// When true, photo capture uses <see cref="LockedOrientationDegrees"/> instead of the live sensor orientation.
+        /// </summary>
+        public bool IsOrientationLocked { get; private set; }
+
+        /// <summary>
+        /// The orientation in degrees (0, 90, 180, 270) captured when <see cref="IsOrientationLocked"/> was enabled.
+        /// </summary>
+        public int LockedOrientationDegrees { get; private set; }
+
+        /// <summary>
+        /// Effective orientation in degrees used at capture time (locked orientation when locked, otherwise live sensor orientation).
+        /// </summary>
+        public int EffectiveOrientationDegrees => IsOrientationLocked ? LockedOrientationDegrees : DeviceOrientationDegrees;
+
         public event EventHandler? CapabilitiesChanged;
 
+        public event EventHandler<int>? DeviceOrientationChanged;
+
         public event EventHandler<string>? PhotoCaptured;
+
+        public void SetOrientationLock(bool locked)
+        {
+            if (locked)
+            {
+                LockedOrientationDegrees = DeviceOrientationDegrees;
+                IsOrientationLocked = true;
+            }
+            else
+            {
+                IsOrientationLocked = false;
+            }
+        }
+
+        public void OnDeviceOrientationChanged(int degrees)
+        {
+            if (DeviceOrientationDegrees == degrees)
+                return;
+
+            DeviceOrientationDegrees = degrees;
+            DeviceOrientationChanged?.Invoke(this, degrees);
+        }
 
         public void CapturePhoto()
         {
@@ -59,16 +137,30 @@ namespace Pocket.Client.Controls
             Handler?.Invoke(nameof(FocusAt), new Point(normalizedX, normalizedY));
         }
 
-        /// <summary>Sets the zoom level index (0..<see cref="MaxZoom"/>).</summary>
-        public void SetZoom(int level)
+        /// <summary>
+        /// Sets the zoom level index (0..<see cref="MaxZoom"/>). Fractional values are allowed so the
+        /// slider moves smoothly: the software zoom fallback interpolates continuously, while hardware
+        /// zoom snaps to the nearest supported level.
+        /// </summary>
+        public void SetZoom(double level)
         {
             Handler?.Invoke(nameof(SetZoom), level);
         }
 
-        /// <summary>Sets the exposure compensation index (<see cref="MinExposure"/>..<see cref="MaxExposure"/>).</summary>
-        public void SetExposure(int index)
+        /// <summary>
+        /// Sets the exposure compensation index (<see cref="MinExposure"/>..<see cref="MaxExposure"/>).
+        /// Fractional values are allowed: the preview brightness filter follows the exact value, while the
+        /// hardware compensation snaps to the nearest supported step.
+        /// </summary>
+        public void SetExposure(double index)
         {
             Handler?.Invoke(nameof(SetExposure), index);
+        }
+
+        /// <summary>Switches between the back and front cameras.</summary>
+        public void SwitchCamera()
+        {
+            Handler?.Invoke(nameof(SwitchCamera));
         }
 
         public void OnPhotoCaptured(string filePath)
@@ -76,8 +168,12 @@ namespace Pocket.Client.Controls
             PhotoCaptured?.Invoke(this, filePath);
         }
 
-        public void ReportCapabilities(int maxZoom, IReadOnlyList<int> zoomRatios, int minExposure, int maxExposure, float exposureStep)
+        public void ReportCapabilities(int maxZoom, IReadOnlyList<int> zoomRatios, int minExposure, int maxExposure, float exposureStep,
+                                       bool hasFlash = false, bool isFrontCamera = false, int cameraCount = 1)
         {
+            HasFlash = hasFlash;
+            IsFrontCamera = isFrontCamera;
+            CameraCount = cameraCount;
             MaxZoom = maxZoom;
             ZoomRatios = zoomRatios;
             MinExposure = minExposure;

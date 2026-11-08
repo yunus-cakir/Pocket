@@ -43,10 +43,11 @@ namespace Pocket.Client.Platforms.Android.Views
             _tickPaint = new Paint(PaintFlags.AntiAlias) { Color = Color.Argb(220, 255, 255, 255), StrokeWidth = 2f * _density, StrokeCap = Paint.Cap.Round! };
             _tickPaint.SetStyle(Paint.Style.Stroke);
 
-            _thumbPaint = new Paint(PaintFlags.AntiAlias) { Color = Color.Rgb(0xF5, 0xB3, 0x01) };
+            _thumbPaint = new Paint(PaintFlags.AntiAlias) { Color = Color.White };
             _thumbPaint.SetStyle(Paint.Style.Fill);
+            _thumbPaint.SetShadowLayer(4f * _density, 0, 0, Color.Argb(110, 0, 0, 0));
 
-            _thumbStrokePaint = new Paint(PaintFlags.AntiAlias) { Color = Color.White, StrokeWidth = 2f * _density };
+            _thumbStrokePaint = new Paint(PaintFlags.AntiAlias) { Color = Color.White, StrokeWidth = 3.5f * _density };
             _thumbStrokePaint.SetStyle(Paint.Style.Stroke);
             _thumbStrokePaint.SetShadowLayer(4f * _density, 0, 0, Color.Argb(110, 0, 0, 0));
             SetLayerType(LayerType.Software, _thumbStrokePaint); // required for shadow layer
@@ -78,7 +79,6 @@ namespace Pocket.Client.Platforms.Android.Views
                 // Maximum at the top
                 float y = h - pad - Fraction(Value) * (h - 2 * pad);
                 canvas.DrawCircle(cx, y, ThumbRadius, _thumbPaint);
-                canvas.DrawCircle(cx, y, ThumbRadius, _thumbStrokePaint);
             }
             else
             {
@@ -93,7 +93,6 @@ namespace Pocket.Client.Platforms.Android.Views
 
                 float x = pad + Fraction(Value) * (w - 2 * pad);
                 canvas.DrawCircle(x, cy, ThumbRadius, _thumbPaint);
-                canvas.DrawCircle(x, cy, ThumbRadius, _thumbStrokePaint);
             }
         }
 
