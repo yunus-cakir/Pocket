@@ -140,6 +140,40 @@ adb -s emulator-5554 shell dumpsys activity activities | Select-String -Pattern 
 
 ---
 
+## 🗄️ SQLite Veritabanına Erişim, Çekme (Pull), Yükleme (Push) ve Seed Veri Ekleme
+
+Uygulamanın veritabanı dosyası (`PocketLocal.db3`), cihazdaki izole uygulama kum havuzunda (`files/PocketLocal.db3`) saklanır. `Debug` derlemesinde `run-as com.companyname.pocket.client` ve `/data/local/tmp` köprüsüyle doğrudan bilgisayara çekilebilir ve tekrar yüklenebilir.
+
+### 1. Veritabanını Emülatörden Bilgisayara Çekme (Pull & İnceleme)
+
+```powershell
+# emulator-5554'ten çekmek için:
+adb -s emulator-5554 shell "touch /data/local/tmp/dump.db3; chmod 777 /data/local/tmp/dump.db3; run-as com.companyname.pocket.client cp files/PocketLocal.db3 /data/local/tmp/dump.db3"
+adb -s emulator-5554 pull /data/local/tmp/dump.db3 ./PocketLocal_5554.db3
+
+# emulator-5556'dan çekmek için:
+adb -s emulator-5556 shell "touch /data/local/tmp/dump.db3; chmod 777 /data/local/tmp/dump.db3; run-as com.companyname.pocket.client cp files/PocketLocal.db3 /data/local/tmp/dump.db3"
+adb -s emulator-5556 pull /data/local/tmp/dump.db3 ./PocketLocal_5556.db3
+```
+> Çekilen `.db3` dosyasını **DB Browser for SQLite**, **VS Code SQLite eklentisi** veya Python ile doğrudan açıp tabloları (`User`, `Friend`, `MediaPost`, `DirectMessage`) görüntüleyebilir ve değiştirebilirsiniz.
+
+### 2. Bilgisayarda Düzenlenen / Seed Eklenen Veritabanını Emülatöre Geri Yükleme (Push)
+
+```powershell
+# emulator-5554'e geri yükleme:
+adb -s emulator-5554 push ./PocketLocal_5554.db3 /data/local/tmp/new.db3
+adb -s emulator-5554 shell "chmod 777 /data/local/tmp/new.db3; run-as com.companyname.pocket.client cp /data/local/tmp/new.db3 files/PocketLocal.db3"
+
+# emulator-5556'ya geri yükleme:
+adb -s emulator-5556 push ./PocketLocal_5556.db3 /data/local/tmp/new.db3
+adb -s emulator-5556 shell "chmod 777 /data/local/tmp/new.db3; run-as com.companyname.pocket.client cp /data/local/tmp/new.db3 files/PocketLocal.db3"
+
+# Değişikliklerin ekrana yansıması için uygulamayı yeniden başlatın:
+adb -s emulator-5554 shell am force-stop com.companyname.pocket.client; adb -s emulator-5554 shell am start -n com.companyname.pocket.client/crc646dd0ab311caf03fd.MainActivity
+```
+
+---
+
 ## 🧹 Temiz Kurulum & Veritabanı Sıfırlama
 
 **1. Fast Deployment DLL'lerini Bozmadan Sadece Veritabanını ve Medyayı Sıfırlama (Önerilen):**

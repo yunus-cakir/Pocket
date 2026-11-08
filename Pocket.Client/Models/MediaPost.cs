@@ -202,7 +202,7 @@ namespace Pocket.Client.Models
 
         [Ignore]
         public string HeaderTitleText => IsIncoming
-            ? $"🔐 @{SenderDisplayName}"
+            ? $"🔐 {SenderDisplayName}"
             : $"You";
 
         [Ignore]

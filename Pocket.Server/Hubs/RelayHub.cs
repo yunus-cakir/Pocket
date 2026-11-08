@@ -80,6 +80,15 @@ namespace Pocket.Server.Hubs
                 throw new HubException("Unauthorized: Token UserId does not match the provided Identity UserId.");
             }
 
+            // Remove any previous username mapping for this UserId if the user renamed their account
+            foreach (var kvp in ActiveUsernames)
+            {
+                if (kvp.Value.UserId == identity.UserId && !string.Equals(kvp.Key, identity.Username, StringComparison.OrdinalIgnoreCase))
+                {
+                    ActiveUsernames.TryRemove(kvp.Key, out _);
+                }
+            }
+
             ActiveUsernames[identity.Username] = identity;
             return Task.CompletedTask;
         }

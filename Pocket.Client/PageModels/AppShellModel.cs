@@ -85,6 +85,8 @@ namespace Pocket.Client.PageModels
         public event Action<Guid>? OnMediaPostDelivered;
         public event Action<DirectMessage>? OnDirectMessageReceived;
         public event Action<Guid>? OnDirectMessageDelivered;
+        public event Action<Friend>? OnFriendProfileUpdated;
+        public event Action<User>? OnUserProfileUpdated;
 
         public AppShellModel(LocalDatabase database, ICryptoService cryptoService, IRelayService relayService)
         {
@@ -433,6 +435,63 @@ namespace Pocket.Client.PageModels
 
                 var sharedSecret = GetOrDeriveSharedSecret(privateKey, senderFriend.PublicKey);
 
+                if (payload.MediaType == Pocket.Shared.Enums.MediaType.ProfileUpdate)
+                {
+                    // E2EE Profile Update (Username / DisplayName / Avatar Photo)
+                    if (payload.EncryptedContent is { Length: > 0 })
+                    {
+                        var decryptedBytes = _cryptoService.DecryptData(payload.EncryptedContent, sharedSecret);
+                        var profileUpdate = System.Text.Json.JsonSerializer.Deserialize<Pocket.Shared.DTOs.ProfileUpdateDto>(decryptedBytes);
+                        if (profileUpdate != null)
+                        {
+                            if (!string.IsNullOrWhiteSpace(profileUpdate.Username))
+                            {
+                                senderFriend.Username = profileUpdate.Username;
+                            }
+                            if (!string.IsNullOrWhiteSpace(profileUpdate.DisplayName))
+                            {
+                                senderFriend.DisplayName = profileUpdate.DisplayName;
+                            }
+                            if (profileUpdate.AvatarCleared)
+                            {
+                                TryDeleteLocalFile(senderFriend.ProfilePictureUrl);
+                                senderFriend.ProfilePictureUrl = string.Empty;
+                            }
+                        }
+                    }
+
+                    if (payload.EncryptedMedia is { Length: > 0 })
+                    {
+                        var decryptedAvatarBytes = _cryptoService.DecryptData(payload.EncryptedMedia, sharedSecret);
+                        var profileDir = Path.Combine(Microsoft.Maui.Storage.FileSystem.AppDataDirectory, "Profile");
+                        Directory.CreateDirectory(profileDir);
+
+                        var oldAvatarPath = senderFriend.ProfilePictureUrl;
+                        var newAvatarPath = Path.Combine(profileDir, $"friend_{senderFriend.Id}_{payload.MessageId:N}.jpg");
+                        await File.WriteAllBytesAsync(newAvatarPath, decryptedAvatarBytes);
+                        senderFriend.ProfilePictureUrl = newAvatarPath;
+                        TryDeleteLocalFile(oldAvatarPath);
+                    }
+
+                    await _database.SaveFriendAsync(senderFriend);
+
+                    Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        var targetFriend = Friends.FirstOrDefault(f => f.Id == senderFriend.Id);
+                        if (targetFriend != null)
+                        {
+                            targetFriend.Username = senderFriend.Username;
+                            targetFriend.DisplayName = senderFriend.DisplayName;
+                            targetFriend.ProfilePictureUrl = senderFriend.ProfilePictureUrl;
+                        }
+                        OnFriendProfileUpdated?.Invoke(senderFriend);
+                    });
+
+                    // BR-202: Confirm delivery so server immediately purges payload from RAM
+                    await _relayService.ConfirmDeliveryAsync(payload.SenderId, payload.MessageId);
+                    return;
+                }
+
                 if (payload.MediaType == Pocket.Shared.Enums.MediaType.None)
                 {
                     // Direct Message / Photo Reaction (BR-301, BR-302)
@@ -540,7 +599,7 @@ namespace Pocket.Client.PageModels
                     SentAt = payload.Timestamp,
                     IsIncludedInRollcall = false,
                     SyncStatus = Pocket.Shared.Enums.SyncStatus.Delivered,
-                    SenderDisplayName = senderFriend.Username
+                    SenderDisplayName = senderFriend.DisplayName
                 };
 
                 await _database.SaveMediaPostAsync(mediaPost);
@@ -607,6 +666,12 @@ namespace Pocket.Client.PageModels
                     ConnectionStatusColor = "#10B981"; // Emerald Green
                     ConnectedUrlText = _relayService?.CurrentHubUrl ?? "-";
                     ConnectedAtText = _relayService?.ConnectedAt?.ToString("HH:mm:ss") ?? "-";
+
+                    if (Microsoft.Maui.Storage.Preferences.Default.Get("PendingProfileBroadcast", false))
+                    {
+                        Microsoft.Maui.Storage.Preferences.Default.Set("PendingProfileBroadcast", false);
+                        _ = BroadcastProfileUpdateAsync();
+                    }
                 }
                 else
                 {
@@ -647,6 +712,10 @@ namespace Pocket.Client.PageModels
                         await _database.SaveFriendAsync(friend);
                         Friends.Add(friend);
                     }
+                    else
+                    {
+                        friend = existing;
+                    }
 
                     var acceptDto = new Pocket.Shared.DTOs.FriendAcceptDto
                     {
@@ -657,6 +726,9 @@ namespace Pocket.Client.PageModels
                         Timestamp = DateTime.UtcNow
                     };
                     await _relayService.SendFriendAcceptAsync(acceptDto);
+
+                    // Immediately share our E2EE profile (name + avatar photo) with the new friend
+                    _ = BroadcastProfileUpdateAsync(friend);
                 }
             });
         }
@@ -687,6 +759,13 @@ namespace Pocket.Client.PageModels
                             await Microsoft.Maui.Controls.Shell.Current.DisplayAlert("İstek Kabul Edildi", $"{acceptDto.SenderUsername} arkadaşlık isteğinizi kabul etti!", "Tamam");
                         }
                     }
+                    else
+                    {
+                        friend = existing;
+                    }
+
+                    // Immediately share our E2EE profile (name + avatar photo) with the new friend
+                    _ = BroadcastProfileUpdateAsync(friend);
                 }
             });
         }
@@ -733,39 +812,344 @@ namespace Pocket.Client.PageModels
         private IAsyncRelayCommand? _editProfileCommand;
         public IAsyncRelayCommand EditProfileCommand => _editProfileCommand ??= new AsyncRelayCommand(EditProfileAsync);
 
+        private IAsyncRelayCommand? _editProfilePhotoCommand;
+        public IAsyncRelayCommand EditProfilePhotoCommand => _editProfilePhotoCommand ??= new AsyncRelayCommand(EditProfilePhotoAsync);
+
+        private bool _isPickingProfilePhoto;
+
+        public async Task EditProfilePhotoAsync()
+        {
+            if (_isPickingProfilePhoto || CurrentUser == null || Microsoft.Maui.Controls.Shell.Current == null)
+                return;
+
+            _isPickingProfilePhoto = true;
+            try
+            {
+                bool hasExistingPhoto = !string.IsNullOrWhiteSpace(CurrentUser.ProfilePictureUrl) &&
+                                        File.Exists(CurrentUser.ProfilePictureUrl);
+
+                if (hasExistingPhoto)
+                {
+                    string action = await Microsoft.Maui.Controls.Shell.Current.DisplayActionSheet(
+                        "Profil Fotoğrafı",
+                        "İptal",
+                        "Fotoğrafı Kaldır",
+                        "Galeriden Yeni Fotoğraf Seç");
+
+                    if (action == "Fotoğrafı Kaldır")
+                    {
+                        var oldPath = CurrentUser.ProfilePictureUrl;
+                        CurrentUser.ProfilePictureUrl = string.Empty;
+                        TryDeleteLocalFile(oldPath);
+
+                        if (_database != null)
+                        {
+                            await _database.SaveUserAsync(CurrentUser);
+                        }
+
+                        OnPropertyChanged(nameof(CurrentUser));
+                        OnUserProfileUpdated?.Invoke(CurrentUser);
+                        await BroadcastProfileUpdateAsync();
+                        return;
+                    }
+
+                    if (action != "Galeriden Yeni Fotoğraf Seç")
+                    {
+                        return;
+                    }
+                }
+
+                string? newAvatarPath = await PickAndSaveAvatarPhotoAsync();
+                if (!string.IsNullOrEmpty(newAvatarPath) && File.Exists(newAvatarPath))
+                {
+                    var oldPath = CurrentUser.ProfilePictureUrl;
+                    CurrentUser.ProfilePictureUrl = newAvatarPath;
+                    TryDeleteLocalFile(oldPath);
+
+                    if (_database != null)
+                    {
+                        await _database.SaveUserAsync(CurrentUser);
+                    }
+
+                    OnPropertyChanged(nameof(CurrentUser));
+                    OnUserProfileUpdated?.Invoke(CurrentUser);
+                    await BroadcastProfileUpdateAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ProfilePhoto] Failed to update profile photo: {ex.Message}");
+            }
+            finally
+            {
+                _isPickingProfilePhoto = false;
+            }
+        }
+
+        private static void TryDeleteLocalFile(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return;
+
+            try
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ProfilePhoto] Failed to delete old file '{path}': {ex.Message}");
+            }
+        }
+
+        private static async Task<string?> PickAndSaveAvatarPhotoAsync()
+        {
+            var profileDir = Path.Combine(Microsoft.Maui.Storage.FileSystem.AppDataDirectory, "Profile");
+            Directory.CreateDirectory(profileDir);
+            var targetPath = Path.Combine(profileDir, $"avatar_{Guid.NewGuid():N}.jpg");
+
+#if ANDROID
+            var uri = await MainActivity.PickSinglePhotoAsync();
+            if (uri == null)
+                return null;
+
+            var resolver = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity?.ContentResolver
+                           ?? global::Android.App.Application.Context?.ContentResolver;
+            if (resolver == null)
+                return null;
+
+            return await Task.Run(() =>
+            {
+                int rotationDegrees = 0;
+                try
+                {
+                    if (global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.N)
+                    {
+                        using var exifStream = resolver.OpenInputStream(uri);
+                        if (exifStream != null)
+                        {
+                            var exif = new global::Android.Media.ExifInterface(exifStream);
+                            int orientation = exif.GetAttributeInt(
+                                global::Android.Media.ExifInterface.TagOrientation,
+                                (int)global::Android.Media.Orientation.Normal);
+
+                            rotationDegrees = orientation switch
+                            {
+                                (int)global::Android.Media.Orientation.Rotate90 => 90,
+                                (int)global::Android.Media.Orientation.Rotate180 => 180,
+                                (int)global::Android.Media.Orientation.Rotate270 => 270,
+                                _ => 0
+                            };
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[ProfilePhoto] EXIF read skipped: {ex.Message}");
+                }
+
+                using var inputStream = resolver.OpenInputStream(uri);
+                if (inputStream == null)
+                    return null;
+
+                using var decoded = global::Android.Graphics.BitmapFactory.DecodeStream(inputStream);
+                if (decoded == null)
+                {
+                    using var fallbackIn = resolver.OpenInputStream(uri);
+                    if (fallbackIn == null) return null;
+                    using var outFile = File.Create(targetPath);
+                    fallbackIn.CopyTo(outFile);
+                    return targetPath;
+                }
+
+                global::Android.Graphics.Bitmap? rotated = null;
+                global::Android.Graphics.Bitmap? squareCropped = null;
+                global::Android.Graphics.Bitmap? scaled = null;
+
+                try
+                {
+                    global::Android.Graphics.Bitmap current = decoded;
+                    if (rotationDegrees != 0)
+                    {
+                        using var matrix = new global::Android.Graphics.Matrix();
+                        matrix.PostRotate(rotationDegrees);
+                        rotated = global::Android.Graphics.Bitmap.CreateBitmap(
+                            decoded, 0, 0, decoded.Width, decoded.Height, matrix, true);
+                        if (rotated != null)
+                            current = rotated;
+                    }
+
+                    int side = Math.Min(current.Width, current.Height);
+                    int cropX = (current.Width - side) / 2;
+                    int cropY = (current.Height - side) / 2;
+
+                    if (cropX > 0 || cropY > 0 || current.Width != current.Height)
+                    {
+                        squareCropped = global::Android.Graphics.Bitmap.CreateBitmap(current, cropX, cropY, side, side);
+                        if (squareCropped != null)
+                            current = squareCropped;
+                    }
+
+                    const int maxAvatarDim = 512;
+                    if (current.Width > maxAvatarDim)
+                    {
+                        scaled = global::Android.Graphics.Bitmap.CreateScaledBitmap(current, maxAvatarDim, maxAvatarDim, true);
+                        if (scaled != null)
+                            current = scaled;
+                    }
+
+                    using var outStream = File.Create(targetPath);
+                    current.Compress(global::Android.Graphics.Bitmap.CompressFormat.Jpeg!, 88, outStream);
+                }
+                finally
+                {
+                    if (scaled != null && !ReferenceEquals(scaled, squareCropped) && !ReferenceEquals(scaled, rotated) && !ReferenceEquals(scaled, decoded))
+                        scaled.Dispose();
+                    if (squareCropped != null && !ReferenceEquals(squareCropped, rotated) && !ReferenceEquals(squareCropped, decoded))
+                        squareCropped.Dispose();
+                    if (rotated != null && !ReferenceEquals(rotated, decoded))
+                        rotated.Dispose();
+                }
+
+                return targetPath;
+            });
+#else
+            var result = await Microsoft.Maui.Media.MediaPicker.Default.PickPhotoAsync();
+            if (result == null)
+                return null;
+
+            await using var inStream = await result.OpenReadAsync();
+            await using var outStream = File.Create(targetPath);
+            await inStream.CopyToAsync(outStream);
+            return targetPath;
+#endif
+        }
+
+        public async Task BroadcastProfileUpdateAsync(Friend? specificFriend = null)
+        {
+            if (_database == null || _cryptoService == null || _relayService == null || CurrentUser == null)
+                return;
+
+            if (!_relayService.IsConnected)
+            {
+                Microsoft.Maui.Storage.Preferences.Default.Set("PendingProfileBroadcast", true);
+                return;
+            }
+
+            var privateKey = await GetPrivateKeyAsync();
+            if (string.IsNullOrEmpty(privateKey))
+                return;
+
+            var targetFriends = specificFriend != null
+                ? new System.Collections.Generic.List<Friend> { specificFriend }
+                : await _database.GetFriendsAsync();
+
+            if (targetFriends.Count == 0)
+                return;
+
+            var profileUpdate = new Pocket.Shared.DTOs.ProfileUpdateDto
+            {
+                Username = CurrentUser.Username,
+                DisplayName = CurrentUser.DisplayName,
+                AvatarCleared = string.IsNullOrWhiteSpace(CurrentUser.ProfilePictureUrl)
+            };
+
+            var contentBytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(profileUpdate);
+
+            byte[]? avatarBytes = null;
+            if (!string.IsNullOrWhiteSpace(CurrentUser.ProfilePictureUrl) && File.Exists(CurrentUser.ProfilePictureUrl))
+            {
+                try
+                {
+                    avatarBytes = await File.ReadAllBytesAsync(CurrentUser.ProfilePictureUrl);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[ProfileBroadcast] Failed to read local avatar file: {ex.Message}");
+                }
+            }
+
+            foreach (var friend in targetFriends)
+            {
+                if (string.IsNullOrEmpty(friend.PublicKey))
+                    continue;
+
+                try
+                {
+                    var sharedSecret = GetOrDeriveSharedSecret(privateKey, friend.PublicKey);
+                    var encryptedContent = _cryptoService.EncryptData(contentBytes, sharedSecret);
+                    var encryptedMedia = avatarBytes is { Length: > 0 }
+                        ? _cryptoService.EncryptData(avatarBytes, sharedSecret)
+                        : null;
+
+                    var payload = new Pocket.Shared.DTOs.EncryptedPayloadDto
+                    {
+                        MessageId = Guid.NewGuid(),
+                        SenderId = CurrentUser.Id,
+                        RecipientId = friend.Id,
+                        EncryptedContent = encryptedContent,
+                        EncryptedMedia = encryptedMedia,
+                        MediaType = Pocket.Shared.Enums.MediaType.ProfileUpdate,
+                        Timestamp = DateTime.UtcNow
+                    };
+
+                    await _relayService.SendPayloadAsync(payload);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[ProfileBroadcast] E2EE send failed for friend {friend.Username}: {ex.Message}");
+                }
+            }
+        }
+
         public async Task EditProfileAsync()
         {
             if (CurrentUser == null || Microsoft.Maui.Controls.Shell.Current == null) return;
 
-            string initialValue = string.IsNullOrWhiteSpace(CurrentUser.Username)
-                ? "@username"
-                : $"@{CurrentUser.Username}";
+            string initialValue = CurrentUser.Username ?? string.Empty;
 
             string result = await Microsoft.Maui.Controls.Shell.Current.DisplayPromptAsync(
                 title: "Kullanıcı Adını Değiştir",
-                message: "Lütfen yeni kullanıcı adınızı girin (ör: @username):",
+                message: "Lütfen yeni kullanıcı adınızı girin (şifreli iletişim anahtarlarınız korunur):",
                 accept: "Kaydet",
                 cancel: "İptal",
-                placeholder: "@username",
+                placeholder: "kullanıcı adı",
                 maxLength: 30,
                 keyboard: Keyboard.Text,
                 initialValue: initialValue);
 
             if (result != null)
             {
-                string cleanUsername = result.Trim().TrimStart('@');
+                string cleanUsername = result.Trim().TrimStart('@').Trim();
                 if (!string.IsNullOrWhiteSpace(cleanUsername))
                 {
+                    if (_relayService != null && _relayService.IsConnected &&
+                        !string.Equals(cleanUsername, CurrentUser.Username, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var existingActive = await _relayService.LookupUserAsync(cleanUsername);
+                        if (existingActive != null && existingActive.UserId != CurrentUser.Id)
+                        {
+                            await Microsoft.Maui.Controls.Shell.Current.DisplayAlert(
+                                "Kullanıcı Adı Kullanımda",
+                                $"{cleanUsername} şu anda başka bir kullanıcı tarafından kullanılıyor. Lütfen farklı bir isim seçin.",
+                                "Tamam");
+                            return;
+                        }
+                    }
+
                     CurrentUser.Username = cleanUsername;
                     CurrentUser.DisplayName = cleanUsername;
 
                     OnPropertyChanged(nameof(CurrentUser));
+                    OnUserProfileUpdated?.Invoke(CurrentUser);
 
                     if (_database != null && _relayService != null)
                     {
                         await _database.SaveUserAsync(CurrentUser);
                         
-                        // Reconnect to generate a new JWT with the updated username
+                        // Reconnect to generate a new JWT with the updated username while preserving UserId & ECDH PublicKey
                         await _relayService.ConnectAsync(CurrentUser.Id, CurrentUser.Username);
                         if (_relayService.IsConnected)
                         {
@@ -776,6 +1160,9 @@ namespace Pocket.Client.PageModels
                                 PublicKey = CurrentUser.PublicKey
                             });
                         }
+
+                        // Sync updated username/display name over E2EE to all mutual friends
+                        await BroadcastProfileUpdateAsync();
                     }
                 }
             }

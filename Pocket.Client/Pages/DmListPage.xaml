@@ -3,11 +3,16 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:pm="clr-namespace:Pocket.Client.PageModels"
              xmlns:models="clr-namespace:Pocket.Client.Models"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
              x:Class="Pocket.Client.Pages.DmListPage"
              x:DataType="pm:DmListPageModel"
              Title="Friends"
              BackgroundColor="#000000"
              Shell.NavBarIsVisible="False">
+
+    <ContentPage.Resources>
+        <toolkit:IsStringNotNullOrWhiteSpaceConverter x:Key="IsStringNotNullOrWhiteSpaceConverter" />
+    </ContentPage.Resources>
 
     <Grid RowDefinitions="Auto, Auto, *" BackgroundColor="#000000">
 
@@ -150,7 +155,9 @@
                                       HorizontalOptions="Center"
                                       VerticalOptions="Center"
                                       Data="M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z" />
-                                <Image Source="{Binding ProfilePictureUrl}" Aspect="AspectFill" />
+                                <Image Source="{Binding ProfilePictureUrl}"
+                                       IsVisible="{Binding ProfilePictureUrl, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}"
+                                       Aspect="AspectFill" />
                             </Grid>
                         </Border>
                         <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">

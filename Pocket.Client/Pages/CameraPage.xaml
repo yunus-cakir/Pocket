@@ -55,6 +55,9 @@
                                 Padding="5"
                                 HorizontalOptions="Center"
                                 Margin="0,2,0,0">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding ShellModel.EditProfilePhotoCommand}" />
+                            </Border.GestureRecognizers>
                             <Border WidthRequest="98"
                                     HeightRequest="98"
                                     StrokeShape="RoundRectangle 49"
@@ -70,7 +73,9 @@
                                           VerticalOptions="Center"
                                           Scale="1.6"
                                           Data="M12,12 C14.76,12 17,9.76 17,7 C17,4.24 14.76,2 12,2 C9.24,2 7,4.24 7,7 C7,9.76 9.24,12 12,12 Z M12,14.5 C8.67,14.5 2,16.17 2,19.5 L2,22 L22,22 L22,19.5 C22,16.17 15.33,14.5 12,14.5 Z" />
-                                    <Image Source="{Binding ShellModel.CurrentUser.ProfilePictureUrl}" Aspect="AspectFill" />
+                                    <Image Source="{Binding ShellModel.CurrentUser.ProfilePictureUrl}"
+                                           IsVisible="{Binding ShellModel.CurrentUser.ProfilePictureUrl, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}"
+                                           Aspect="AspectFill" />
                                 </Grid>
                             </Border>
                         </Border>
@@ -82,16 +87,24 @@
                                FontSize="24"
                                FontAttributes="Bold"
                                HorizontalOptions="Center"
-                               Margin="0,12,0,2" />
+                               Margin="0,12,0,2">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding ShellModel.EditProfileCommand}" />
+                            </Label.GestureRecognizers>
+                        </Label>
 
-                        <!-- Edit Photo Button (Unimplemented feature - noted) -->
+                        <!-- Edit Photo Button (Active - bound to EditProfilePhotoCommand) -->
                         <Label Text="Edit Photo"
                                TextColor="#EAB308"
                                FontFamily="OpenSansSemibold"
                                FontSize="15"
                                FontAttributes="Bold"
                                HorizontalOptions="Center"
-                               Margin="0,2,0,0" />
+                               Margin="0,2,0,0">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding ShellModel.EditProfilePhotoCommand}" />
+                            </Label.GestureRecognizers>
+                        </Label>
 
                         <!-- Rollcall & Invite Combined Card -->
                         <Border BackgroundColor="#1C1C1E"
@@ -187,7 +200,9 @@
                                                       VerticalOptions="Center"
                                                       Scale="0.9"
                                                       Data="M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z" />
-                                                <Image Source="{Binding ShellModel.CurrentUser.ProfilePictureUrl}" Aspect="AspectFill" />
+                                                <Image Source="{Binding ShellModel.CurrentUser.ProfilePictureUrl}"
+                                                       IsVisible="{Binding ShellModel.CurrentUser.ProfilePictureUrl, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}"
+                                                       Aspect="AspectFill" />
                                             </Grid>
                                         </Border>
                                     </Border>
@@ -1287,7 +1302,9 @@
                                   VerticalOptions="Center"
                                   Scale="0.95"
                                   Data="M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z" />
-                            <Image Source="{Binding ShellModel.CurrentUser.ProfilePictureUrl}" Aspect="AspectFill" />
+                            <Image Source="{Binding ShellModel.CurrentUser.ProfilePictureUrl}"
+                                   IsVisible="{Binding ShellModel.CurrentUser.ProfilePictureUrl, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}"
+                                   Aspect="AspectFill" />
                         </Grid>
                     </Border>
                 </Grid>
@@ -1426,7 +1443,9 @@
                                                           VerticalOptions="Center"
                                                           Scale="0.9"
                                                           Data="M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z" />
-                                                    <Image Source="{Binding ProfilePictureUrl}" Aspect="AspectFill" />
+                                                    <Image Source="{Binding ProfilePictureUrl}"
+                                                           IsVisible="{Binding ProfilePictureUrl, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}"
+                                                           Aspect="AspectFill" />
                                                 </Grid>
                                             </Border>
                                         </Border>
@@ -1544,7 +1563,9 @@
                                               VerticalOptions="Center"
                                               Scale="0.7"
                                               Data="M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z" />
-                                        <Image Source="{Binding CurrentFeedPost.LatestActivityAvatarUrl}" Aspect="AspectFill" />
+                                        <Image Source="{Binding CurrentFeedPost.LatestActivityAvatarUrl}"
+                                               IsVisible="{Binding CurrentFeedPost.LatestActivityAvatarUrl, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}"
+                                               Aspect="AspectFill" />
                                     </Grid>
                                 </Border>
                             </HorizontalStackLayout>
@@ -1704,7 +1725,9 @@
                                                           VerticalOptions="Center"
                                                           Scale="0.95"
                                                           Data="M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z" />
-                                                    <Image Source="{Binding FriendAvatarUrl}" Aspect="AspectFill" />
+                                                    <Image Source="{Binding FriendAvatarUrl}"
+                                                           IsVisible="{Binding FriendAvatarUrl, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}"
+                                                           Aspect="AspectFill" />
                                                 </Grid>
                                             </Border>
 
@@ -1768,7 +1791,9 @@
                                   VerticalOptions="Center"
                                   Scale="0.95"
                                   Data="M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z" />
-                            <Image Source="{Binding ShellModel.CurrentUser.ProfilePictureUrl}" Aspect="AspectFill" />
+                            <Image Source="{Binding ShellModel.CurrentUser.ProfilePictureUrl}"
+                                   IsVisible="{Binding ShellModel.CurrentUser.ProfilePictureUrl, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}"
+                                   Aspect="AspectFill" />
                         </Grid>
                     </Border>
                 </Grid>
@@ -1820,7 +1845,9 @@
                                                   VerticalOptions="Center"
                                                   Scale="1.05"
                                                   Data="M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z" />
-                                            <Image Source="{Binding ProfilePictureUrl}" Aspect="AspectFill" />
+                                            <Image Source="{Binding ProfilePictureUrl}"
+                                                   IsVisible="{Binding ProfilePictureUrl, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}"
+                                                   Aspect="AspectFill" />
                                         </Grid>
                                     </Border>
                                 </Border>

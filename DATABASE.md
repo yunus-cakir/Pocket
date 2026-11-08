@@ -1,0 +1,159 @@
+# 🗄️ Pocket - SQLite Veritabanı Rehberi (DATABASE.md)
+
+Bu doküman, **Pocket** mobil uygulamasında yerel olarak kullanılan SQLite veritabanının yapısını, dosya konumlarını, emülatör/cihaz üzerinden veritabanına doğrudan erişim, yedekleme (pull), geri yükleme (push), seed veri ekleme ve sıfırlama adımlarını içerir.
+
+---
+
+## 📌 Genel Bakış ve Veritabanı Konumu
+
+Pocket, **Local-First** mimari prensibiyle çalışır. Tüm kullanıcı bilgileri, arkadaşlar, medya gönderileri ve direkt mesajlar cihazın yerel SQLite veritabanında saklanır.
+
+* **Veritabanı Motoru:** SQLite (`sqlite-net-pcl`)
+* **Veritabanı Dosya Adı:** `PocketLocal.db3`
+* **Android Cihaz İçi Konumu:**
+  `/data/user/0/com.companyname.pocket.client/files/PocketLocal.db3`
+  *(Uygulama kum havuzunda: `files/PocketLocal.db3`)*
+* **İlgili Medya Dizinleri:**
+  - `files/Media/` : Çekilen/alınan fotoğraf ve videolar (`.jpg`, `.mp4`)
+  - `files/Profile/` : Kırpılmış profil fotoğrafları (`avatar_*.jpg`, `friend_*.jpg`)
+
+---
+
+## 📋 Tablo Şemaları (Schema)
+
+### 1. `User` (Yerel Kullanıcı Kimliği)
+| Alan | Tip | Açıklama |
+| :--- | :--- | :--- |
+| `Id` | TEXT (PK) | Kullanıcının benzersiz GUID kimliği |
+| `Username` | TEXT (Max 50) | Kullanıcı adı (`@` işareti olmadan yalın metin) |
+| `DisplayName` | TEXT (Max 100) | Ekranda gösterilen isim |
+| `ProfilePictureUrl` | TEXT | Yerel profil fotoğrafı dosya yolu (`files/Profile/...`) |
+| `PublicKey` | TEXT | ECDH P-256 Public Key (Base64) |
+| `EncryptedPrivateKey` | TEXT | ECDH P-256 Private Key (Base64) |
+| `CreatedAt` | DATETIME | Hesap oluşturulma tarihi (UTC) |
+
+### 2. `Friend` (Ekli Arkadaşlar)
+| Alan | Tip | Açıklama |
+| :--- | :--- | :--- |
+| `Id` | TEXT (PK) | Arkadaşın benzersiz GUID kimliği |
+| `Username` | TEXT (Indexed) | Arkadaşın kullanıcı adı (`@` olmadan) |
+| `DisplayName` | TEXT | Arkadaşın görünen adı |
+| `ProfilePictureUrl` | TEXT | Arkadaşın yerel profil fotoğrafı yolu (`files/Profile/...`) |
+| `PublicKey` | TEXT | Arkadaşın ECDH P-256 Public Key (E2EE ortak sırrı için) |
+| `IsMuted` | INTEGER (Bool) | Bildirim sessize alma durumu |
+| `AddedAt` | DATETIME | Arkadaş eklenme tarihi (UTC) |
+| `LastInteractionAt` | DATETIME | Son etkileşim tarihi (UTC) |
+
+### 3. `MediaPost` (Akış & Geçmiş Gönderileri)
+| Alan | Tip | Açıklama |
+| :--- | :--- | :--- |
+| `Id` | TEXT/GUID (PK) | Gönderi GUID kimliği |
+| `FriendId` | TEXT (Indexed) | Gönderen/alıcı arkadaş ID'si (boş ise tüm arkadaşlara) |
+| `IsIncoming` | INTEGER (Bool) | `1` = Arkadaştan gelen, `0` = Bizim gönderdiğimiz |
+| `MediaLocalPath` | TEXT | Cihazdaki medya dosyası yolu (`files/Media/...`) |
+| `MediaType` | INTEGER (Enum) | `1` = Photo, `2` = Video |
+| `Caption` | TEXT | Fotoğraf alt yazısı / mesaj |
+| `IsIncludedInRollcall`| INTEGER (Bool) | Haftalık Rollcall özetine dahil mi |
+| `SentAt` | DATETIME | Gönderilme zamanı (UTC) |
+| `SyncStatus` | INTEGER (Enum) | `0` = Pending, `1` = Sent, `2` = Delivered, `3` = Failed |
+
+### 4. `DirectMessage` (Uçtan Uca Şifreli DM & Reaksiyonlar)
+| Alan | Tip | Açıklama |
+| :--- | :--- | :--- |
+| `Id` | TEXT/GUID (PK) | Mesaj GUID kimliği |
+| `FriendId` | TEXT (Indexed) | Sohbet edilen arkadaş kimliği |
+| `MediaPostId` | TEXT/GUID | Yanıtlanan veya reaksiyon verilen gönderi GUID'si (opsiyonel) |
+| `IsIncoming` | INTEGER (Bool) | `1` = Gelen mesaj, `0` = Giden mesaj |
+| `TextContent` | TEXT | Mesaj metni |
+| `ReactionEmoji` | TEXT | Gönderiye bırakılan emoji reaksiyonu (örn: ❤️, 🔥, 😋) |
+| `SentAt` | DATETIME | Gönderilme zamanı (UTC) |
+| `SyncStatus` | INTEGER (Enum) | İletim durumu |
+
+---
+
+## ⚡ Veritabanına Erişim ve Yönetim Komutları
+
+Uygulama `debug` modunda olduğu için Android'in `run-as com.companyname.pocket.client` komutu ve `/data/local/tmp` köprüsü ile emülatörden doğrudan çekme/yükleme yapılabilir.
+
+### 1. Veritabanını Cihazdan Bilgisayara Çekme (Pull)
+
+**Emülatör 1 (`emulator-5554`):**
+```powershell
+adb -s emulator-5554 shell "touch /data/local/tmp/dump.db3; chmod 777 /data/local/tmp/dump.db3; run-as com.companyname.pocket.client cp files/PocketLocal.db3 /data/local/tmp/dump.db3"
+adb -s emulator-5554 pull /data/local/tmp/dump.db3 ./PocketLocal_5554.db3
+```
+
+**Emülatör 2 (`emulator-5556`):**
+```powershell
+adb -s emulator-5556 shell "touch /data/local/tmp/dump.db3; chmod 777 /data/local/tmp/dump.db3; run-as com.companyname.pocket.client cp files/PocketLocal.db3 /data/local/tmp/dump.db3"
+adb -s emulator-5556 pull /data/local/tmp/dump.db3 ./PocketLocal_5556.db3
+```
+
+> **İnceleme Araçları:** Çektiğiniz `.db3` dosyasını [DB Browser for SQLite](https://sqlitebrowser.org/), VS Code **SQLite Viewer** eklentisi veya Python (`sqlite3`) ile doğrudan açıp verileri görüntüleyebilir ve değiştirebilirsiniz.
+
+---
+
+### 2. Düzenlenen / Seed Veri Eklenen Veritabanını Cihaza Geri Yükleme (Push)
+
+Bilgisayarınızda düzenlediğiniz veya seed verisi eklediğiniz `.db3` dosyasını cihaza geri yüklemek için:
+
+**Emülatör 1 (`emulator-5554`):**
+```powershell
+adb -s emulator-5554 push ./PocketLocal_5554.db3 /data/local/tmp/new.db3
+adb -s emulator-5554 shell "chmod 777 /data/local/tmp/new.db3; run-as com.companyname.pocket.client cp /data/local/tmp/new.db3 files/PocketLocal.db3"
+adb -s emulator-5554 shell am force-stop com.companyname.pocket.client
+adb -s emulator-5554 shell am start -n com.companyname.pocket.client/crc646dd0ab311caf03fd.MainActivity
+```
+
+**Emülatör 2 (`emulator-5556`):**
+```powershell
+adb -s emulator-5556 push ./PocketLocal_5556.db3 /data/local/tmp/new.db3
+adb -s emulator-5556 shell "chmod 777 /data/local/tmp/new.db3; run-as com.companyname.pocket.client cp /data/local/tmp/new.db3 files/PocketLocal.db3"
+adb -s emulator-5556 shell am force-stop com.companyname.pocket.client
+adb -s emulator-5556 shell am start -n com.companyname.pocket.client/crc646dd0ab311caf03fd.MainActivity
+```
+
+---
+
+### 3. Hızlı Python Seed Veri Örneği
+
+Bilgisayarınıza çektiğiniz bir `.db3` dosyasına otomatik mock veri enjekte etmek için örnek Python betiği:
+
+```python
+import sqlite3
+import uuid
+from datetime import datetime
+
+con = sqlite3.connect("PocketLocal_5554.db3")
+cur = con.cursor()
+
+# Mock Arkadaş Ekle
+friend_id = str(uuid.uuid4())
+cur.execute("""
+    INSERT OR REPLACE INTO Friend (Id, Username, DisplayName, ProfilePictureUrl, PublicKey, AddedAt, LastInteractionAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+""", (friend_id, "TestArkadas", "Test Arkadaş", "", "", datetime.utcnow().isoformat(), datetime.utcnow().isoformat()))
+
+# Mock Direkt Mesaj Ekle
+cur.execute("""
+    INSERT OR REPLACE INTO DirectMessage (Id, FriendId, IsIncoming, TextContent, ReactionEmoji, SentAt, SyncStatus)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+""", (str(uuid.uuid4()), friend_id, 1, "Merhaba! Bu bir test seed mesajıdır.", None, datetime.utcnow().isoformat(), 2))
+
+con.commit()
+con.close()
+print("Seed veriler başarıyla eklendi.")
+```
+
+---
+
+### 4. Sıfırlama (Temiz Veritabanı ile Başlatma)
+
+Hızlı deployment DLL'lerini bozmadan sadece veritabanını ve yerel medyaları sıfırlamak için:
+
+```powershell
+adb -s emulator-5554 shell run-as com.companyname.pocket.client rm -rf files/PocketLocal.db3* files/Media files/Profile
+adb -s emulator-5556 shell run-as com.companyname.pocket.client rm -rf files/PocketLocal.db3* files/Media files/Profile
+```
+Uygulama bir sonraki açılışında temiz bir veritabanı, yeni kullanıcı kimliği ve yeni ECDH anahtarları oluşturur.
+

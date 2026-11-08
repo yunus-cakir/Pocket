@@ -47,6 +47,16 @@ namespace Pocket.Client.PageModels
 
             _shellModel.OnDirectMessageReceived += HandleDirectMessageReceived;
             _shellModel.OnDirectMessageDelivered += HandleDirectMessageDelivered;
+            _shellModel.OnFriendProfileUpdated += HandleFriendProfileUpdated;
+        }
+
+        private void HandleFriendProfileUpdated(Friend friend)
+        {
+            if (friend.Id == FriendId)
+            {
+                FriendDisplayName = friend.DisplayName;
+                FriendUsername = friend.Username;
+            }
         }
 
         partial void OnFriendIdChanged(string value)
@@ -80,7 +90,7 @@ namespace Pocket.Client.PageModels
             if (friend != null)
             {
                 FriendDisplayName = friend.DisplayName;
-                FriendUsername = $"@{friend.Username}";
+                FriendUsername = friend.Username;
             }
 
             await LoadReplyPostAsync(MediaPostId);

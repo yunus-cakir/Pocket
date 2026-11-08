@@ -210,6 +210,8 @@ namespace Pocket.Client.PageModels
             ShellModel.OnMediaPostReceived += HandleMediaPostReceived;
             ShellModel.OnMediaPostDelivered += HandleMediaPostDelivered;
             ShellModel.OnDirectMessageReceived += HandleDirectMessageReceived;
+            ShellModel.OnFriendProfileUpdated += HandleFriendProfileUpdated;
+            ShellModel.OnUserProfileUpdated += HandleUserProfileUpdated;
 
             LoadRecentEmojis();
         }
@@ -308,6 +310,44 @@ namespace Pocket.Client.PageModels
             }
         }
 
+        private void HandleFriendProfileUpdated(Friend friend)
+        {
+            foreach (var post in FeedPosts)
+            {
+                if (post.IsIncoming && post.FriendId == friend.Id)
+                {
+                    post.SenderDisplayName = friend.DisplayName;
+                }
+
+                bool activityUpdated = false;
+                foreach (var item in post.ActivityItems)
+                {
+                    if (item.FriendId == friend.Id)
+                    {
+                        item.FriendName = friend.DisplayName;
+                        item.FriendAvatarUrl = friend.ProfilePictureUrl;
+                        activityUpdated = true;
+                    }
+                }
+
+                if (activityUpdated)
+                {
+                    post.NotifyActivityChanged();
+                }
+            }
+        }
+
+        private void HandleUserProfileUpdated(User user)
+        {
+            foreach (var post in FeedPosts)
+            {
+                if (!post.IsIncoming)
+                {
+                    post.SenderDisplayName = user.DisplayName;
+                }
+            }
+        }
+
         private async void HandlePostReplyOrReact(MediaPost post, string? reactionEmoji)
         {
             string targetFriendId = !string.IsNullOrEmpty(post.FriendId)
@@ -352,11 +392,11 @@ namespace Pocket.Client.PageModels
             {
                 if (post.IsIncoming && !string.IsNullOrEmpty(post.FriendId) && friendMap.TryGetValue(post.FriendId, out var senderFriend))
                 {
-                    post.SenderDisplayName = senderFriend.Username;
+                    post.SenderDisplayName = senderFriend.DisplayName;
                 }
                 else if (!post.IsIncoming)
                 {
-                    post.SenderDisplayName = ShellModel.CurrentUser.Username;
+                    post.SenderDisplayName = ShellModel.CurrentUser.DisplayName;
                 }
 
                 var postDms = await _database.GetDirectMessagesForPostAsync(post.Id);

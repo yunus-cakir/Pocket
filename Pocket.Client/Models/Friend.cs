@@ -27,7 +27,14 @@ namespace Pocket.Client.Models
         public string Username
         {
             get => _username;
-            set => SetProperty(ref _username, value);
+            set
+            {
+                var cleaned = value?.Trim().TrimStart('@') ?? string.Empty;
+                if (SetProperty(ref _username, cleaned))
+                {
+                    OnPropertyChanged(nameof(DisplayName));
+                }
+            }
         }
 
         [MaxLength(100)]
