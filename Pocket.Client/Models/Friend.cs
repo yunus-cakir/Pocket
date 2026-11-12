@@ -33,6 +33,7 @@ namespace Pocket.Client.Models
                 if (SetProperty(ref _username, cleaned))
                 {
                     OnPropertyChanged(nameof(DisplayName));
+                    OnPropertyChanged(nameof(FirstName));
                 }
             }
         }
@@ -41,7 +42,26 @@ namespace Pocket.Client.Models
         public string DisplayName
         {
             get => string.IsNullOrWhiteSpace(_displayName) ? _username : _displayName;
-            set => SetProperty(ref _displayName, value);
+            set
+            {
+                if (SetProperty(ref _displayName, value))
+                {
+                    OnPropertyChanged(nameof(FirstName));
+                }
+            }
+        }
+
+        [Ignore]
+        public string FirstName
+        {
+            get
+            {
+                var name = DisplayName?.Trim() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(name))
+                    return string.Empty;
+                var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                return parts.Length > 0 ? parts[0] : name;
+            }
         }
 
         public string ProfilePictureUrl

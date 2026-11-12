@@ -62,6 +62,9 @@ namespace Pocket.Client.Models
         private string _senderDisplayName = string.Empty;
         private double _viewportHeight = 820;
         private double _cardSize = 399;
+        private double _gridItemSize = 130;
+        private double _topHeaderHeight = 72;
+        private double _feedBottomSpacerHeight = 136;
 
         [Ignore]
         public double ViewportHeight
@@ -78,7 +81,34 @@ namespace Pocket.Client.Models
         }
 
         [Ignore]
+        public double GridItemSize
+        {
+            get => _gridItemSize;
+            set => SetProperty(ref _gridItemSize, value);
+        }
+
+        [Ignore]
+        public double TopHeaderHeight
+        {
+            get => _topHeaderHeight;
+            set => SetProperty(ref _topHeaderHeight, value);
+        }
+
+        [Ignore]
+        public double FeedBottomSpacerHeight
+        {
+            get => _feedBottomSpacerHeight;
+            set => SetProperty(ref _feedBottomSpacerHeight, value);
+        }
+
+        [Ignore]
         public Action<MediaPost, string?>? OnReplyOrReactRequested { get; set; }
+
+        [Ignore]
+        public Action<MediaPost>? OnGridPostTapped { get; set; }
+
+        [RelayCommand]
+        private void SelectFromGrid() => OnGridPostTapped?.Invoke(this);
 
         [RelayCommand]
         private void Reply() => OnReplyOrReactRequested?.Invoke(this, null);

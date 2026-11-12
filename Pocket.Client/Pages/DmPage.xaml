@@ -4,52 +4,34 @@
              xmlns:pm="clr-namespace:Pocket.Client.PageModels"
              xmlns:models="clr-namespace:Pocket.Client.Models"
              xmlns:controls="clr-namespace:Pocket.Client.Controls"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
              x:Class="Pocket.Client.Pages.DmPage"
+             x:Name="thisDmPage"
              x:DataType="pm:DmPageModel"
              Title="Direct Messages"
              BackgroundColor="#000000"
              Shell.NavBarIsVisible="False">
 
-    <Grid RowDefinitions="Auto, *, Auto, Auto, Auto" BackgroundColor="#000000">
+    <ContentPage.Resources>
+        <toolkit:InvertedBoolConverter x:Key="InvertedBoolConverter" />
+        <toolkit:IsStringNotNullOrWhiteSpaceConverter x:Key="IsStringNotNullOrWhiteSpaceConverter" />
+    </ContentPage.Resources>
 
-        <!-- Row 0: Top Header -->
-        <Grid Grid.Row="0" ColumnDefinitions="42, *, 42" Padding="16,14,16,10" BackgroundColor="#000000">
-            <Grid Grid.Column="0" WidthRequest="40" HeightRequest="40" HorizontalOptions="Start" VerticalOptions="Center">
-                <Grid.GestureRecognizers>
-                    <TapGestureRecognizer Command="{Binding GoBackCommand}" />
-                </Grid.GestureRecognizers>
-                <Path Stroke="#A1A1AA"
-                      StrokeThickness="2.2"
-                      StrokeLineCap="Round"
-                      StrokeLineJoin="Round"
-                      HorizontalOptions="Center"
-                      VerticalOptions="Center"
-                      Data="M15,6 L3,6 M8,1 L3,6 L8,11" />
-            </Grid>
+    <Grid RowDefinitions="*, Auto, Auto" BackgroundColor="#000000">
 
-            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" HorizontalOptions="Center" Spacing="1">
-                <Label Text="{Binding FriendDisplayName}"
-                       TextColor="#FFFFFF"
-                       FontFamily="OpenSansSemibold"
-                       FontSize="18"
-                       FontAttributes="Bold"
-                       HorizontalOptions="Center" />
-                <Label Text="🔒 E2EE • Incognito"
-                       TextColor="#8E8E93"
-                       FontFamily="OpenSansSemibold"
-                       FontSize="11"
-                       HorizontalOptions="Center" />
-            </VerticalStackLayout>
-
-            <BoxView Grid.Column="2" BackgroundColor="Transparent" Color="Transparent" />
-        </Grid>
-
-        <!-- Row 1: Messages CollectionView -->
-        <CollectionView Grid.Row="1"
+        <!-- Row 0 (Base Layer): Messages CollectionView (scrolls underneath the top gradient header) -->
+        <CollectionView Grid.Row="0"
                         x:Name="MessagesCollectionView"
                         ItemsSource="{Binding Messages}"
-                        Margin="12,8"
+                        BackgroundColor="Transparent"
+                        VerticalScrollBarVisibility="Never"
                         ItemsUpdatingScrollMode="KeepLastItemInView">
+            <CollectionView.Header>
+                <BoxView HeightRequest="68" BackgroundColor="Transparent" Color="Transparent" />
+            </CollectionView.Header>
+            <CollectionView.Footer>
+                <BoxView HeightRequest="8" BackgroundColor="Transparent" Color="Transparent" />
+            </CollectionView.Footer>
             <CollectionView.EmptyView>
                 <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="8" Padding="32">
                     <Label Text="Send a message"
@@ -69,66 +51,257 @@
 
             <CollectionView.ItemTemplate>
                 <DataTemplate x:DataType="models:DirectMessage">
-                    <Grid Padding="4,5">
-                        <Border HorizontalOptions="{Binding BubbleAlignment}"
-                                BackgroundColor="{Binding BubbleColor}"
-                                Stroke="#2C2C2E"
-                                StrokeThickness="1"
-                                StrokeShape="RoundRectangle 20"
-                                Padding="14,10"
-                                MaximumWidthRequest="300">
-                            <VerticalStackLayout Spacing="6">
+                    <VerticalStackLayout Padding="12,3" Spacing="8">
 
-                                <!-- Threaded Photo Preview (BR-302) -->
-                                <Border IsVisible="{Binding HasMediaReference}"
-                                        BackgroundColor="#141414"
-                                        Stroke="#3A3A3C"
-                                        StrokeThickness="1"
-                                        StrokeShape="RoundRectangle 14"
-                                        Padding="8">
-                                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10">
-                                        <Border Grid.Column="0" WidthRequest="48" HeightRequest="48" StrokeShape="RoundRectangle 10" StrokeThickness="0" Padding="0">
-                                            <Image Source="{Binding ReferencedPostPath}" Aspect="AspectFill" WidthRequest="48" HeightRequest="48" />
+                        <!-- Large Rounded Photo Card when message replies to a Feed Photo -->
+                        <Border IsVisible="{Binding ShowMediaCard}"
+                                HeightRequest="368"
+                                Margin="0,8,0,2"
+                                StrokeShape="RoundRectangle 34"
+                                StrokeThickness="0"
+                                BackgroundColor="#141414"
+                                Padding="0"
+                                HorizontalOptions="Fill">
+                            <Grid>
+                                <Image Source="{Binding ReferencedPostPath}"
+                                       Aspect="AspectFill"
+                                       HorizontalOptions="Fill"
+                                       VerticalOptions="Fill" />
+
+                                <!-- Top-Left Photo Author & Relative Time Pill ("You 1d") -->
+                                <Border BackgroundColor="#78000000"
+                                        StrokeShape="RoundRectangle 19"
+                                        StrokeThickness="0"
+                                        Padding="7,5,13,5"
+                                        Margin="14,14,0,0"
+                                        HorizontalOptions="Start"
+                                        VerticalOptions="Start">
+                                    <HorizontalStackLayout Spacing="7" VerticalOptions="Center">
+                                        <Border WidthRequest="26"
+                                                HeightRequest="26"
+                                                StrokeShape="RoundRectangle 13"
+                                                StrokeThickness="0"
+                                                BackgroundColor="#2C2C2E"
+                                                Padding="0"
+                                                VerticalOptions="Center">
+                                            <Grid>
+                                                <Path Fill="#8E8E93"
+                                                      HorizontalOptions="Center"
+                                                      VerticalOptions="Center"
+                                                      Scale="0.65"
+                                                      Data="M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z" />
+                                                <Image Source="{Binding ReferencedPostAuthorAvatarUrl}"
+                                                       IsVisible="{Binding ReferencedPostAuthorAvatarUrl, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}"
+                                                       Aspect="AspectFill" />
+                                            </Grid>
                                         </Border>
-                                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
-                                            <Label Text="Replied to photo" TextColor="#FFB800" FontFamily="OpenSansSemibold" FontSize="11" FontAttributes="Bold" />
-                                            <Label Text="{Binding ReferencedPostCaption}" TextColor="#FFFFFF" FontSize="12" LineBreakMode="TailTruncation" />
-                                        </VerticalStackLayout>
-                                    </Grid>
+                                        <Label Text="{Binding ReferencedPostAuthorLabel}"
+                                               TextColor="#FFFFFF"
+                                               FontFamily="OpenSansSemibold"
+                                               FontSize="15"
+                                               FontAttributes="Bold"
+                                               VerticalOptions="Center" />
+                                        <Label Text="{Binding ReferencedPostTimeText}"
+                                               TextColor="#C7C7CC"
+                                               FontFamily="OpenSansSemibold"
+                                               FontSize="15"
+                                               VerticalOptions="Center" />
+                                    </HorizontalStackLayout>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <!-- Incoming Message Row (Left-aligned: Friend Avatar + Dark Bubble) -->
+                        <Grid IsVisible="{Binding IsIncoming}"
+                              ColumnDefinitions="Auto, *"
+                              ColumnSpacing="10"
+                              HorizontalOptions="Start">
+                            <Border Grid.Column="0"
+                                    WidthRequest="32"
+                                    HeightRequest="32"
+                                    StrokeShape="RoundRectangle 16"
+                                    StrokeThickness="0"
+                                    BackgroundColor="#262629"
+                                    Padding="0"
+                                    VerticalOptions="End"
+                                    Margin="0,0,0,2">
+                                <Grid>
+                                    <Path Fill="#8E8E93"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center"
+                                          Scale="0.75"
+                                          Data="M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z" />
+                                    <Image Source="{Binding SenderAvatarUrl}"
+                                           IsVisible="{Binding SenderAvatarUrl, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}"
+                                           Aspect="AspectFill" />
+                                </Grid>
+                            </Border>
+
+                            <Grid Grid.Column="1" HorizontalOptions="Start">
+                                <!-- Normal Text Bubble (when not emoji-only) -->
+                                <Border IsVisible="{Binding IsEmojiOnly, Converter={StaticResource InvertedBoolConverter}}"
+                                        BackgroundColor="#262629"
+                                        StrokeThickness="0"
+                                        StrokeShape="RoundRectangle 22"
+                                        Padding="16,10"
+                                        MaximumWidthRequest="280"
+                                        HorizontalOptions="Start">
+                                    <Label Text="{Binding DisplayText}"
+                                           TextColor="#FFFFFF"
+                                           FontFamily="OpenSansSemibold"
+                                           FontSize="16"
+                                           LineBreakMode="WordWrap" />
                                 </Border>
 
-                                <!-- Emoji Reaction -->
-                                <Label IsVisible="{Binding HasReaction}"
-                                       Text="{Binding ReactionEmoji}"
-                                       FontSize="32"
-                                       HorizontalOptions="Start" />
+                                <!-- Emoji-Only Message (No background, large emoji) -->
+                                <Label IsVisible="{Binding IsEmojiOnly}"
+                                       Text="{Binding DisplayText}"
+                                       FontSize="34"
+                                       HorizontalOptions="Start"
+                                       VerticalOptions="Center"
+                                       Margin="4,2,0,2" />
 
-                                <!-- Message Text -->
-                                <Label IsVisible="{Binding HasText}"
-                                       Text="{Binding TextContent}"
-                                       TextColor="#FFFFFF"
-                                       FontFamily="OpenSansRegular"
-                                       FontSize="15" />
+                                <!-- Optional Corner Reaction Badge -->
+                                <Border IsVisible="{Binding HasReactionAndText}"
+                                        WidthRequest="30"
+                                        HeightRequest="30"
+                                        StrokeShape="RoundRectangle 15"
+                                        StrokeThickness="0"
+                                        BackgroundColor="#262629"
+                                        HorizontalOptions="End"
+                                        VerticalOptions="Start"
+                                        Margin="0,-12,-10,0">
+                                    <Label Text="{Binding ReactionEmoji}"
+                                           FontSize="15"
+                                           HorizontalOptions="Center"
+                                           VerticalOptions="Center" />
+                                </Border>
+                            </Grid>
+                        </Grid>
 
-                                <!-- Timestamp & Delivery Footer -->
-                                <Label Text="{Binding StatusText}"
-                                       TextColor="#8E8E93"
-                                       FontSize="10"
-                                       HorizontalOptions="End" />
-                            </VerticalStackLayout>
-                        </Border>
-                    </Grid>
+                        <!-- Outgoing Message Row (Right-aligned: Light Grey/White Bubble with Dark Text) -->
+                        <Grid IsVisible="{Binding IsOutgoing}"
+                              HorizontalOptions="End">
+                            <!-- Normal Text Bubble (when not emoji-only) -->
+                            <Border IsVisible="{Binding IsEmojiOnly, Converter={StaticResource InvertedBoolConverter}}"
+                                    BackgroundColor="#EBEBF0"
+                                    StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 22"
+                                    Padding="16,10"
+                                    MaximumWidthRequest="280"
+                                    HorizontalOptions="End">
+                                <Label Text="{Binding DisplayText}"
+                                       TextColor="#0A0A0A"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="16"
+                                       LineBreakMode="WordWrap" />
+                            </Border>
+
+                            <!-- Emoji-Only Message (No background, large emoji) -->
+                            <Label IsVisible="{Binding IsEmojiOnly}"
+                                   Text="{Binding DisplayText}"
+                                   FontSize="34"
+                                   HorizontalOptions="End"
+                                   VerticalOptions="Center"
+                                   Margin="0,2,8,2" />
+
+                            <!-- Optional Top-Left Corner Reaction Badge (e.g. 💋) -->
+                            <Border IsVisible="{Binding HasReactionAndText}"
+                                    WidthRequest="30"
+                                    HeightRequest="30"
+                                    StrokeShape="RoundRectangle 15"
+                                    StrokeThickness="0"
+                                    BackgroundColor="#262629"
+                                    HorizontalOptions="Start"
+                                    VerticalOptions="Start"
+                                    Margin="-12,-12,0,0">
+                                <Label Text="{Binding ReactionEmoji}"
+                                       FontSize="15"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center" />
+                            </Border>
+                        </Grid>
+
+                    </VerticalStackLayout>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
         </CollectionView>
 
-        <!-- Row 2: Active Photo Reply Banner (BR-302) -->
-        <Border Grid.Row="2"
+        <!-- Row 0 (Top Overlay Layer): Left-aligned Header with Upward-Darkening Gradient -->
+        <Grid Grid.Row="0"
+              VerticalOptions="Start"
+              HorizontalOptions="Fill"
+              HeightRequest="88"
+              ZIndex="10">
+            <Grid.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#F2000000" Offset="0.0" />
+                    <GradientStop Color="#BF000000" Offset="0.48" />
+                    <GradientStop Color="#59000000" Offset="0.78" />
+                    <GradientStop Color="#00000000" Offset="1.0" />
+                </LinearGradientBrush>
+            </Grid.Background>
+
+            <HorizontalStackLayout HorizontalOptions="Start"
+                                   VerticalOptions="Start"
+                                   Spacing="10"
+                                   Margin="12,12,16,0">
+                <!-- Back Arrow -->
+                <Grid WidthRequest="36"
+                      HeightRequest="38"
+                      HorizontalOptions="Start"
+                      VerticalOptions="Center"
+                      BackgroundColor="Transparent">
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding GoBackCommand}" />
+                    </Grid.GestureRecognizers>
+                    <Path Stroke="#FFFFFF"
+                          StrokeThickness="2.3"
+                          StrokeLineCap="Round"
+                          StrokeLineJoin="Round"
+                          HorizontalOptions="Center"
+                          VerticalOptions="Center"
+                          Data="M16,8 L2,8 M8,2 L2,8 L8,14" />
+                </Grid>
+
+                <!-- Friend Profile Picture -->
+                <Border WidthRequest="38"
+                        HeightRequest="38"
+                        StrokeShape="RoundRectangle 19"
+                        StrokeThickness="0"
+                        BackgroundColor="#262629"
+                        Padding="0"
+                        VerticalOptions="Center">
+                    <Grid>
+                        <Path Fill="#8E8E93"
+                              HorizontalOptions="Center"
+                              VerticalOptions="Center"
+                              Scale="0.9"
+                              Data="M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z" />
+                        <Image Source="{Binding FriendAvatarUrl}"
+                               IsVisible="{Binding FriendAvatarUrl, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}"
+                               Aspect="AspectFill" />
+                    </Grid>
+                </Border>
+
+                <!-- Friend Display Name (Left-aligned) -->
+                <Label Text="{Binding FriendDisplayName}"
+                       TextColor="#FFFFFF"
+                       FontFamily="OpenSansSemibold"
+                       FontSize="19"
+                       FontAttributes="Bold"
+                       VerticalOptions="Center"
+                       LineBreakMode="TailTruncation" />
+            </HorizontalStackLayout>
+        </Grid>
+
+        <!-- Row 1: Active Photo Reply Banner (when replying to a specific post from DM) -->
+        <Border Grid.Row="1"
                 IsVisible="{Binding HasReplyPost}"
                 BackgroundColor="#1C1C1E"
                 Stroke="#2C2C2E"
                 StrokeThickness="1"
-                Margin="14,4,14,0"
+                Margin="12,4,12,0"
                 Padding="10,8"
                 StrokeShape="RoundRectangle 16">
             <Grid ColumnDefinitions="Auto, *, Auto" ColumnSpacing="10">
@@ -155,76 +328,683 @@
             </Grid>
         </Border>
 
-        <!-- Row 3: Quick Emoji Reactions Bar (BR-302) -->
-        <HorizontalStackLayout Grid.Row="3" Spacing="10" HorizontalOptions="Center" Margin="14,6">
-            <Border BackgroundColor="#1C1C1E" StrokeShape="RoundRectangle 18" StrokeThickness="0" HeightRequest="36" WidthRequest="50" Padding="0">
-                <Border.GestureRecognizers>
-                    <TapGestureRecognizer Command="{Binding SendReactionCommand}" CommandParameter="❤️" />
-                </Border.GestureRecognizers>
-                <Label Text="❤️" FontSize="16" HorizontalOptions="Center" VerticalOptions="Center" />
-            </Border>
-            <Border BackgroundColor="#1C1C1E" StrokeShape="RoundRectangle 18" StrokeThickness="0" HeightRequest="36" WidthRequest="50" Padding="0">
-                <Border.GestureRecognizers>
-                    <TapGestureRecognizer Command="{Binding SendReactionCommand}" CommandParameter="🔥" />
-                </Border.GestureRecognizers>
-                <Label Text="🔥" FontSize="16" HorizontalOptions="Center" VerticalOptions="Center" />
-            </Border>
-            <Border BackgroundColor="#1C1C1E" StrokeShape="RoundRectangle 18" StrokeThickness="0" HeightRequest="36" WidthRequest="50" Padding="0">
-                <Border.GestureRecognizers>
-                    <TapGestureRecognizer Command="{Binding SendReactionCommand}" CommandParameter="😂" />
-                </Border.GestureRecognizers>
-                <Label Text="😂" FontSize="16" HorizontalOptions="Center" VerticalOptions="Center" />
-            </Border>
-            <Border BackgroundColor="#1C1C1E" StrokeShape="RoundRectangle 18" StrokeThickness="0" HeightRequest="36" WidthRequest="50" Padding="0">
-                <Border.GestureRecognizers>
-                    <TapGestureRecognizer Command="{Binding SendReactionCommand}" CommandParameter="😮" />
-                </Border.GestureRecognizers>
-                <Label Text="😮" FontSize="16" HorizontalOptions="Center" VerticalOptions="Center" />
-            </Border>
-            <Border BackgroundColor="#1C1C1E" StrokeShape="RoundRectangle 18" StrokeThickness="0" HeightRequest="36" WidthRequest="50" Padding="0">
-                <Border.GestureRecognizers>
-                    <TapGestureRecognizer Command="{Binding SendReactionCommand}" CommandParameter="👏" />
-                </Border.GestureRecognizers>
-                <Label Text="👏" FontSize="16" HorizontalOptions="Center" VerticalOptions="Center" />
-            </Border>
-        </HorizontalStackLayout>
-
-        <!-- Row 4: Incognito Message Input Bar (BR-301) -->
-        <Grid Grid.Row="4" ColumnDefinitions="*, Auto" ColumnSpacing="10" Padding="14,8,14,18" BackgroundColor="#000000">
-            <Border Grid.Column="0"
-                    StrokeThickness="0"
-                    StrokeShape="RoundRectangle 23"
-                    BackgroundColor="#1C1C1E"
-                    Padding="16,2"
-                    HeightRequest="46">
-                <controls:IncognitoEntry Text="{Binding MessageText}"
-                                         Placeholder="Send a message..."
+        <!-- Row 2: Bottom "Send message..." Pill with Quick Emojis + Add Emoji Icon -->
+        <Border Grid.Row="2"
+                Margin="12,6,12,14"
+                HeightRequest="54"
+                StrokeShape="RoundRectangle 27"
+                StrokeThickness="0"
+                BackgroundColor="#222225"
+                Padding="20,0,16,0"
+                HorizontalOptions="Fill">
+            <Grid ColumnDefinitions="*, Auto" ColumnSpacing="10">
+                <controls:IncognitoEntry x:Name="DmMessageEntry"
+                                         Grid.Column="0"
+                                         Text="{Binding MessageText}"
+                                         Placeholder="Send message..."
                                          PlaceholderColor="#8E8E93"
                                          TextColor="#FFFFFF"
                                          BackgroundColor="Transparent"
-                                         FontFamily="OpenSansRegular"
-                                         FontSize="15"
+                                         FontFamily="OpenSansSemibold"
+                                         FontSize="16.5"
                                          HorizontalOptions="Fill"
                                          ReturnType="Send"
                                          ReturnCommand="{Binding SendMessageCommand}"
                                          VerticalOptions="Center" />
-            </Border>
 
-            <Border Grid.Column="1"
-                    WidthRequest="46"
-                    HeightRequest="46"
-                    StrokeShape="RoundRectangle 23"
+                <!-- Right (When input is empty): 3 Quick Emojis + Add-Emoji Icon (😊+) -->
+                <HorizontalStackLayout Grid.Column="1"
+                                       IsVisible="{Binding ShowQuickEmojis}"
+                                       Spacing="12"
+                                       VerticalOptions="Center">
+                    <Label Text="{Binding FirstRecentEmoji}" FontSize="23" VerticalOptions="Center">
+                        <Label.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding SendFirstRecentEmojiCommand}" />
+                        </Label.GestureRecognizers>
+                    </Label>
+                    <Label Text="{Binding SecondRecentEmoji}" FontSize="23" VerticalOptions="Center">
+                        <Label.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding SendSecondRecentEmojiCommand}" />
+                        </Label.GestureRecognizers>
+                    </Label>
+                    <Label Text="{Binding ThirdRecentEmoji}" FontSize="23" VerticalOptions="Center">
+                        <Label.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding SendThirdRecentEmojiCommand}" />
+                        </Label.GestureRecognizers>
+                    </Label>
+
+                    <!-- Add-Emoji Picker Icon (😊+ - Opens Custom Emoji Picker Bottom Sheet) -->
+                    <Grid WidthRequest="30"
+                          HeightRequest="30"
+                          VerticalOptions="Center"
+                          Margin="2,0,0,0"
+                          BackgroundColor="Transparent">
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding OpenEmojiPickerCommand}" />
+                        </Grid.GestureRecognizers>
+                        <Path Stroke="#8E8E93"
+                              StrokeThickness="2.2"
+                              StrokeLineCap="Round"
+                              StrokeLineJoin="Round"
+                              InputTransparent="True"
+                              Data="M11.5,4 A8.5,8.5 0 1,0 20,12.5 M8.2,14.2 Q11.5,17.2 14.8,14.2 M16,5.5 L22,5.5 M19,2.5 L19,8.5" />
+                        <Ellipse WidthRequest="2.5"
+                                 HeightRequest="2.5"
+                                 Fill="#8E8E93"
+                                 HorizontalOptions="Start"
+                                 VerticalOptions="Start"
+                                 InputTransparent="True"
+                                 Margin="7.5,9.5,0,0" />
+                        <Ellipse WidthRequest="2.5"
+                                 HeightRequest="2.5"
+                                 Fill="#8E8E93"
+                                 HorizontalOptions="Start"
+                                 VerticalOptions="Start"
+                                 InputTransparent="True"
+                                 Margin="13,9.5,0,0" />
+                    </Grid>
+                </HorizontalStackLayout>
+
+                <!-- Right (When user has typed text): Send Button -->
+                <Border Grid.Column="1"
+                        IsVisible="{Binding HasMessageText}"
+                        WidthRequest="34"
+                        HeightRequest="34"
+                        StrokeShape="RoundRectangle 17"
+                        StrokeThickness="0"
+                        BackgroundColor="#FFB800"
+                        Padding="0"
+                        VerticalOptions="Center">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding SendMessageCommand}" />
+                    </Border.GestureRecognizers>
+                    <Path WidthRequest="16"
+                          HeightRequest="16"
+                          Stroke="#222225"
+                          StrokeThickness="2.4"
+                          StrokeLineCap="Round"
+                          StrokeLineJoin="Round"
+                          HorizontalOptions="Center"
+                          VerticalOptions="Center"
+                          Data="M8,13 L8,3.5 M3.5,8 L8,3.5 L12.5,8" />
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- ============================================================== -->
+        <!-- CUSTOM EMOJI PICKER BOTTOM SHEET OVERLAY                       -->
+        <!-- ============================================================== -->
+        <Grid x:Name="EmojiPickerOverlayGrid"
+              Grid.Row="0"
+              Grid.RowSpan="3"
+              ZIndex="20"
+              IsVisible="False"
+              HorizontalOptions="Fill"
+              VerticalOptions="Fill">
+            <!-- Semi-transparent backdrop to dismiss emoji picker on tap outside -->
+            <BoxView x:Name="EmojiPickerBackdrop"
+                     BackgroundColor="#66000000"
+                     Color="#66000000"
+                     Opacity="0"
+                     HorizontalOptions="Fill"
+                     VerticalOptions="Fill">
+                <BoxView.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnEmojiPickerBackdropTapped" />
+                </BoxView.GestureRecognizers>
+            </BoxView>
+
+            <!-- Rounded Top Bottom Sheet Card -->
+            <Border x:Name="EmojiPickerSheetCard"
+                    VerticalOptions="End"
+                    HorizontalOptions="Fill"
+                    HeightRequest="476"
+                    TranslationY="500"
+                    BackgroundColor="#202022"
+                    StrokeShape="RoundRectangle 30,30,0,0"
                     StrokeThickness="0"
-                    BackgroundColor="#FFB800"
-                    Padding="0"
-                    VerticalOptions="Center">
+                    Padding="0">
                 <Border.GestureRecognizers>
-                    <TapGestureRecognizer Command="{Binding SendMessageCommand}" />
+                    <TapGestureRecognizer />
                 </Border.GestureRecognizers>
-                <Path Fill="#000000"
-                      HorizontalOptions="Center"
-                      VerticalOptions="Center"
-                      Data="M2,18 L19,10 L2,2 L2,8 L14,10 L2,12 L2,18 Z" />
+                <Grid RowDefinitions="Auto, *">
+
+                    <!-- Row 0: Search Bar Header (Also draggable downward to dismiss) -->
+                    <Grid Grid.Row="0"
+                          BackgroundColor="Transparent"
+                          Padding="18,18,18,8">
+                        <Grid.GestureRecognizers>
+                            <PanGestureRecognizer PanUpdated="OnEmojiPickerSheetPanUpdated" />
+                        </Grid.GestureRecognizers>
+
+                        <Border HeightRequest="44"
+                                StrokeShape="RoundRectangle 22"
+                                StrokeThickness="0"
+                                BackgroundColor="#323235"
+                                Padding="18,0,12,0"
+                                HorizontalOptions="Fill">
+                            <Grid ColumnDefinitions="*, Auto" ColumnSpacing="8">
+                                <controls:IncognitoEntry x:Name="EmojiSearchEntry"
+                                                         Grid.Column="0"
+                                                         Text="{Binding EmojiSearchText}"
+                                                         Placeholder="Search"
+                                                         PlaceholderColor="#8E8E93"
+                                                         TextColor="#FFFFFF"
+                                                         FontFamily="OpenSansRegular"
+                                                         FontSize="17"
+                                                         BackgroundColor="Transparent"
+                                                         ReturnType="Search"
+                                                         Focused="OnEmojiSearchEntryFocused"
+                                                         Unfocused="OnEmojiSearchEntryUnfocused"
+                                                         Completed="OnEmojiSearchEntryCompleted"
+                                                         VerticalOptions="Center"
+                                                         HorizontalOptions="Fill" />
+
+                                <Grid Grid.Column="1"
+                                      IsVisible="{Binding HasEmojiSearchText}"
+                                      WidthRequest="28"
+                                      HeightRequest="28"
+                                      BackgroundColor="Transparent"
+                                      VerticalOptions="Center">
+                                    <Grid.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding ClearEmojiSearchCommand}" />
+                                    </Grid.GestureRecognizers>
+                                    <Border WidthRequest="20"
+                                            HeightRequest="20"
+                                            StrokeShape="RoundRectangle 10"
+                                            StrokeThickness="0"
+                                            BackgroundColor="#525256"
+                                            HorizontalOptions="Center"
+                                            VerticalOptions="Center">
+                                        <Path WidthRequest="8"
+                                              HeightRequest="8"
+                                              Stroke="#202022"
+                                              StrokeThickness="2"
+                                              StrokeLineCap="Round"
+                                              HorizontalOptions="Center"
+                                              VerticalOptions="Center"
+                                              Data="M1,1 L7,7 M7,1 L1,7" />
+                                    </Border>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- Row 1: Scrollable Categorized 6-Column Emoji List + Floating Bottom Category Bar -->
+                    <Grid Grid.Row="1">
+                        <CollectionView x:Name="EmojiPickerCollectionView"
+                                        ItemsSource="{Binding EmojiPickerRows}"
+                                        BackgroundColor="Transparent"
+                                        SelectionMode="None"
+                                        VerticalScrollBarVisibility="Default"
+                                        Scrolled="OnEmojiPickerScrolled">
+                            <CollectionView.ItemsLayout>
+                                <LinearItemsLayout Orientation="Vertical" ItemSpacing="0" />
+                            </CollectionView.ItemsLayout>
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="models:EmojiListRow">
+                                    <Grid>
+                                        <!-- Category Section Header Row ("Smileys & Emotion", etc.) -->
+                                        <Label IsVisible="{Binding IsHeader}"
+                                               Text="{Binding HeaderTitle}"
+                                               TextColor="#9A9AA0"
+                                               FontFamily="OpenSansSemibold"
+                                               FontSize="16"
+                                               Margin="20,10,20,8"
+                                               VerticalOptions="Center" />
+
+                                        <!-- 6-Column Emoji Row -->
+                                        <Grid IsVisible="{Binding IsEmojiRow}"
+                                              ColumnDefinitions="*, *, *, *, *, *"
+                                              Padding="10,2"
+                                              HeightRequest="56">
+                                            <Label Grid.Column="0"
+                                                   Text="{Binding Emoji0}"
+                                                   IsVisible="{Binding HasEmoji0}"
+                                                   FontSize="33"
+                                                   HorizontalOptions="Fill"
+                                                   VerticalOptions="Fill"
+                                                   HorizontalTextAlignment="Center"
+                                                   VerticalTextAlignment="Center">
+                                                <Label.GestureRecognizers>
+                                                    <TapGestureRecognizer Command="{Binding Source={x:Reference thisDmPage}, Path=BindingContext.SelectEmojiFromPickerCommand}"
+                                                                          CommandParameter="{Binding Emoji0}" />
+                                                </Label.GestureRecognizers>
+                                            </Label>
+
+                                            <Label Grid.Column="1"
+                                                   Text="{Binding Emoji1}"
+                                                   IsVisible="{Binding HasEmoji1}"
+                                                   FontSize="33"
+                                                   HorizontalOptions="Fill"
+                                                   VerticalOptions="Fill"
+                                                   HorizontalTextAlignment="Center"
+                                                   VerticalTextAlignment="Center">
+                                                <Label.GestureRecognizers>
+                                                    <TapGestureRecognizer Command="{Binding Source={x:Reference thisDmPage}, Path=BindingContext.SelectEmojiFromPickerCommand}"
+                                                                          CommandParameter="{Binding Emoji1}" />
+                                                </Label.GestureRecognizers>
+                                            </Label>
+
+                                            <Label Grid.Column="2"
+                                                   Text="{Binding Emoji2}"
+                                                   IsVisible="{Binding HasEmoji2}"
+                                                   FontSize="33"
+                                                   HorizontalOptions="Fill"
+                                                   VerticalOptions="Fill"
+                                                   HorizontalTextAlignment="Center"
+                                                   VerticalTextAlignment="Center">
+                                                <Label.GestureRecognizers>
+                                                    <TapGestureRecognizer Command="{Binding Source={x:Reference thisDmPage}, Path=BindingContext.SelectEmojiFromPickerCommand}"
+                                                                          CommandParameter="{Binding Emoji2}" />
+                                                </Label.GestureRecognizers>
+                                            </Label>
+
+                                            <Label Grid.Column="3"
+                                                   Text="{Binding Emoji3}"
+                                                   IsVisible="{Binding HasEmoji3}"
+                                                   FontSize="33"
+                                                   HorizontalOptions="Fill"
+                                                   VerticalOptions="Fill"
+                                                   HorizontalTextAlignment="Center"
+                                                   VerticalTextAlignment="Center">
+                                                <Label.GestureRecognizers>
+                                                    <TapGestureRecognizer Command="{Binding Source={x:Reference thisDmPage}, Path=BindingContext.SelectEmojiFromPickerCommand}"
+                                                                          CommandParameter="{Binding Emoji3}" />
+                                                </Label.GestureRecognizers>
+                                            </Label>
+
+                                            <Label Grid.Column="4"
+                                                   Text="{Binding Emoji4}"
+                                                   IsVisible="{Binding HasEmoji4}"
+                                                   FontSize="33"
+                                                   HorizontalOptions="Fill"
+                                                   VerticalOptions="Fill"
+                                                   HorizontalTextAlignment="Center"
+                                                   VerticalTextAlignment="Center">
+                                                <Label.GestureRecognizers>
+                                                    <TapGestureRecognizer Command="{Binding Source={x:Reference thisDmPage}, Path=BindingContext.SelectEmojiFromPickerCommand}"
+                                                                          CommandParameter="{Binding Emoji4}" />
+                                                </Label.GestureRecognizers>
+                                            </Label>
+
+                                            <Label Grid.Column="5"
+                                                   Text="{Binding Emoji5}"
+                                                   IsVisible="{Binding HasEmoji5}"
+                                                   FontSize="33"
+                                                   HorizontalOptions="Fill"
+                                                   VerticalOptions="Fill"
+                                                   HorizontalTextAlignment="Center"
+                                                   VerticalTextAlignment="Center">
+                                                <Label.GestureRecognizers>
+                                                    <TapGestureRecognizer Command="{Binding Source={x:Reference thisDmPage}, Path=BindingContext.SelectEmojiFromPickerCommand}"
+                                                                          CommandParameter="{Binding Emoji5}" />
+                                                </Label.GestureRecognizers>
+                                            </Label>
+                                        </Grid>
+                                    </Grid>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                            <CollectionView.Footer>
+                                <BoxView HeightRequest="66" BackgroundColor="Transparent" Color="Transparent" />
+                            </CollectionView.Footer>
+                        </CollectionView>
+
+                        <!-- Floating Bottom Category Bar (9 Categories + Search Icon) -->
+                        <Border x:Name="EmojiCategoryBarBorder"
+                                VerticalOptions="End"
+                                HorizontalOptions="Fill"
+                                Margin="18,0,18,12"
+                                HeightRequest="42"
+                                BackgroundColor="#E62C2C2E"
+                                StrokeShape="RoundRectangle 11"
+                                StrokeThickness="0"
+                                Padding="4,3">
+                            <Grid ColumnDefinitions="*, *, *, *, *, *, *, *, *, *">
+
+                                <!-- Category 0: Smileys & Emotion -->
+                                <Border Grid.Column="0"
+                                        WidthRequest="34"
+                                        HeightRequest="34"
+                                        StrokeShape="RoundRectangle 8"
+                                        StrokeThickness="0"
+                                        BackgroundColor="Transparent"
+                                        Padding="0"
+                                        HorizontalOptions="Center"
+                                        VerticalOptions="Center">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectEmojiCategoryCommand}" CommandParameter="0" />
+                                    </Border.GestureRecognizers>
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding IsEmojiCat0Selected}" Value="True">
+                                            <Setter Property="BackgroundColor" Value="#48484C" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                    <Path WidthRequest="22"
+                                          HeightRequest="22"
+                                          Stroke="#7C7C82"
+                                          StrokeThickness="2"
+                                          StrokeLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center"
+                                          Data="M11,2 A9,9 0 1,0 11,20 A9,9 0 1,0 11,2 Z M7.5,9.5 L7.6,9.5 M14.4,9.5 L14.5,9.5 M7.5,13.5 Q11,16.8 14.5,13.5">
+                                        <Path.Triggers>
+                                            <DataTrigger TargetType="Path" Binding="{Binding IsEmojiCat0Selected}" Value="True">
+                                                <Setter Property="Stroke" Value="#FFFFFF" />
+                                            </DataTrigger>
+                                        </Path.Triggers>
+                                    </Path>
+                                </Border>
+
+                                <!-- Category 1: People & Body -->
+                                <Border Grid.Column="1"
+                                        WidthRequest="34"
+                                        HeightRequest="34"
+                                        StrokeShape="RoundRectangle 8"
+                                        StrokeThickness="0"
+                                        BackgroundColor="Transparent"
+                                        Padding="0"
+                                        HorizontalOptions="Center"
+                                        VerticalOptions="Center">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectEmojiCategoryCommand}" CommandParameter="1" />
+                                    </Border.GestureRecognizers>
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding IsEmojiCat1Selected}" Value="True">
+                                            <Setter Property="BackgroundColor" Value="#48484C" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                    <Path WidthRequest="22"
+                                          HeightRequest="20"
+                                          Stroke="#7C7C82"
+                                          StrokeThickness="1.9"
+                                          StrokeLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center"
+                                          Data="M8,9 A3.2,3.2 0 1,0 8,2.6 A3.2,3.2 0 1,0 8,9 Z M2.5,17.5 C2.5,14.2 5,12 8,12 C11,12 13.5,14.2 13.5,17.5 M15,9.5 A2.6,2.6 0 1,0 15,4.3 A2.6,2.6 0 1,0 15,9.5 Z M15,12.2 C17.5,12.2 19.5,14.2 19.5,17.2">
+                                        <Path.Triggers>
+                                            <DataTrigger TargetType="Path" Binding="{Binding IsEmojiCat1Selected}" Value="True">
+                                                <Setter Property="Stroke" Value="#FFFFFF" />
+                                            </DataTrigger>
+                                        </Path.Triggers>
+                                    </Path>
+                                </Border>
+
+                                <!-- Category 2: Animals & Nature -->
+                                <Border Grid.Column="2"
+                                        WidthRequest="34"
+                                        HeightRequest="34"
+                                        StrokeShape="RoundRectangle 8"
+                                        StrokeThickness="0"
+                                        BackgroundColor="Transparent"
+                                        Padding="0"
+                                        HorizontalOptions="Center"
+                                        VerticalOptions="Center">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectEmojiCategoryCommand}" CommandParameter="2" />
+                                    </Border.GestureRecognizers>
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding IsEmojiCat2Selected}" Value="True">
+                                            <Setter Property="BackgroundColor" Value="#48484C" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                    <Path WidthRequest="22"
+                                          HeightRequest="22"
+                                          Stroke="#7C7C82"
+                                          StrokeThickness="1.9"
+                                          StrokeLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center"
+                                          Data="M7.5,3 C4.7,3 2.5,5.5 2.5,8.5 C2.5,11.5 4.7,14 7.5,14 C10.3,14 12.5,11.5 12.5,8.5 C12.5,5.5 10.3,3 7.5,3 Z M7.5,10 L7.5,19 M15.5,5.5 C13.5,5.5 12,7.3 12,9.5 C12,11.7 13.5,13.5 15.5,13.5 C17.5,13.5 19,11.7 19,9.5 C19,7.3 17.5,5.5 15.5,5.5 Z M15.5,11 L15.5,19">
+                                        <Path.Triggers>
+                                            <DataTrigger TargetType="Path" Binding="{Binding IsEmojiCat2Selected}" Value="True">
+                                                <Setter Property="Stroke" Value="#FFFFFF" />
+                                            </DataTrigger>
+                                        </Path.Triggers>
+                                    </Path>
+                                </Border>
+
+                                <!-- Category 3: Food & Drink -->
+                                <Border Grid.Column="3"
+                                        WidthRequest="34"
+                                        HeightRequest="34"
+                                        StrokeShape="RoundRectangle 8"
+                                        StrokeThickness="0"
+                                        BackgroundColor="Transparent"
+                                        Padding="0"
+                                        HorizontalOptions="Center"
+                                        VerticalOptions="Center">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectEmojiCategoryCommand}" CommandParameter="3" />
+                                    </Border.GestureRecognizers>
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding IsEmojiCat3Selected}" Value="True">
+                                            <Setter Property="BackgroundColor" Value="#48484C" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                    <Path WidthRequest="22"
+                                          HeightRequest="22"
+                                          Stroke="#7C7C82"
+                                          StrokeThickness="1.9"
+                                          StrokeLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center"
+                                          Data="M11,2.5 C15,2.5 18.5,4.2 20,7 L11,19.5 L2,7 C3.5,4.2 7,2.5 11,2.5 Z M3.5,9 C6,7 8.5,6 11,6 C13.5,6 16,7 18.5,9 M9.5,10.5 L9.6,10.5 M12.8,11.5 L12.9,11.5 M10.8,14.5 L10.9,14.5">
+                                        <Path.Triggers>
+                                            <DataTrigger TargetType="Path" Binding="{Binding IsEmojiCat3Selected}" Value="True">
+                                                <Setter Property="Stroke" Value="#FFFFFF" />
+                                            </DataTrigger>
+                                        </Path.Triggers>
+                                    </Path>
+                                </Border>
+
+                                <!-- Category 4: Travel & Places -->
+                                <Border Grid.Column="4"
+                                        WidthRequest="34"
+                                        HeightRequest="34"
+                                        StrokeShape="RoundRectangle 8"
+                                        StrokeThickness="0"
+                                        BackgroundColor="Transparent"
+                                        Padding="0"
+                                        HorizontalOptions="Center"
+                                        VerticalOptions="Center">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectEmojiCategoryCommand}" CommandParameter="4" />
+                                    </Border.GestureRecognizers>
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding IsEmojiCat4Selected}" Value="True">
+                                            <Setter Property="BackgroundColor" Value="#48484C" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                    <Path WidthRequest="22"
+                                          HeightRequest="22"
+                                          Stroke="#7C7C82"
+                                          StrokeThickness="1.9"
+                                          StrokeLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center"
+                                          Data="M19.5,2.5 C20.2,3.2 20.2,4.3 19.5,5 L15,9.5 L18,18.5 L16,20.5 L11.5,13 L7.5,17 L8,20 L6.5,21.5 L4.5,17.5 L0.5,15.5 L2,14 L5,14.5 L9,10.5 L1.5,6 L3.5,4 L12.5,7 L17,2.5 C17.7,1.8 18.8,1.8 19.5,2.5 Z">
+                                        <Path.Triggers>
+                                            <DataTrigger TargetType="Path" Binding="{Binding IsEmojiCat4Selected}" Value="True">
+                                                <Setter Property="Stroke" Value="#FFFFFF" />
+                                            </DataTrigger>
+                                        </Path.Triggers>
+                                    </Path>
+                                </Border>
+
+                                <!-- Category 5: Activities -->
+                                <Border Grid.Column="5"
+                                        WidthRequest="34"
+                                        HeightRequest="34"
+                                        StrokeShape="RoundRectangle 8"
+                                        StrokeThickness="0"
+                                        BackgroundColor="Transparent"
+                                        Padding="0"
+                                        HorizontalOptions="Center"
+                                        VerticalOptions="Center">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectEmojiCategoryCommand}" CommandParameter="5" />
+                                    </Border.GestureRecognizers>
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding IsEmojiCat5Selected}" Value="True">
+                                            <Setter Property="BackgroundColor" Value="#48484C" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                    <Path WidthRequest="22"
+                                          HeightRequest="22"
+                                          Stroke="#7C7C82"
+                                          StrokeThickness="1.9"
+                                          StrokeLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center"
+                                          Data="M18.5,3.5 C13,2 6.5,4.5 3.8,9.8 C2,13.2 2,16.5 3.5,18.5 C5.5,20 8.8,20 12.2,18.2 C17.5,15.5 20,9 18.5,3.5 Z M8.5,13.5 L13.5,8.5 M9.2,10.2 L11.8,12.8 M10.8,8.6 L13.4,11.2">
+                                        <Path.Triggers>
+                                            <DataTrigger TargetType="Path" Binding="{Binding IsEmojiCat5Selected}" Value="True">
+                                                <Setter Property="Stroke" Value="#FFFFFF" />
+                                            </DataTrigger>
+                                        </Path.Triggers>
+                                    </Path>
+                                </Border>
+
+                                <!-- Category 6: Objects -->
+                                <Border Grid.Column="6"
+                                        WidthRequest="34"
+                                        HeightRequest="34"
+                                        StrokeShape="RoundRectangle 8"
+                                        StrokeThickness="0"
+                                        BackgroundColor="Transparent"
+                                        Padding="0"
+                                        HorizontalOptions="Center"
+                                        VerticalOptions="Center">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectEmojiCategoryCommand}" CommandParameter="6" />
+                                    </Border.GestureRecognizers>
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding IsEmojiCat6Selected}" Value="True">
+                                            <Setter Property="BackgroundColor" Value="#48484C" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                    <Path WidthRequest="22"
+                                          HeightRequest="22"
+                                          Stroke="#7C7C82"
+                                          StrokeThickness="1.9"
+                                          StrokeLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center"
+                                          Data="M11,2.5 C7.4,2.5 4.5,5.4 4.5,9 C4.5,11.4 5.8,13.5 7.8,14.6 L8.2,16.8 L13.8,16.8 L14.2,14.6 C16.2,13.5 17.5,11.4 17.5,9 C17.5,5.4 14.6,2.5 11,2.5 Z M8.8,19.5 L13.2,19.5">
+                                        <Path.Triggers>
+                                            <DataTrigger TargetType="Path" Binding="{Binding IsEmojiCat6Selected}" Value="True">
+                                                <Setter Property="Stroke" Value="#FFFFFF" />
+                                            </DataTrigger>
+                                        </Path.Triggers>
+                                    </Path>
+                                </Border>
+
+                                <!-- Category 7: Symbols -->
+                                <Border Grid.Column="7"
+                                        WidthRequest="34"
+                                        HeightRequest="34"
+                                        StrokeShape="RoundRectangle 8"
+                                        StrokeThickness="0"
+                                        BackgroundColor="Transparent"
+                                        Padding="0"
+                                        HorizontalOptions="Center"
+                                        VerticalOptions="Center">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectEmojiCategoryCommand}" CommandParameter="7" />
+                                    </Border.GestureRecognizers>
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding IsEmojiCat7Selected}" Value="True">
+                                            <Setter Property="BackgroundColor" Value="#48484C" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                    <Path WidthRequest="22"
+                                          HeightRequest="22"
+                                          Stroke="#7C7C82"
+                                          StrokeThickness="2"
+                                          StrokeLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center"
+                                          Data="M11,2.5 A8.5,8.5 0 1,0 11,19.5 A8.5,8.5 0 1,0 11,2.5 Z M5.2,5.2 L16.8,16.8">
+                                        <Path.Triggers>
+                                            <DataTrigger TargetType="Path" Binding="{Binding IsEmojiCat7Selected}" Value="True">
+                                                <Setter Property="Stroke" Value="#FFFFFF" />
+                                            </DataTrigger>
+                                        </Path.Triggers>
+                                    </Path>
+                                </Border>
+
+                                <!-- Category 8: Flags -->
+                                <Border Grid.Column="8"
+                                        WidthRequest="34"
+                                        HeightRequest="34"
+                                        StrokeShape="RoundRectangle 8"
+                                        StrokeThickness="0"
+                                        BackgroundColor="Transparent"
+                                        Padding="0"
+                                        HorizontalOptions="Center"
+                                        VerticalOptions="Center">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectEmojiCategoryCommand}" CommandParameter="8" />
+                                    </Border.GestureRecognizers>
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding IsEmojiCat8Selected}" Value="True">
+                                            <Setter Property="BackgroundColor" Value="#48484C" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                    <Path WidthRequest="22"
+                                          HeightRequest="22"
+                                          Stroke="#7C7C82"
+                                          StrokeThickness="1.9"
+                                          StrokeLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center"
+                                          Data="M5,3 L5,19.5 M5,4 C7.5,2.8 10,5.2 12.5,4 C15,2.8 16.5,3.5 18,4 L18,12.5 C16.5,12 15,11.3 12.5,12.5 C10,13.7 7.5,11.3 5,12.5">
+                                        <Path.Triggers>
+                                            <DataTrigger TargetType="Path" Binding="{Binding IsEmojiCat8Selected}" Value="True">
+                                                <Setter Property="Stroke" Value="#FFFFFF" />
+                                            </DataTrigger>
+                                        </Path.Triggers>
+                                    </Path>
+                                </Border>
+
+                                <!-- Tab 9: Search Focus Button (🔍) -->
+                                <Border Grid.Column="9"
+                                        WidthRequest="34"
+                                        HeightRequest="34"
+                                        StrokeShape="RoundRectangle 8"
+                                        StrokeThickness="0"
+                                        BackgroundColor="Transparent"
+                                        Padding="0"
+                                        HorizontalOptions="Center"
+                                        VerticalOptions="Center">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding FocusEmojiSearchCommand}" />
+                                    </Border.GestureRecognizers>
+                                    <Path WidthRequest="22"
+                                          HeightRequest="22"
+                                          Stroke="#7C7C82"
+                                          StrokeThickness="2"
+                                          StrokeLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center"
+                                          Data="M9.5,3 A6.5,6.5 0 1,0 9.5,16 A6.5,6.5 0 1,0 9.5,3 Z M14.2,14.2 L19,19" />
+                                </Border>
+
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                </Grid>
             </Border>
         </Grid>
 

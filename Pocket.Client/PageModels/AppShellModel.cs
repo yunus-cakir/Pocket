@@ -328,7 +328,8 @@ namespace Pocket.Client.PageModels
                 TextContent = textContent,
                 ReactionEmoji = reactionEmoji,
                 SentAt = DateTime.UtcNow,
-                SyncStatus = Pocket.Shared.Enums.SyncStatus.Pending
+                SyncStatus = Pocket.Shared.Enums.SyncStatus.Pending,
+                SenderAvatarUrl = CurrentUser.ProfilePictureUrl ?? string.Empty
             };
 
             if (mediaPostId.HasValue)
@@ -338,6 +339,11 @@ namespace Pocket.Client.PageModels
                 {
                     dm.ReferencedPostPath = refPost.MediaLocalPath;
                     dm.ReferencedPostCaption = refPost.Caption ?? string.Empty;
+                    dm.ReferencedPostAuthorLabel = refPost.IsIncoming ? friend.DisplayName : "You";
+                    dm.ReferencedPostAuthorAvatarUrl = refPost.IsIncoming
+                        ? (friend.ProfilePictureUrl ?? string.Empty)
+                        : (CurrentUser.ProfilePictureUrl ?? string.Empty);
+                    dm.ReferencedPostTimeText = MediaPost.FormatRelativeTime(refPost.SentAt);
                 }
             }
 
@@ -525,7 +531,8 @@ namespace Pocket.Client.PageModels
                         TextContent = textContent,
                         ReactionEmoji = reactionEmoji,
                         SentAt = payload.Timestamp,
-                        SyncStatus = Pocket.Shared.Enums.SyncStatus.Delivered
+                        SyncStatus = Pocket.Shared.Enums.SyncStatus.Delivered,
+                        SenderAvatarUrl = senderFriend.ProfilePictureUrl ?? string.Empty
                     };
 
                     if (dm.MediaPostId.HasValue)
@@ -535,6 +542,11 @@ namespace Pocket.Client.PageModels
                         {
                             dm.ReferencedPostPath = refPost.MediaLocalPath;
                             dm.ReferencedPostCaption = refPost.Caption ?? string.Empty;
+                            dm.ReferencedPostAuthorLabel = refPost.IsIncoming ? senderFriend.DisplayName : "You";
+                            dm.ReferencedPostAuthorAvatarUrl = refPost.IsIncoming
+                                ? (senderFriend.ProfilePictureUrl ?? string.Empty)
+                                : (CurrentUser.ProfilePictureUrl ?? string.Empty);
+                            dm.ReferencedPostTimeText = MediaPost.FormatRelativeTime(refPost.SentAt);
                         }
                     }
 

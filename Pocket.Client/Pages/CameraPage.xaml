@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:pm="clr-namespace:Pocket.Client.PageModels"
@@ -17,7 +17,7 @@
         <toolkit:IsStringNotNullOrWhiteSpaceConverter x:Key="IsStringNotNullOrWhiteSpaceConverter" />
     </ContentPage.Resources>
 
-    <controls:HorizontalSwipeView x:Name="SwipeContainer" IsSwipeEnabled="{Binding IsNotPreviewing}">
+    <controls:HorizontalSwipeView x:Name="SwipeContainer" IsSwipeEnabled="{Binding IsSwipeAllowed}">
         <Grid BackgroundColor="#000000">
         <!-- Container translated horizontally across 3 panels: 0=Profile, 1=Camera/Feed, 2=Chat -->
         <Grid x:Name="PanContainer" ColumnDefinitions="Auto, Auto, Auto" HorizontalOptions="Start" BackgroundColor="#000000">
@@ -30,7 +30,7 @@
                     <VerticalStackLayout Spacing="0" Padding="0,0,0,32">
 
                         <!-- Top Left Back Arrow -->
-                        <Grid Padding="16,14,16,0">
+                        <Grid Padding="{Binding ProfileTopHeaderPadding}">
                             <Grid WidthRequest="40" HeightRequest="40" HorizontalOptions="Start" VerticalOptions="Center">
                                 <Grid.GestureRecognizers>
                                     <TapGestureRecognizer Command="{Binding SnapToCameraCommand}" />
@@ -107,7 +107,8 @@
                         </Label>
 
                         <!-- Rollcall & Invite Combined Card -->
-                        <Border BackgroundColor="#1C1C1E"
+                        <Border IsVisible="False"
+                                BackgroundColor="#1C1C1E"
                                 StrokeShape="RoundRectangle 22"
                                 StrokeThickness="0"
                                 Padding="0"
@@ -272,7 +273,7 @@
                         </Grid>
 
                         <!-- How to add the widget (Unimplemented feature - noted) -->
-                        <Grid ColumnDefinitions="36, *" Padding="16,14">
+                        <Grid IsVisible="False" ColumnDefinitions="36, *" Padding="16,14">
                             <Border Grid.Column="0"
                                     WidthRequest="22"
                                     HeightRequest="22"
@@ -300,7 +301,7 @@
                         </Grid>
 
                         <!-- Streak on widget (Toggle switch - UI state only, noted) -->
-                        <Grid ColumnDefinitions="36, *, Auto" Padding="16,12">
+                        <Grid IsVisible="False" ColumnDefinitions="36, *, Auto" Padding="16,12">
                             <Grid Grid.Column="0" WidthRequest="22" HeightRequest="22" HorizontalOptions="Start" VerticalOptions="Center">
                                 <Path Fill="#9CA3AF"
                                       HorizontalOptions="Center"
@@ -410,7 +411,7 @@
                         </Grid>
 
                         <!-- Change email address (Unimplemented feature - noted) -->
-                        <Grid ColumnDefinitions="36, *" Padding="16,12">
+                        <Grid IsVisible="False" ColumnDefinitions="36, *" Padding="16,12">
                             <Grid Grid.Column="0" WidthRequest="22" HeightRequest="22" HorizontalOptions="Start" VerticalOptions="Center">
                                 <Path Fill="#9CA3AF"
                                       HorizontalOptions="Center"
@@ -746,21 +747,22 @@
                     <CollectionView.Header>
                         <Grid x:Name="CameraHeaderGrid"
                               HeightRequest="{Binding ViewportHeight}"
-                              RowDefinitions="72, Auto, *, 76"
+                              RowDefinitions="Auto, Auto, *, Auto"
                               BackgroundColor="#000000">
 
                             <!-- Row 0: Top Spacer for Persistent Top Header -->
-                            <BoxView Grid.Row="0" BackgroundColor="Transparent" Color="Transparent" />
+                            <BoxView Grid.Row="0" HeightRequest="{Binding TopHeaderHeight}" BackgroundColor="Transparent" Color="Transparent" />
 
                             <!-- Row 1: Camera Viewfinder Rounded Square Card -->
                             <Border Grid.Row="1"
+                                    WidthRequest="{Binding CardSize}"
                                     HeightRequest="{Binding CardSize}"
                                     Margin="6,4,6,0"
                                     StrokeShape="RoundRectangle 44"
                                     StrokeThickness="0"
                                     BackgroundColor="#141414"
                                     Padding="0"
-                                    HorizontalOptions="Fill"
+                                    HorizontalOptions="Center"
                                     VerticalOptions="Start">
                                 <Grid>
                                     <controls:CameraView x:Name="cameraView" HorizontalOptions="Fill" VerticalOptions="Fill">
@@ -1022,9 +1024,9 @@
                                     </Grid>
 
                                     <!-- Center: Locket Gold-Ring Shutter Button (Active) -->
-                                    <Grid Grid.Column="1" WidthRequest="92" HeightRequest="92" HorizontalOptions="Center" VerticalOptions="Center">
-                                        <Border WidthRequest="90"
-                                                HeightRequest="90"
+                                    <Grid Grid.Column="1" WidthRequest="{Binding ShutterButtonSize}" HeightRequest="{Binding ShutterButtonSize}" HorizontalOptions="Center" VerticalOptions="Center">
+                                        <Border WidthRequest="{Binding ShutterOuterRingSize}"
+                                                HeightRequest="{Binding ShutterOuterRingSize}"
                                                 StrokeShape="RoundRectangle 45"
                                                 Stroke="#FFB800"
                                                 StrokeThickness="4.5"
@@ -1032,8 +1034,8 @@
                                                 Padding="0"
                                                 HorizontalOptions="Center"
                                                 VerticalOptions="Center" />
-                                        <Border WidthRequest="72"
-                                                HeightRequest="72"
+                                        <Border WidthRequest="{Binding ShutterInnerCircleSize}"
+                                                HeightRequest="{Binding ShutterInnerCircleSize}"
                                                 StrokeShape="RoundRectangle 36"
                                                 StrokeThickness="0"
                                                 BackgroundColor="#FFFFFF"
@@ -1096,8 +1098,8 @@
 
                                     <!-- Center: Large Solid Grey Circle with Tilted Outlined Paper Airplane Icon -->
                                     <Border Grid.Column="1"
-                                            WidthRequest="92"
-                                            HeightRequest="92"
+                                            WidthRequest="{Binding ShutterButtonSize}"
+                                            HeightRequest="{Binding ShutterButtonSize}"
                                             StrokeShape="RoundRectangle 46"
                                             StrokeThickness="0"
                                             BackgroundColor="#4E4E52"
@@ -1126,7 +1128,7 @@
                             </Grid>
 
                             <!-- Row 3: Bottom Spacer for Persistent History & Bottom Bar -->
-                            <BoxView Grid.Row="3" BackgroundColor="Transparent" Color="Transparent" />
+                            <BoxView Grid.Row="3" HeightRequest="{Binding CameraBottomSpacerHeight}" BackgroundColor="Transparent" Color="Transparent" />
                         </Grid>
                     </CollectionView.Header>
 
@@ -1134,21 +1136,22 @@
                     <CollectionView.ItemTemplate>
                         <DataTemplate x:DataType="models:MediaPost">
                             <Grid HeightRequest="{Binding ViewportHeight}"
-                                  RowDefinitions="72, Auto, Auto, *, 136"
+                                  RowDefinitions="Auto, Auto, Auto, *, Auto"
                                   BackgroundColor="#000000">
 
                                 <!-- Row 0: Top Spacer -->
-                                <BoxView Grid.Row="0" BackgroundColor="Transparent" Color="Transparent" />
+                                <BoxView Grid.Row="0" HeightRequest="{Binding TopHeaderHeight}" BackgroundColor="Transparent" Color="Transparent" />
 
                                 <!-- Row 1: Feed Photo Rounded Square Card -->
                                 <Border Grid.Row="1"
+                                        WidthRequest="{Binding CardSize}"
                                         HeightRequest="{Binding CardSize}"
                                         Margin="6,4,6,0"
                                         StrokeShape="RoundRectangle 44"
                                         StrokeThickness="0"
                                         BackgroundColor="#141414"
                                         Padding="0"
-                                        HorizontalOptions="Fill"
+                                        HorizontalOptions="Center"
                                         VerticalOptions="Start">
                                     <Grid>
                                         <Image Source="{Binding MediaLocalPath}" Aspect="AspectFill" HorizontalOptions="Fill" VerticalOptions="Fill" />
@@ -1173,6 +1176,7 @@
 
                                 <!-- Row 2: Author & Relative Time ("You  20h") -->
                                 <HorizontalStackLayout Grid.Row="2"
+                                                       IsVisible="{Binding Source={x:Reference thisPage}, Path=BindingContext.IsReplyingToFeedPost, Converter={StaticResource InvertedBoolConverter}}"
                                                        Spacing="8"
                                                        HorizontalOptions="Center"
                                                        Margin="0,16,0,0">
@@ -1191,18 +1195,312 @@
                                 </HorizontalStackLayout>
 
                                 <!-- Row 3 & 4: Bottom Spacer for Persistent Activity/Reply Pill & Bottom Bar -->
-                                <BoxView Grid.Row="3" Grid.RowSpan="2" BackgroundColor="Transparent" Color="Transparent" />
+                                <BoxView Grid.Row="3" BackgroundColor="Transparent" Color="Transparent" />
+                                <BoxView Grid.Row="4" HeightRequest="{Binding FeedBottomSpacerHeight}" BackgroundColor="Transparent" Color="Transparent" />
                             </Grid>
                         </DataTemplate>
                     </CollectionView.ItemTemplate>
                 </CollectionView>
 
                 <!-- ============================================================== -->
+                <!-- EMPTY FILTERED FEED OVERLAY (When selected filter has 0 posts) -->
+                <!-- ============================================================== -->
+                <Grid IsVisible="{Binding ShowEmptyFilteredFeedCard}"
+                      RowDefinitions="Auto, Auto, Auto, *, Auto"
+                      BackgroundColor="#000000"
+                      HorizontalOptions="Fill"
+                      VerticalOptions="Fill">
+                    <Grid.GestureRecognizers>
+                        <SwipeGestureRecognizer Direction="Down" Command="{Binding CenterBottomTabTappedCommand}" />
+                    </Grid.GestureRecognizers>
+                    <BoxView Grid.Row="0" HeightRequest="{Binding TopHeaderHeight}" BackgroundColor="Transparent" Color="Transparent" />
+                    <Border Grid.Row="1"
+                            WidthRequest="{Binding CardSize}"
+                            HeightRequest="{Binding CardSize}"
+                            Margin="6,4,6,0"
+                            StrokeShape="RoundRectangle 44"
+                            StrokeThickness="0"
+                            BackgroundColor="#141414"
+                            Padding="24"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Start">
+                        <VerticalStackLayout Spacing="8" HorizontalOptions="Center" VerticalOptions="Center">
+                            <Label Text="No photos yet"
+                                   TextColor="#FFFFFF"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="18"
+                                   FontAttributes="Bold"
+                                   HorizontalOptions="Center" />
+                            <Label Text="Photos for this filter will appear here."
+                                   TextColor="#8E8E93"
+                                   FontFamily="OpenSansRegular"
+                                   FontSize="14"
+                                   HorizontalTextAlignment="Center"
+                                   HorizontalOptions="Center" />
+                        </VerticalStackLayout>
+                    </Border>
+                    <BoxView Grid.Row="4" HeightRequest="{Binding FeedBottomSpacerHeight}" BackgroundColor="Transparent" Color="Transparent" />
+                </Grid>
+
+                <!-- ============================================================== -->
+                <!-- GRID GALLERY VIEW OVERLAY (3-Column Photo Grid)                -->
+                <!-- ============================================================== -->
+                <Grid x:Name="GridGalleryContainer"
+                      IsVisible="{Binding IsGridGalleryOpen}"
+                      RowDefinitions="Auto, *"
+                      BackgroundColor="#000000"
+                      HorizontalOptions="Fill"
+                      VerticalOptions="Fill">
+                    <BoxView Grid.Row="0" HeightRequest="{Binding TopHeaderHeight}" BackgroundColor="Transparent" Color="Transparent" />
+                    <CollectionView x:Name="GridGalleryCollectionView"
+                                    Grid.Row="1"
+                                    ItemsSource="{Binding FeedPosts}"
+                                    BackgroundColor="#000000"
+                                    Margin="3,4,3,0"
+                                    SelectionMode="None">
+                        <CollectionView.EmptyView>
+                            <VerticalStackLayout Spacing="8" HorizontalOptions="Center" VerticalOptions="Center" Padding="32">
+                                <Label Text="No photos yet"
+                                       TextColor="#FFFFFF"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="18"
+                                       FontAttributes="Bold"
+                                       HorizontalOptions="Center" />
+                                <Label Text="Photos for this filter will appear here."
+                                       TextColor="#8E8E93"
+                                       FontFamily="OpenSansRegular"
+                                       FontSize="14"
+                                       HorizontalTextAlignment="Center"
+                                       HorizontalOptions="Center" />
+                            </VerticalStackLayout>
+                        </CollectionView.EmptyView>
+                        <CollectionView.ItemsLayout>
+                            <GridItemsLayout Orientation="Vertical"
+                                             Span="3"
+                                             HorizontalItemSpacing="0"
+                                             VerticalItemSpacing="0" />
+                        </CollectionView.ItemsLayout>
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="models:MediaPost">
+                                <Grid HeightRequest="{Binding GridItemSize}"
+                                      Padding="2.5">
+                                    <Border StrokeShape="RoundRectangle 22"
+                                            StrokeThickness="0"
+                                            BackgroundColor="#141414"
+                                            Padding="0"
+                                            HorizontalOptions="Fill"
+                                            VerticalOptions="Fill">
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding SelectFromGridCommand}" />
+                                        </Border.GestureRecognizers>
+                                        <Image Source="{Binding MediaLocalPath}"
+                                               Aspect="AspectFill"
+                                               HorizontalOptions="Fill"
+                                               VerticalOptions="Fill" />
+                                    </Border>
+                                </Grid>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                        <CollectionView.Footer>
+                            <BoxView HeightRequest="90" BackgroundColor="Transparent" Color="Transparent" />
+                        </CollectionView.Footer>
+                    </CollectionView>
+                </Grid>
+
+                <!-- ============================================================== -->
+                <!-- FILTER DROPDOWN MENU OVERLAY ("All Friends", Friends, "You")   -->
+                <!-- ============================================================== -->
+                <Grid x:Name="FilterMenuOverlayGrid"
+                      IsVisible="False"
+                      HorizontalOptions="Fill"
+                      VerticalOptions="Fill">
+                    <!-- Backdrop to dismiss filter menu when tapping outside -->
+                    <BoxView x:Name="FilterMenuBackdrop"
+                             BackgroundColor="#55000000"
+                             Color="#55000000"
+                             Opacity="0"
+                             HorizontalOptions="Fill"
+                             VerticalOptions="Fill">
+                        <BoxView.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnFilterMenuBackdropTapped" />
+                        </BoxView.GestureRecognizers>
+                    </BoxView>
+
+                    <!-- Floating Rounded Dropdown Card below Top Filter Pill -->
+                    <Border x:Name="FilterMenuCard"
+                            WidthRequest="284"
+                            Margin="{Binding FilterMenuMargin}"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Start"
+                            BackgroundColor="#3D3D40"
+                            StrokeShape="RoundRectangle 28"
+                            StrokeThickness="0"
+                            Padding="0"
+                            Opacity="0"
+                            Scale="0.92">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer />
+                        </Border.GestureRecognizers>
+                        <VerticalStackLayout Spacing="0" VerticalOptions="Start">
+
+                            <!-- Option 1: "All Friends" -->
+                            <Grid ColumnDefinitions="Auto, *, Auto"
+                                  ColumnSpacing="14"
+                                  Padding="16,10"
+                                  BackgroundColor="Transparent">
+                                <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectFilterAllFriendsCommand}" />
+                                </Grid.GestureRecognizers>
+                                <Border Grid.Column="0"
+                                        WidthRequest="42"
+                                        HeightRequest="42"
+                                        StrokeShape="RoundRectangle 21"
+                                        StrokeThickness="0"
+                                        BackgroundColor="#5A5A5E"
+                                        Padding="0"
+                                        VerticalOptions="Center">
+                                    <Path WidthRequest="19"
+                                          HeightRequest="16"
+                                          Fill="#E5E5EA"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center"
+                                          Data="M7,7 C8.66,7 10,5.66 10,4 C10,2.34 8.66,1 7,1 C5.34,1 4,2.34 4,4 C4,5.66 5.34,7 7,7 Z M13.5,7.5 C14.88,7.5 16,6.38 16,5 C16,3.62 14.88,2.5 13.5,2.5 C12.12,2.5 11,3.62 11,5 C11,6.38 12.12,7.5 13.5,7.5 Z M7,9 C4.33,9 0,10.34 0,13 L0,14.5 L14,14.5 L14,13 C14,10.34 9.67,9 7,9 Z M13.5,9.5 C13,9.5 12.4,9.55 11.8,9.65 C13,10.5 13.8,11.65 13.8,13 L13.8,14.5 L19,14.5 L19,13 C19,10.9 15.8,9.5 13.5,9.5 Z" />
+                                </Border>
+                                <Label Grid.Column="1"
+                                       Text="All Friends"
+                                       TextColor="#FFFFFF"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="17"
+                                       FontAttributes="Bold"
+                                       VerticalOptions="Center" />
+                                <Path Grid.Column="2"
+                                      WidthRequest="9"
+                                      HeightRequest="15"
+                                      Stroke="#9A9AA0"
+                                      StrokeThickness="2.4"
+                                      StrokeLineCap="Round"
+                                      StrokeLineJoin="Round"
+                                      VerticalOptions="Center"
+                                      Margin="0,0,4,0"
+                                      Data="M1,1 L7.5,7.5 L1,14" />
+                            </Grid>
+
+                            <!-- Dynamic Friend Rows -->
+                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding ShellModel.Friends}"
+                                                 Spacing="0">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="models:Friend">
+                                        <VerticalStackLayout Spacing="0">
+                                            <BoxView HeightRequest="1" BackgroundColor="#525256" Color="#525256" />
+                                            <Grid ColumnDefinitions="Auto, *, Auto"
+                                                  ColumnSpacing="14"
+                                                  Padding="16,10"
+                                                  BackgroundColor="Transparent">
+                                                <Grid.GestureRecognizers>
+                                                    <TapGestureRecognizer Command="{Binding Source={x:Reference thisPage}, Path=BindingContext.SelectFilterFriendCommand}"
+                                                                          CommandParameter="{Binding .}" />
+                                                </Grid.GestureRecognizers>
+                                                <Border Grid.Column="0"
+                                                        WidthRequest="42"
+                                                        HeightRequest="42"
+                                                        StrokeShape="RoundRectangle 21"
+                                                        StrokeThickness="0"
+                                                        BackgroundColor="#2C2C2E"
+                                                        Padding="0"
+                                                        VerticalOptions="Center">
+                                                    <Grid>
+                                                        <Path Fill="#8E8E93"
+                                                              HorizontalOptions="Center"
+                                                              VerticalOptions="Center"
+                                                              Scale="0.95"
+                                                              Data="M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z" />
+                                                        <Image Source="{Binding ProfilePictureUrl}"
+                                                               IsVisible="{Binding ProfilePictureUrl, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}"
+                                                               Aspect="AspectFill" />
+                                                    </Grid>
+                                                </Border>
+                                                <Label Grid.Column="1"
+                                                       Text="{Binding FirstName}"
+                                                       TextColor="#FFFFFF"
+                                                       FontFamily="OpenSansSemibold"
+                                                       FontSize="17"
+                                                       FontAttributes="Bold"
+                                                       MaxLines="1"
+                                                       LineBreakMode="TailTruncation"
+                                                       VerticalOptions="Center" />
+                                                <Path Grid.Column="2"
+                                                      WidthRequest="9"
+                                                      HeightRequest="15"
+                                                      Stroke="#9A9AA0"
+                                                      StrokeThickness="2.4"
+                                                      StrokeLineCap="Round"
+                                                      StrokeLineJoin="Round"
+                                                      VerticalOptions="Center"
+                                                      Margin="0,0,4,0"
+                                                      Data="M1,1 L7.5,7.5 L1,14" />
+                                            </Grid>
+                                        </VerticalStackLayout>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+
+                            <!-- Last Option: "You" -->
+                            <BoxView HeightRequest="1" BackgroundColor="#525256" Color="#525256" />
+                            <Grid ColumnDefinitions="Auto, *, Auto"
+                                  ColumnSpacing="14"
+                                  Padding="16,10"
+                                  BackgroundColor="Transparent">
+                                <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectFilterYouCommand}" />
+                                </Grid.GestureRecognizers>
+                                <Border Grid.Column="0"
+                                        WidthRequest="42"
+                                        HeightRequest="42"
+                                        StrokeShape="RoundRectangle 21"
+                                        StrokeThickness="0"
+                                        BackgroundColor="#2C2C2E"
+                                        Padding="0"
+                                        VerticalOptions="Center">
+                                    <Grid>
+                                        <Path Fill="#8E8E93"
+                                              HorizontalOptions="Center"
+                                              VerticalOptions="Center"
+                                              Scale="0.95"
+                                              Data="M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z" />
+                                        <Image Source="{Binding ShellModel.CurrentUser.ProfilePictureUrl}"
+                                               IsVisible="{Binding ShellModel.CurrentUser.ProfilePictureUrl, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}"
+                                               Aspect="AspectFill" />
+                                    </Grid>
+                                </Border>
+                                <Label Grid.Column="1"
+                                       Text="You"
+                                       TextColor="#FFFFFF"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="17"
+                                       FontAttributes="Bold"
+                                       VerticalOptions="Center" />
+                                <Path Grid.Column="2"
+                                      WidthRequest="9"
+                                      HeightRequest="15"
+                                      Stroke="#9A9AA0"
+                                      StrokeThickness="2.4"
+                                      StrokeLineCap="Round"
+                                      StrokeLineJoin="Round"
+                                      VerticalOptions="Center"
+                                      Margin="0,0,4,0"
+                                      Data="M1,1 L7.5,7.5 L1,14" />
+                            </Grid>
+
+                        </VerticalStackLayout>
+                    </Border>
+                </Grid>
+
+                <!-- ============================================================== -->
                 <!-- PERSISTENT TOP OVERLAY BAR ON CAMERA/FEED (Images 3 & 4)       -->
                 <!-- ============================================================== -->
-                <Grid IsVisible="{Binding IsNotPreviewing}"
+                <Grid IsVisible="{Binding IsTopOverlayBarVisible}"
                       ColumnDefinitions="Auto, *, Auto"
-                      Margin="16,14,16,0"
+                      Margin="{Binding TopOverlayMargin}"
                       VerticalOptions="Start">
 
                     <!-- Left: Megaphone / Rollcall Circular Button (Unimplemented feature - noted) -->
@@ -1226,7 +1524,7 @@
 
                     <!-- Center Mode A: "1 Friend" Pill on Camera (Image 3) -->
                     <Border Grid.Column="1"
-                            IsVisible="{Binding IsViewingFeed, Converter={StaticResource InvertedBoolConverter}}"
+                            IsVisible="{Binding ShowCameraFriendsPill}"
                             BackgroundColor="#1C1C1E"
                             StrokeShape="RoundRectangle 21"
                             StrokeThickness="0"
@@ -1253,9 +1551,9 @@
                         </HorizontalStackLayout>
                     </Border>
 
-                    <!-- Center Mode B: "All Friends ⌄" Pill on Feed (Image 4 - Unimplemented filter noted) -->
+                    <!-- Center Mode B: Filter Pill on Feed & Grid Gallery ("All Friends ⌄" / "You ^" / Friend Name) -->
                     <Border Grid.Column="1"
-                            IsVisible="{Binding IsViewingFeed}"
+                            IsVisible="{Binding ShowFeedFilterPill}"
                             BackgroundColor="#1C1C1E"
                             StrokeShape="RoundRectangle 21"
                             StrokeThickness="0"
@@ -1263,14 +1561,28 @@
                             Padding="18,0"
                             HorizontalOptions="Center"
                             VerticalOptions="Center">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding ToggleFilterMenuCommand}" />
+                        </Border.GestureRecognizers>
                         <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
-                            <Label Text="All Friends"
+                            <Label Text="{Binding SelectedFilterTitle}"
                                    TextColor="#FFFFFF"
                                    FontFamily="OpenSansSemibold"
                                    FontSize="15"
                                    FontAttributes="Bold"
-                                   VerticalOptions="Center" />
-                            <Path WidthRequest="11"
+                                   MaxLines="1"
+                                   LineBreakMode="TailTruncation"
+                                   MaximumWidthRequest="170"
+                                   VerticalOptions="Center">
+                                <Label.Triggers>
+                                    <DataTrigger TargetType="Label" Binding="{Binding IsFilterMenuOpen}" Value="True">
+                                        <Setter Property="TextColor" Value="#D1D5DB" />
+                                    </DataTrigger>
+                                </Label.Triggers>
+                            </Label>
+                            <!-- Chevron Down when closed -->
+                            <Path IsVisible="{Binding IsFilterMenuOpen, Converter={StaticResource InvertedBoolConverter}}"
+                                  WidthRequest="11"
                                   HeightRequest="7"
                                   Stroke="#FFFFFF"
                                   StrokeThickness="2.2"
@@ -1279,6 +1591,17 @@
                                   VerticalOptions="Center"
                                   Margin="0,2,0,0"
                                   Data="M1,1 L5.5,5.5 L10,1" />
+                            <!-- Chevron Up when open -->
+                            <Path IsVisible="{Binding IsFilterMenuOpen}"
+                                  WidthRequest="11"
+                                  HeightRequest="7"
+                                  Stroke="#D1D5DB"
+                                  StrokeThickness="2.2"
+                                  StrokeLineCap="Round"
+                                  StrokeLineJoin="Round"
+                                  VerticalOptions="Center"
+                                  Margin="0,1,0,0"
+                                  Data="M1,5.5 L5.5,1 L10,5.5" />
                         </HorizontalStackLayout>
                     </Border>
 
@@ -1314,7 +1637,7 @@
                 <!-- ============================================================== -->
                 <Grid IsVisible="{Binding ShowPreviewControls}"
                       ColumnDefinitions="42, *, 42"
-                      Margin="16,14,16,0"
+                      Margin="{Binding TopOverlayMargin}"
                       VerticalOptions="Start">
                     <BoxView Grid.Column="0" BackgroundColor="Transparent" Color="Transparent" />
 
@@ -1353,7 +1676,7 @@
                             HorizontalScrollBarVisibility="Never"
                             HorizontalOptions="Center"
                             VerticalOptions="End"
-                            Margin="16,0,16,22">
+                            Margin="{Binding PreviewBottomOverlayMargin}">
                     <HorizontalStackLayout Spacing="22" HorizontalOptions="Center" VerticalOptions="End">
 
                         <!-- "All" Option -->
@@ -1477,7 +1800,7 @@
                 <!-- PERSISTENT BOTTOM OVERLAY ON CAMERA/FEED (History & Activity)  -->
                 <!-- ============================================================== -->
                 <Grid IsVisible="{Binding IsNotPreviewing}"
-                      Margin="18,0,18,90"
+                      Margin="{Binding HistoryOverlayMargin}"
                       HorizontalOptions="Fill"
                       VerticalOptions="End">
 
@@ -1611,30 +1934,614 @@
                                         </Label.GestureRecognizers>
                                     </Label>
 
-                                    <!-- Add-Emoji Picker Icon (😊+ - Unimplemented feature noted, no action on tap) -->
-                                    <Grid WidthRequest="26" HeightRequest="26" VerticalOptions="Center" Margin="2,0,0,0">
+                                    <!-- Add-Emoji Picker Icon (😊+ - Opens Custom Emoji Picker Bottom Sheet) -->
+                                    <Grid WidthRequest="30"
+                                          HeightRequest="30"
+                                          VerticalOptions="Center"
+                                          Margin="2,0,0,0"
+                                          BackgroundColor="Transparent">
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding OpenEmojiPickerCommand}" />
+                                        </Grid.GestureRecognizers>
                                         <Path Stroke="#C7C7CC"
                                               StrokeThickness="2.2"
                                               StrokeLineCap="Round"
                                               StrokeLineJoin="Round"
+                                              InputTransparent="True"
                                               Data="M11.5,4 A8.5,8.5 0 1,0 20,12.5 M8.2,14.2 Q11.5,17.2 14.8,14.2 M16,5.5 L22,5.5 M19,2.5 L19,8.5" />
                                         <Ellipse WidthRequest="2.5"
                                                  HeightRequest="2.5"
                                                  Fill="#C7C7CC"
                                                  HorizontalOptions="Start"
                                                  VerticalOptions="Start"
+                                                 InputTransparent="True"
                                                  Margin="7.5,9.5,0,0" />
                                         <Ellipse WidthRequest="2.5"
                                                  HeightRequest="2.5"
                                                  Fill="#C7C7CC"
                                                  HorizontalOptions="Start"
                                                  VerticalOptions="Start"
+                                                 InputTransparent="True"
                                                  Margin="13,9.5,0,0" />
                                     </Grid>
                                 </HorizontalStackLayout>
                             </Grid>
                         </Border>
                     </Grid>
+                </Grid>
+
+                <!-- ============================================================== -->
+                <!-- CUSTOM EMOJI PICKER BOTTOM SHEET OVERLAY                       -->
+                <!-- ============================================================== -->
+                <Grid x:Name="EmojiPickerOverlayGrid"
+                      IsVisible="False"
+                      HorizontalOptions="Fill"
+                      VerticalOptions="Fill">
+                    <!-- Semi-transparent backdrop to dismiss emoji picker on tap outside -->
+                    <BoxView x:Name="EmojiPickerBackdrop"
+                             BackgroundColor="#66000000"
+                             Color="#66000000"
+                             Opacity="0"
+                             HorizontalOptions="Fill"
+                             VerticalOptions="Fill">
+                        <BoxView.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnEmojiPickerBackdropTapped" />
+                        </BoxView.GestureRecognizers>
+                    </BoxView>
+
+                    <!-- Rounded Top Bottom Sheet Card -->
+                    <Border x:Name="EmojiPickerSheetCard"
+                            VerticalOptions="End"
+                            HorizontalOptions="Fill"
+                            HeightRequest="476"
+                            TranslationY="500"
+                            BackgroundColor="#202022"
+                            StrokeShape="RoundRectangle 30,30,0,0"
+                            StrokeThickness="0"
+                            Padding="0">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer />
+                        </Border.GestureRecognizers>
+                        <Grid RowDefinitions="Auto, *">
+
+                            <!-- Row 0: Search Bar Header (Also draggable downward to dismiss) -->
+                            <Grid Grid.Row="0"
+                                  BackgroundColor="Transparent"
+                                  Padding="18,18,18,8">
+                                <Grid.GestureRecognizers>
+                                    <PanGestureRecognizer PanUpdated="OnEmojiPickerSheetPanUpdated" />
+                                </Grid.GestureRecognizers>
+
+                                <Border HeightRequest="44"
+                                        StrokeShape="RoundRectangle 22"
+                                        StrokeThickness="0"
+                                        BackgroundColor="#323235"
+                                        Padding="18,0,12,0"
+                                        HorizontalOptions="Fill">
+                                    <Grid ColumnDefinitions="*, Auto" ColumnSpacing="8">
+                                        <controls:IncognitoEntry x:Name="EmojiSearchEntry"
+                                                                 Grid.Column="0"
+                                                                 Text="{Binding EmojiSearchText}"
+                                                                 Placeholder="Search"
+                                                                 PlaceholderColor="#8E8E93"
+                                                                 TextColor="#FFFFFF"
+                                                                 FontFamily="OpenSansRegular"
+                                                                 FontSize="17"
+                                                                 BackgroundColor="Transparent"
+                                                                 ReturnType="Search"
+                                                                 Focused="OnEmojiSearchEntryFocused"
+                                                                 Unfocused="OnEmojiSearchEntryUnfocused"
+                                                                 Completed="OnEmojiSearchEntryCompleted"
+                                                                 VerticalOptions="Center"
+                                                                 HorizontalOptions="Fill" />
+
+                                        <Grid Grid.Column="1"
+                                              IsVisible="{Binding HasEmojiSearchText}"
+                                              WidthRequest="28"
+                                              HeightRequest="28"
+                                              BackgroundColor="Transparent"
+                                              VerticalOptions="Center">
+                                            <Grid.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding ClearEmojiSearchCommand}" />
+                                            </Grid.GestureRecognizers>
+                                            <Border WidthRequest="20"
+                                                    HeightRequest="20"
+                                                    StrokeShape="RoundRectangle 10"
+                                                    StrokeThickness="0"
+                                                    BackgroundColor="#525256"
+                                                    HorizontalOptions="Center"
+                                                    VerticalOptions="Center">
+                                                <Path WidthRequest="8"
+                                                      HeightRequest="8"
+                                                      Stroke="#202022"
+                                                      StrokeThickness="2"
+                                                      StrokeLineCap="Round"
+                                                      HorizontalOptions="Center"
+                                                      VerticalOptions="Center"
+                                                      Data="M1,1 L7,7 M7,1 L1,7" />
+                                            </Border>
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+
+                            <!-- Row 1: Scrollable Categorized 6-Column Emoji List + Floating Bottom Category Bar -->
+                            <Grid Grid.Row="1">
+                                <CollectionView x:Name="EmojiPickerCollectionView"
+                                                ItemsSource="{Binding EmojiPickerRows}"
+                                                BackgroundColor="Transparent"
+                                                SelectionMode="None"
+                                                VerticalScrollBarVisibility="Default"
+                                                Scrolled="OnEmojiPickerScrolled">
+                                    <CollectionView.ItemsLayout>
+                                        <LinearItemsLayout Orientation="Vertical" ItemSpacing="0" />
+                                    </CollectionView.ItemsLayout>
+                                    <CollectionView.ItemTemplate>
+                                        <DataTemplate x:DataType="models:EmojiListRow">
+                                            <Grid>
+                                                <!-- Category Section Header Row ("Smileys & Emotion", etc.) -->
+                                                <Label IsVisible="{Binding IsHeader}"
+                                                       Text="{Binding HeaderTitle}"
+                                                       TextColor="#9A9AA0"
+                                                       FontFamily="OpenSansSemibold"
+                                                       FontSize="16"
+                                                       Margin="20,10,20,8"
+                                                       VerticalOptions="Center" />
+
+                                                <!-- 6-Column Emoji Row -->
+                                                <Grid IsVisible="{Binding IsEmojiRow}"
+                                                      ColumnDefinitions="*, *, *, *, *, *"
+                                                      Padding="10,2"
+                                                      HeightRequest="56">
+                                                    <Label Grid.Column="0"
+                                                           Text="{Binding Emoji0}"
+                                                           IsVisible="{Binding HasEmoji0}"
+                                                           FontSize="33"
+                                                           HorizontalOptions="Fill"
+                                                           VerticalOptions="Fill"
+                                                           HorizontalTextAlignment="Center"
+                                                           VerticalTextAlignment="Center">
+                                                        <Label.GestureRecognizers>
+                                                            <TapGestureRecognizer Command="{Binding Source={x:Reference thisPage}, Path=BindingContext.SelectEmojiFromPickerCommand}"
+                                                                                  CommandParameter="{Binding Emoji0}" />
+                                                        </Label.GestureRecognizers>
+                                                    </Label>
+
+                                                    <Label Grid.Column="1"
+                                                           Text="{Binding Emoji1}"
+                                                           IsVisible="{Binding HasEmoji1}"
+                                                           FontSize="33"
+                                                           HorizontalOptions="Fill"
+                                                           VerticalOptions="Fill"
+                                                           HorizontalTextAlignment="Center"
+                                                           VerticalTextAlignment="Center">
+                                                        <Label.GestureRecognizers>
+                                                            <TapGestureRecognizer Command="{Binding Source={x:Reference thisPage}, Path=BindingContext.SelectEmojiFromPickerCommand}"
+                                                                                  CommandParameter="{Binding Emoji1}" />
+                                                        </Label.GestureRecognizers>
+                                                    </Label>
+
+                                                    <Label Grid.Column="2"
+                                                           Text="{Binding Emoji2}"
+                                                           IsVisible="{Binding HasEmoji2}"
+                                                           FontSize="33"
+                                                           HorizontalOptions="Fill"
+                                                           VerticalOptions="Fill"
+                                                           HorizontalTextAlignment="Center"
+                                                           VerticalTextAlignment="Center">
+                                                        <Label.GestureRecognizers>
+                                                            <TapGestureRecognizer Command="{Binding Source={x:Reference thisPage}, Path=BindingContext.SelectEmojiFromPickerCommand}"
+                                                                                  CommandParameter="{Binding Emoji2}" />
+                                                        </Label.GestureRecognizers>
+                                                    </Label>
+
+                                                    <Label Grid.Column="3"
+                                                           Text="{Binding Emoji3}"
+                                                           IsVisible="{Binding HasEmoji3}"
+                                                           FontSize="33"
+                                                           HorizontalOptions="Fill"
+                                                           VerticalOptions="Fill"
+                                                           HorizontalTextAlignment="Center"
+                                                           VerticalTextAlignment="Center">
+                                                        <Label.GestureRecognizers>
+                                                            <TapGestureRecognizer Command="{Binding Source={x:Reference thisPage}, Path=BindingContext.SelectEmojiFromPickerCommand}"
+                                                                                  CommandParameter="{Binding Emoji3}" />
+                                                        </Label.GestureRecognizers>
+                                                    </Label>
+
+                                                    <Label Grid.Column="4"
+                                                           Text="{Binding Emoji4}"
+                                                           IsVisible="{Binding HasEmoji4}"
+                                                           FontSize="33"
+                                                           HorizontalOptions="Fill"
+                                                           VerticalOptions="Fill"
+                                                           HorizontalTextAlignment="Center"
+                                                           VerticalTextAlignment="Center">
+                                                        <Label.GestureRecognizers>
+                                                            <TapGestureRecognizer Command="{Binding Source={x:Reference thisPage}, Path=BindingContext.SelectEmojiFromPickerCommand}"
+                                                                                  CommandParameter="{Binding Emoji4}" />
+                                                        </Label.GestureRecognizers>
+                                                    </Label>
+
+                                                    <Label Grid.Column="5"
+                                                           Text="{Binding Emoji5}"
+                                                           IsVisible="{Binding HasEmoji5}"
+                                                           FontSize="33"
+                                                           HorizontalOptions="Fill"
+                                                           VerticalOptions="Fill"
+                                                           HorizontalTextAlignment="Center"
+                                                           VerticalTextAlignment="Center">
+                                                        <Label.GestureRecognizers>
+                                                            <TapGestureRecognizer Command="{Binding Source={x:Reference thisPage}, Path=BindingContext.SelectEmojiFromPickerCommand}"
+                                                                                  CommandParameter="{Binding Emoji5}" />
+                                                        </Label.GestureRecognizers>
+                                                    </Label>
+                                                </Grid>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </CollectionView.ItemTemplate>
+                                    <CollectionView.Footer>
+                                        <BoxView HeightRequest="66" BackgroundColor="Transparent" Color="Transparent" />
+                                    </CollectionView.Footer>
+                                </CollectionView>
+
+                                <!-- Floating Bottom Category Bar (9 Categories + Search Icon) -->
+                                <Border x:Name="EmojiCategoryBarBorder"
+                                        VerticalOptions="End"
+                                        HorizontalOptions="Fill"
+                                        Margin="18,0,18,12"
+                                        HeightRequest="42"
+                                        BackgroundColor="#E62C2C2E"
+                                        StrokeShape="RoundRectangle 11"
+                                        StrokeThickness="0"
+                                        Padding="4,3">
+                                    <Grid ColumnDefinitions="*, *, *, *, *, *, *, *, *, *">
+
+                                        <!-- Category 0: Smileys & Emotion -->
+                                        <Border Grid.Column="0"
+                                                WidthRequest="34"
+                                                HeightRequest="34"
+                                                StrokeShape="RoundRectangle 8"
+                                                StrokeThickness="0"
+                                                BackgroundColor="Transparent"
+                                                Padding="0"
+                                                HorizontalOptions="Center"
+                                                VerticalOptions="Center">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding SelectEmojiCategoryCommand}" CommandParameter="0" />
+                                            </Border.GestureRecognizers>
+                                            <Border.Triggers>
+                                                <DataTrigger TargetType="Border" Binding="{Binding IsEmojiCat0Selected}" Value="True">
+                                                    <Setter Property="BackgroundColor" Value="#48484C" />
+                                                </DataTrigger>
+                                            </Border.Triggers>
+                                            <Path WidthRequest="22"
+                                                  HeightRequest="22"
+                                                  Stroke="#7C7C82"
+                                                  StrokeThickness="2"
+                                                  StrokeLineCap="Round"
+                                                  StrokeLineJoin="Round"
+                                                  HorizontalOptions="Center"
+                                                  VerticalOptions="Center"
+                                                  Data="M11,2 A9,9 0 1,0 11,20 A9,9 0 1,0 11,2 Z M7.5,9.5 L7.6,9.5 M14.4,9.5 L14.5,9.5 M7.5,13.5 Q11,16.8 14.5,13.5">
+                                                <Path.Triggers>
+                                                    <DataTrigger TargetType="Path" Binding="{Binding IsEmojiCat0Selected}" Value="True">
+                                                        <Setter Property="Stroke" Value="#FFFFFF" />
+                                                    </DataTrigger>
+                                                </Path.Triggers>
+                                            </Path>
+                                        </Border>
+
+                                        <!-- Category 1: People & Body -->
+                                        <Border Grid.Column="1"
+                                                WidthRequest="34"
+                                                HeightRequest="34"
+                                                StrokeShape="RoundRectangle 8"
+                                                StrokeThickness="0"
+                                                BackgroundColor="Transparent"
+                                                Padding="0"
+                                                HorizontalOptions="Center"
+                                                VerticalOptions="Center">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding SelectEmojiCategoryCommand}" CommandParameter="1" />
+                                            </Border.GestureRecognizers>
+                                            <Border.Triggers>
+                                                <DataTrigger TargetType="Border" Binding="{Binding IsEmojiCat1Selected}" Value="True">
+                                                    <Setter Property="BackgroundColor" Value="#48484C" />
+                                                </DataTrigger>
+                                            </Border.Triggers>
+                                            <Path WidthRequest="22"
+                                                  HeightRequest="20"
+                                                  Stroke="#7C7C82"
+                                                  StrokeThickness="1.9"
+                                                  StrokeLineCap="Round"
+                                                  StrokeLineJoin="Round"
+                                                  HorizontalOptions="Center"
+                                                  VerticalOptions="Center"
+                                                  Data="M8,9 A3.2,3.2 0 1,0 8,2.6 A3.2,3.2 0 1,0 8,9 Z M2.5,17.5 C2.5,14.2 5,12 8,12 C11,12 13.5,14.2 13.5,17.5 M15,9.5 A2.6,2.6 0 1,0 15,4.3 A2.6,2.6 0 1,0 15,9.5 Z M15,12.2 C17.5,12.2 19.5,14.2 19.5,17.2">
+                                                <Path.Triggers>
+                                                    <DataTrigger TargetType="Path" Binding="{Binding IsEmojiCat1Selected}" Value="True">
+                                                        <Setter Property="Stroke" Value="#FFFFFF" />
+                                                    </DataTrigger>
+                                                </Path.Triggers>
+                                            </Path>
+                                        </Border>
+
+                                        <!-- Category 2: Animals & Nature -->
+                                        <Border Grid.Column="2"
+                                                WidthRequest="34"
+                                                HeightRequest="34"
+                                                StrokeShape="RoundRectangle 8"
+                                                StrokeThickness="0"
+                                                BackgroundColor="Transparent"
+                                                Padding="0"
+                                                HorizontalOptions="Center"
+                                                VerticalOptions="Center">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding SelectEmojiCategoryCommand}" CommandParameter="2" />
+                                            </Border.GestureRecognizers>
+                                            <Border.Triggers>
+                                                <DataTrigger TargetType="Border" Binding="{Binding IsEmojiCat2Selected}" Value="True">
+                                                    <Setter Property="BackgroundColor" Value="#48484C" />
+                                                </DataTrigger>
+                                            </Border.Triggers>
+                                            <Path WidthRequest="22"
+                                                  HeightRequest="22"
+                                                  Stroke="#7C7C82"
+                                                  StrokeThickness="1.9"
+                                                  StrokeLineCap="Round"
+                                                  StrokeLineJoin="Round"
+                                                  HorizontalOptions="Center"
+                                                  VerticalOptions="Center"
+                                                  Data="M7.5,3 C4.7,3 2.5,5.5 2.5,8.5 C2.5,11.5 4.7,14 7.5,14 C10.3,14 12.5,11.5 12.5,8.5 C12.5,5.5 10.3,3 7.5,3 Z M7.5,10 L7.5,19 M15.5,5.5 C13.5,5.5 12,7.3 12,9.5 C12,11.7 13.5,13.5 15.5,13.5 C17.5,13.5 19,11.7 19,9.5 C19,7.3 17.5,5.5 15.5,5.5 Z M15.5,11 L15.5,19">
+                                                <Path.Triggers>
+                                                    <DataTrigger TargetType="Path" Binding="{Binding IsEmojiCat2Selected}" Value="True">
+                                                        <Setter Property="Stroke" Value="#FFFFFF" />
+                                                    </DataTrigger>
+                                                </Path.Triggers>
+                                            </Path>
+                                        </Border>
+
+                                        <!-- Category 3: Food & Drink -->
+                                        <Border Grid.Column="3"
+                                                WidthRequest="34"
+                                                HeightRequest="34"
+                                                StrokeShape="RoundRectangle 8"
+                                                StrokeThickness="0"
+                                                BackgroundColor="Transparent"
+                                                Padding="0"
+                                                HorizontalOptions="Center"
+                                                VerticalOptions="Center">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding SelectEmojiCategoryCommand}" CommandParameter="3" />
+                                            </Border.GestureRecognizers>
+                                            <Border.Triggers>
+                                                <DataTrigger TargetType="Border" Binding="{Binding IsEmojiCat3Selected}" Value="True">
+                                                    <Setter Property="BackgroundColor" Value="#48484C" />
+                                                </DataTrigger>
+                                            </Border.Triggers>
+                                            <Path WidthRequest="22"
+                                                  HeightRequest="22"
+                                                  Stroke="#7C7C82"
+                                                  StrokeThickness="1.9"
+                                                  StrokeLineCap="Round"
+                                                  StrokeLineJoin="Round"
+                                                  HorizontalOptions="Center"
+                                                  VerticalOptions="Center"
+                                                  Data="M11,2.5 C15,2.5 18.5,4.2 20,7 L11,19.5 L2,7 C3.5,4.2 7,2.5 11,2.5 Z M3.5,9 C6,7 8.5,6 11,6 C13.5,6 16,7 18.5,9 M9.5,10.5 L9.6,10.5 M12.8,11.5 L12.9,11.5 M10.8,14.5 L10.9,14.5">
+                                                <Path.Triggers>
+                                                    <DataTrigger TargetType="Path" Binding="{Binding IsEmojiCat3Selected}" Value="True">
+                                                        <Setter Property="Stroke" Value="#FFFFFF" />
+                                                    </DataTrigger>
+                                                </Path.Triggers>
+                                            </Path>
+                                        </Border>
+
+                                        <!-- Category 4: Travel & Places -->
+                                        <Border Grid.Column="4"
+                                                WidthRequest="34"
+                                                HeightRequest="34"
+                                                StrokeShape="RoundRectangle 8"
+                                                StrokeThickness="0"
+                                                BackgroundColor="Transparent"
+                                                Padding="0"
+                                                HorizontalOptions="Center"
+                                                VerticalOptions="Center">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding SelectEmojiCategoryCommand}" CommandParameter="4" />
+                                            </Border.GestureRecognizers>
+                                            <Border.Triggers>
+                                                <DataTrigger TargetType="Border" Binding="{Binding IsEmojiCat4Selected}" Value="True">
+                                                    <Setter Property="BackgroundColor" Value="#48484C" />
+                                                </DataTrigger>
+                                            </Border.Triggers>
+                                            <Path WidthRequest="22"
+                                                  HeightRequest="22"
+                                                  Stroke="#7C7C82"
+                                                  StrokeThickness="1.9"
+                                                  StrokeLineCap="Round"
+                                                  StrokeLineJoin="Round"
+                                                  HorizontalOptions="Center"
+                                                  VerticalOptions="Center"
+                                                  Data="M19.5,2.5 C20.2,3.2 20.2,4.3 19.5,5 L15,9.5 L18,18.5 L16,20.5 L11.5,13 L7.5,17 L8,20 L6.5,21.5 L4.5,17.5 L0.5,15.5 L2,14 L5,14.5 L9,10.5 L1.5,6 L3.5,4 L12.5,7 L17,2.5 C17.7,1.8 18.8,1.8 19.5,2.5 Z">
+                                                <Path.Triggers>
+                                                    <DataTrigger TargetType="Path" Binding="{Binding IsEmojiCat4Selected}" Value="True">
+                                                        <Setter Property="Stroke" Value="#FFFFFF" />
+                                                    </DataTrigger>
+                                                </Path.Triggers>
+                                            </Path>
+                                        </Border>
+
+                                        <!-- Category 5: Activities -->
+                                        <Border Grid.Column="5"
+                                                WidthRequest="34"
+                                                HeightRequest="34"
+                                                StrokeShape="RoundRectangle 8"
+                                                StrokeThickness="0"
+                                                BackgroundColor="Transparent"
+                                                Padding="0"
+                                                HorizontalOptions="Center"
+                                                VerticalOptions="Center">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding SelectEmojiCategoryCommand}" CommandParameter="5" />
+                                            </Border.GestureRecognizers>
+                                            <Border.Triggers>
+                                                <DataTrigger TargetType="Border" Binding="{Binding IsEmojiCat5Selected}" Value="True">
+                                                    <Setter Property="BackgroundColor" Value="#48484C" />
+                                                </DataTrigger>
+                                            </Border.Triggers>
+                                            <Path WidthRequest="22"
+                                                  HeightRequest="22"
+                                                  Stroke="#7C7C82"
+                                                  StrokeThickness="1.9"
+                                                  StrokeLineCap="Round"
+                                                  StrokeLineJoin="Round"
+                                                  HorizontalOptions="Center"
+                                                  VerticalOptions="Center"
+                                                  Data="M18.5,3.5 C13,2 6.5,4.5 3.8,9.8 C2,13.2 2,16.5 3.5,18.5 C5.5,20 8.8,20 12.2,18.2 C17.5,15.5 20,9 18.5,3.5 Z M8.5,13.5 L13.5,8.5 M9.2,10.2 L11.8,12.8 M10.8,8.6 L13.4,11.2">
+                                                <Path.Triggers>
+                                                    <DataTrigger TargetType="Path" Binding="{Binding IsEmojiCat5Selected}" Value="True">
+                                                        <Setter Property="Stroke" Value="#FFFFFF" />
+                                                    </DataTrigger>
+                                                </Path.Triggers>
+                                            </Path>
+                                        </Border>
+
+                                        <!-- Category 6: Objects -->
+                                        <Border Grid.Column="6"
+                                                WidthRequest="34"
+                                                HeightRequest="34"
+                                                StrokeShape="RoundRectangle 8"
+                                                StrokeThickness="0"
+                                                BackgroundColor="Transparent"
+                                                Padding="0"
+                                                HorizontalOptions="Center"
+                                                VerticalOptions="Center">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding SelectEmojiCategoryCommand}" CommandParameter="6" />
+                                            </Border.GestureRecognizers>
+                                            <Border.Triggers>
+                                                <DataTrigger TargetType="Border" Binding="{Binding IsEmojiCat6Selected}" Value="True">
+                                                    <Setter Property="BackgroundColor" Value="#48484C" />
+                                                </DataTrigger>
+                                            </Border.Triggers>
+                                            <Path WidthRequest="22"
+                                                  HeightRequest="22"
+                                                  Stroke="#7C7C82"
+                                                  StrokeThickness="1.9"
+                                                  StrokeLineCap="Round"
+                                                  StrokeLineJoin="Round"
+                                                  HorizontalOptions="Center"
+                                                  VerticalOptions="Center"
+                                                  Data="M11,2.5 C7.4,2.5 4.5,5.4 4.5,9 C4.5,11.4 5.8,13.5 7.8,14.6 L8.2,16.8 L13.8,16.8 L14.2,14.6 C16.2,13.5 17.5,11.4 17.5,9 C17.5,5.4 14.6,2.5 11,2.5 Z M8.8,19.5 L13.2,19.5">
+                                                <Path.Triggers>
+                                                    <DataTrigger TargetType="Path" Binding="{Binding IsEmojiCat6Selected}" Value="True">
+                                                        <Setter Property="Stroke" Value="#FFFFFF" />
+                                                    </DataTrigger>
+                                                </Path.Triggers>
+                                            </Path>
+                                        </Border>
+
+                                        <!-- Category 7: Symbols -->
+                                        <Border Grid.Column="7"
+                                                WidthRequest="34"
+                                                HeightRequest="34"
+                                                StrokeShape="RoundRectangle 8"
+                                                StrokeThickness="0"
+                                                BackgroundColor="Transparent"
+                                                Padding="0"
+                                                HorizontalOptions="Center"
+                                                VerticalOptions="Center">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding SelectEmojiCategoryCommand}" CommandParameter="7" />
+                                            </Border.GestureRecognizers>
+                                            <Border.Triggers>
+                                                <DataTrigger TargetType="Border" Binding="{Binding IsEmojiCat7Selected}" Value="True">
+                                                    <Setter Property="BackgroundColor" Value="#48484C" />
+                                                </DataTrigger>
+                                            </Border.Triggers>
+                                            <Path WidthRequest="22"
+                                                  HeightRequest="22"
+                                                  Stroke="#7C7C82"
+                                                  StrokeThickness="2"
+                                                  StrokeLineCap="Round"
+                                                  StrokeLineJoin="Round"
+                                                  HorizontalOptions="Center"
+                                                  VerticalOptions="Center"
+                                                  Data="M11,2.5 A8.5,8.5 0 1,0 11,19.5 A8.5,8.5 0 1,0 11,2.5 Z M5.2,5.2 L16.8,16.8">
+                                                <Path.Triggers>
+                                                    <DataTrigger TargetType="Path" Binding="{Binding IsEmojiCat7Selected}" Value="True">
+                                                        <Setter Property="Stroke" Value="#FFFFFF" />
+                                                    </DataTrigger>
+                                                </Path.Triggers>
+                                            </Path>
+                                        </Border>
+
+                                        <!-- Category 8: Flags -->
+                                        <Border Grid.Column="8"
+                                                WidthRequest="34"
+                                                HeightRequest="34"
+                                                StrokeShape="RoundRectangle 8"
+                                                StrokeThickness="0"
+                                                BackgroundColor="Transparent"
+                                                Padding="0"
+                                                HorizontalOptions="Center"
+                                                VerticalOptions="Center">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding SelectEmojiCategoryCommand}" CommandParameter="8" />
+                                            </Border.GestureRecognizers>
+                                            <Border.Triggers>
+                                                <DataTrigger TargetType="Border" Binding="{Binding IsEmojiCat8Selected}" Value="True">
+                                                    <Setter Property="BackgroundColor" Value="#48484C" />
+                                                </DataTrigger>
+                                            </Border.Triggers>
+                                            <Path WidthRequest="22"
+                                                  HeightRequest="22"
+                                                  Stroke="#7C7C82"
+                                                  StrokeThickness="1.9"
+                                                  StrokeLineCap="Round"
+                                                  StrokeLineJoin="Round"
+                                                  HorizontalOptions="Center"
+                                                  VerticalOptions="Center"
+                                                  Data="M5,3 L5,19.5 M5,4 C7.5,2.8 10,5.2 12.5,4 C15,2.8 16.5,3.5 18,4 L18,12.5 C16.5,12 15,11.3 12.5,12.5 C10,13.7 7.5,11.3 5,12.5">
+                                                <Path.Triggers>
+                                                    <DataTrigger TargetType="Path" Binding="{Binding IsEmojiCat8Selected}" Value="True">
+                                                        <Setter Property="Stroke" Value="#FFFFFF" />
+                                                    </DataTrigger>
+                                                </Path.Triggers>
+                                            </Path>
+                                        </Border>
+
+                                        <!-- Tab 9: Search Focus Button (🔍) -->
+                                        <Border Grid.Column="9"
+                                                WidthRequest="34"
+                                                HeightRequest="34"
+                                                StrokeShape="RoundRectangle 8"
+                                                StrokeThickness="0"
+                                                BackgroundColor="Transparent"
+                                                Padding="0"
+                                                HorizontalOptions="Center"
+                                                VerticalOptions="Center">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding FocusEmojiSearchCommand}" />
+                                            </Border.GestureRecognizers>
+                                            <Path WidthRequest="22"
+                                                  HeightRequest="22"
+                                                  Stroke="#7C7C82"
+                                                  StrokeThickness="2"
+                                                  StrokeLineCap="Round"
+                                                  StrokeLineJoin="Round"
+                                                  HorizontalOptions="Center"
+                                                  VerticalOptions="Center"
+                                                  Data="M9.5,3 A6.5,6.5 0 1,0 9.5,16 A6.5,6.5 0 1,0 9.5,3 Z M14.2,14.2 L19,19" />
+                                        </Border>
+
+                                    </Grid>
+                                </Border>
+                            </Grid>
+
+                        </Grid>
+                    </Border>
                 </Grid>
 
                 <!-- ============================================================== -->
@@ -1754,15 +2661,142 @@
                     </Border>
                 </Grid>
 
+                <!-- ============================================================== -->
+                <!-- FEED REPLY OVERLAY ("Replying to [Name]" + "Reply to..." Pill) -->
+                <!-- ============================================================== -->
+                <Grid x:Name="FeedReplyOverlayGrid"
+                      IsVisible="False"
+                      HorizontalOptions="Fill"
+                      VerticalOptions="Fill">
+                    <!-- Subtle darkened backdrop over the photo card -->
+                    <BoxView x:Name="FeedReplyBackdrop"
+                             BackgroundColor="#78000000"
+                             Color="#78000000"
+                             Opacity="0"
+                             HorizontalOptions="Fill"
+                             VerticalOptions="Fill">
+                        <BoxView.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnFeedReplyBackdropTapped" />
+                        </BoxView.GestureRecognizers>
+                    </BoxView>
+
+                    <!-- Reply header & input pill anchored right above the keyboard -->
+                    <VerticalStackLayout x:Name="FeedReplyContentStack"
+                                         VerticalOptions="End"
+                                         HorizontalOptions="Fill"
+                                         Spacing="16"
+                                         Opacity="0"
+                                         TranslationY="60"
+                                         Margin="0,0,0,14">
+
+                        <!-- "Replying to [Friend]" Header with Avatar -->
+                        <HorizontalStackLayout Spacing="12"
+                                               HorizontalOptions="Center"
+                                               VerticalOptions="Center"
+                                               InputTransparent="True">
+                            <Border WidthRequest="42"
+                                    HeightRequest="42"
+                                    StrokeShape="RoundRectangle 21"
+                                    StrokeThickness="0"
+                                    BackgroundColor="#2C2C2E"
+                                    Padding="0"
+                                    VerticalOptions="Center">
+                                <Grid>
+                                    <Path Fill="#8E8E93"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center"
+                                          Scale="0.95"
+                                          Data="M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z" />
+                                    <Image Source="{Binding ReplyingToFriendAvatarUrl}"
+                                           IsVisible="{Binding ReplyingToFriendAvatarUrl, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}"
+                                           Aspect="AspectFill" />
+                                </Grid>
+                            </Border>
+
+                            <VerticalStackLayout Spacing="0" VerticalOptions="Center">
+                                <Label Text="Replying to"
+                                       TextColor="#9A9AA0"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="14"
+                                       FontAttributes="Bold" />
+                                <Label Text="{Binding ReplyingToFriendName}"
+                                       TextColor="#FFFFFF"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="20"
+                                       FontAttributes="Bold"
+                                       Margin="0,-2,0,0" />
+                            </VerticalStackLayout>
+                        </HorizontalStackLayout>
+
+                        <!-- Wide Reply Input Pill -->
+                        <Border x:Name="FeedReplyPillBorder"
+                                Margin="16,0,16,0"
+                                HeightRequest="56"
+                                StrokeShape="RoundRectangle 28"
+                                StrokeThickness="0"
+                                BackgroundColor="#28282B"
+                                Padding="18,0,12,0"
+                                HorizontalOptions="Fill">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnFeedReplyPillTapped" />
+                            </Border.GestureRecognizers>
+                            <Grid ColumnDefinitions="*, Auto" ColumnSpacing="10">
+                                <controls:IncognitoEntry x:Name="FeedReplyEntry"
+                                                         Grid.Column="0"
+                                                         Text="{Binding FeedReplyText}"
+                                                         Placeholder="{Binding FeedReplyPlaceholder}"
+                                                         PlaceholderColor="#8E8E93"
+                                                         TextColor="#FFFFFF"
+                                                         FontFamily="OpenSansSemibold"
+                                                         FontAttributes="Bold"
+                                                         FontSize="17"
+                                                         BackgroundColor="Transparent"
+                                                         ReturnType="Send"
+                                                         Completed="OnFeedReplyEntryCompleted"
+                                                         VerticalOptions="Center"
+                                                         HorizontalOptions="Fill" />
+
+                                <Border Grid.Column="1"
+                                        WidthRequest="34"
+                                        HeightRequest="34"
+                                        StrokeShape="RoundRectangle 17"
+                                        StrokeThickness="0"
+                                        BackgroundColor="#555558"
+                                        Padding="0"
+                                        VerticalOptions="Center">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SendFeedReplyCommand}" />
+                                    </Border.GestureRecognizers>
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding HasFeedReplyText}" Value="True">
+                                            <Setter Property="BackgroundColor" Value="#FFB800" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                    <Path WidthRequest="16"
+                                          HeightRequest="16"
+                                          Stroke="#28282B"
+                                          StrokeThickness="2.4"
+                                          StrokeLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center"
+                                          Data="M8,13 L8,3.5 M3.5,8 L8,3.5 L12.5,8" />
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                    </VerticalStackLayout>
+                </Grid>
+
             </Grid>
 
             <!-- ================================================================== -->
             <!-- PANEL 2: CHAT LIST PAGE (Reference Image 2)                        -->
             <!-- ================================================================== -->
-            <Grid x:Name="ChatPanel" Grid.Column="2" BackgroundColor="#000000" RowDefinitions="Auto, *, 90">
+            <Grid x:Name="ChatPanel" Grid.Column="2" BackgroundColor="#000000" RowDefinitions="Auto, *, Auto">
 
                 <!-- Row 0: Top Header ("Chat" centered + Top-Right Profile Avatar) -->
-                <Grid Grid.Row="0" ColumnDefinitions="42, *, 42" Margin="16,14,16,12">
+                <Grid Grid.Row="0" ColumnDefinitions="42, *, 42" Margin="{Binding ChatTopHeaderMargin}">
                     <BoxView Grid.Column="0" BackgroundColor="Transparent" Color="Transparent" />
 
                     <Label Grid.Column="1"
@@ -1880,7 +2914,7 @@
                 </CollectionView>
 
                 <!-- Row 2: Bottom Spacer for Shared Persistent Bottom Bar -->
-                <BoxView Grid.Row="2" BackgroundColor="Transparent" Color="Transparent" />
+                <BoxView Grid.Row="2" HeightRequest="{Binding ChatBottomSpacerHeight}" BackgroundColor="Transparent" Color="Transparent" />
 
             </Grid>
 
@@ -1892,10 +2926,10 @@
         <Grid x:Name="SharedBottomBar"
               IsVisible="{Binding IsBottomBarVisible}"
               ColumnDefinitions="56, *, 56"
-              Margin="18,0,18,18"
+              Margin="{Binding SharedBottomBarMargin}"
               VerticalOptions="End">
 
-            <!-- Left: 2x2 Grid Gallery Button (Visible in Feed View - Image 4, Unimplemented feature noted) -->
+            <!-- Left: 2x2 Grid Gallery Button (Visible in Feed View - Image 4) -->
             <Border Grid.Column="0"
                     IsVisible="{Binding ShowFeedSideButtonsInBottomBar}"
                     WidthRequest="48"
@@ -1906,7 +2940,10 @@
                     Padding="0"
                     HorizontalOptions="Start"
                     VerticalOptions="Center">
-                <Grid WidthRequest="20" HeightRequest="20" RowDefinitions="*, *" ColumnDefinitions="*, *" RowSpacing="3" ColumnSpacing="3" HorizontalOptions="Center" VerticalOptions="Center">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding OpenGridGalleryCommand}" />
+                </Border.GestureRecognizers>
+                <Grid WidthRequest="20" HeightRequest="20" RowDefinitions="*, *" ColumnDefinitions="*, *" RowSpacing="3" ColumnSpacing="3" HorizontalOptions="Center" VerticalOptions="Center" InputTransparent="True">
                     <Border Grid.Row="0" Grid.Column="0" Stroke="#FFFFFF" StrokeThickness="2" StrokeShape="RoundRectangle 2.5" BackgroundColor="Transparent" Padding="0" />
                     <Border Grid.Row="0" Grid.Column="1" Stroke="#FFFFFF" StrokeThickness="2" StrokeShape="RoundRectangle 2.5" BackgroundColor="Transparent" Padding="0" />
                     <Border Grid.Row="1" Grid.Column="0" Stroke="#FFFFFF" StrokeThickness="2" StrokeShape="RoundRectangle 2.5" BackgroundColor="Transparent" Padding="0" />

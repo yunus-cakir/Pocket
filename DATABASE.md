@@ -117,28 +117,35 @@ adb -s emulator-5556 shell am start -n com.companyname.pocket.client/crc646dd0ab
 
 ### 3. Hızlı Python Seed Veri Örneği
 
+> **Önemli (`sqlite-net-pcl` Tarih Formatı):** `sqlite-net-pcl` varsayılan olarak `DateTime` alanlarını (`CreatedAt`, `AddedAt`, `LastInteractionAt`, `SentAt`) ISO metni yerine **.NET UTC Ticks** (`INTEGER`) olarak saklar (`621355968000000000 + int(dt.timestamp() * 10_000_000)`).
+
 Bilgisayarınıza çektiğiniz bir `.db3` dosyasına otomatik mock veri enjekte etmek için örnek Python betiği:
 
 ```python
 import sqlite3
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
+
+def utc_ticks(dt=None):
+    dt = dt or datetime.now(timezone.utc)
+    return 621355968000000000 + int(dt.timestamp() * 10_000_000)
 
 con = sqlite3.connect("PocketLocal_5554.db3")
 cur = con.cursor()
 
 # Mock Arkadaş Ekle
 friend_id = str(uuid.uuid4())
+now_ticks = utc_ticks()
 cur.execute("""
-    INSERT OR REPLACE INTO Friend (Id, Username, DisplayName, ProfilePictureUrl, PublicKey, AddedAt, LastInteractionAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-""", (friend_id, "TestArkadas", "Test Arkadaş", "", "", datetime.utcnow().isoformat(), datetime.utcnow().isoformat()))
+    INSERT OR REPLACE INTO Friend (Id, Username, DisplayName, ProfilePictureUrl, PublicKey, IsMuted, AddedAt, LastInteractionAt)
+    VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+""", (friend_id, "testarkadas", "Test Arkadaş", "", "", now_ticks, now_ticks))
 
 # Mock Direkt Mesaj Ekle
 cur.execute("""
     INSERT OR REPLACE INTO DirectMessage (Id, FriendId, IsIncoming, TextContent, ReactionEmoji, SentAt, SyncStatus)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-""", (str(uuid.uuid4()), friend_id, 1, "Merhaba! Bu bir test seed mesajıdır.", None, datetime.utcnow().isoformat(), 2))
+""", (str(uuid.uuid4()), friend_id, 1, "Merhaba! Bu bir test seed mesajıdır.", None, now_ticks, 2))
 
 con.commit()
 con.close()
