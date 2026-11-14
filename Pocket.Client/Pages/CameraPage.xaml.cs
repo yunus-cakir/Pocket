@@ -29,6 +29,14 @@ namespace Pocket.Client.Pages
             SwipeContainer.SwipePanUpdated += OnSwipePanUpdated;
             cameraView.CapabilitiesChanged += OnCameraCapabilitiesChanged;
             cameraView.DeviceOrientationChanged += OnDeviceOrientationChanged;
+            viewModel.ShellModel.OnAccentColorChanged += _ =>
+            {
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    UpdateFlashButtonAppearance();
+                    UpdateOrientationLockButtonAppearance();
+                });
+            };
 
             viewModel.SnapToProfileAction = async () => await SnapToPanel(0);
             viewModel.SnapToCameraAction = async () => await SnapToPanel(1);
@@ -2067,7 +2075,7 @@ namespace Pocket.Client.Pages
         {
             bool on = cameraView.IsFlashEnabled;
             FlashButtonBorder.BackgroundColor = on
-                ? Color.FromArgb("#F5B301")
+                ? AppShellModel.GetAccentColor()
                 : Color.FromArgb("#4D000000");
             FlashButtonIcon.Fill = new SolidColorBrush(on
                 ? Color.FromArgb("#000000")
@@ -2162,7 +2170,7 @@ namespace Pocket.Client.Pages
         {
             bool locked = cameraView.IsOrientationLocked;
             OrientationLockButtonBorder.BackgroundColor = locked
-                ? Color.FromArgb("#F5B301")
+                ? AppShellModel.GetAccentColor()
                 : Color.FromArgb("#4D000000");
             OrientationLockButtonIcon.Fill = new SolidColorBrush(locked
                 ? Color.FromArgb("#000000")
@@ -2258,6 +2266,9 @@ namespace Pocket.Client.Pages
         private global::Android.Views.View? _attachedShutterNativeView;
         private bool _isShutterPressed;
         private bool _isShutterTouchInside;
+        private bool _isShutterCancelled;
+        private float _shutterDownRawX;
+        private float _shutterDownRawY;
 #endif
 
         private void OnShutterButtonHandlerChanged(object? sender, EventArgs e)
@@ -2279,6 +2290,37 @@ namespace Pocket.Client.Pages
         }
 
 #if ANDROID
+        private static readonly int[] _shutterScreenLocation = new int[2];
+
+        private static bool IsTouchInsideShutterCircle(
+            global::Android.Views.View nativeView,
+            global::Android.Views.MotionEvent ev,
+            float downRawX,
+            float downRawY)
+        {
+            float width = nativeView.Width;
+            float height = nativeView.Height;
+            if (width <= 0 || height <= 0)
+                return false;
+
+            nativeView.GetLocationOnScreen(_shutterScreenLocation);
+            float centerX = _shutterScreenLocation[0] + (width * 0.5f);
+            float centerY = _shutterScreenLocation[1] + (height * 0.5f);
+            float radius = Math.Min(width, height) * 0.5f;
+
+            float dxCenter = ev.RawX - centerX;
+            float dyCenter = ev.RawY - centerY;
+            if ((dxCenter * dxCenter) + (dyCenter * dyCenter) > (radius * radius))
+                return false;
+
+            float dxDown = ev.RawX - downRawX;
+            float dyDown = ev.RawY - downRawY;
+            if ((dxDown * dxDown) + (dyDown * dyDown) > (radius * radius))
+                return false;
+
+            return true;
+        }
+
         private void OnShutterNativeTouch(object? sender, global::Android.Views.View.TouchEventArgs e)
         {
             var ev = e.Event;
@@ -2295,8 +2337,17 @@ namespace Pocket.Client.Pages
                         return;
                     }
 
+                    _shutterDownRawX = ev.RawX;
+                    _shutterDownRawY = ev.RawY;
+                    if (!IsTouchInsideShutterCircle(nativeView, ev, _shutterDownRawX, _shutterDownRawY))
+                    {
+                        e.Handled = false;
+                        return;
+                    }
+
                     _isShutterPressed = true;
                     _isShutterTouchInside = true;
+                    _isShutterCancelled = false;
                     _shutterPressDownTick = Environment.TickCount64;
                     nativeView.Parent?.RequestDisallowInterceptTouchEvent(true);
                     SetShutterPressedVisual(true);
@@ -2307,12 +2358,13 @@ namespace Pocket.Client.Pages
                     if (!_isShutterPressed)
                         return;
 
-                    float density = nativeView.Resources?.DisplayMetrics?.Density ?? 2.75f;
-                    float slop = 24f * density;
-                    float x = ev.GetX();
-                    float y = ev.GetY();
-                    bool inside = x >= -slop && x <= nativeView.Width + slop &&
-                                  y >= -slop && y <= nativeView.Height + slop;
+                    bool inside = !_isShutterCancelled &&
+                                  IsTouchInsideShutterCircle(nativeView, ev, _shutterDownRawX, _shutterDownRawY);
+
+                    if (!inside)
+                    {
+                        _isShutterCancelled = true;
+                    }
 
                     if (inside != _isShutterTouchInside)
                     {
@@ -2327,9 +2379,12 @@ namespace Pocket.Client.Pages
                     if (!_isShutterPressed)
                         return;
 
-                    bool shouldTrigger = _isShutterTouchInside;
+                    bool shouldTrigger = _isShutterTouchInside &&
+                                         !_isShutterCancelled &&
+                                         IsTouchInsideShutterCircle(nativeView, ev, _shutterDownRawX, _shutterDownRawY);
                     _isShutterPressed = false;
                     _isShutterTouchInside = false;
+                    _isShutterCancelled = false;
                     nativeView.Parent?.RequestDisallowInterceptTouchEvent(false);
                     e.Handled = true;
 
@@ -2350,6 +2405,7 @@ namespace Pocket.Client.Pages
 
                     _isShutterPressed = false;
                     _isShutterTouchInside = false;
+                    _isShutterCancelled = false;
                     nativeView.Parent?.RequestDisallowInterceptTouchEvent(false);
                     SetShutterPressedVisual(false);
                     e.Handled = true;
@@ -2380,6 +2436,7 @@ namespace Pocket.Client.Pages
 #if ANDROID
             _isShutterPressed = false;
             _isShutterTouchInside = false;
+            _isShutterCancelled = false;
 #endif
             ShutterInnerCircle.AbortAnimation("ScaleTo");
             ShutterInnerCircle.AbortAnimation("FadeTo");

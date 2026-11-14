@@ -71,7 +71,7 @@
                     </Border>
 
                     <Border Grid.Column="1"
-                            BackgroundColor="#FFB800"
+                            BackgroundColor="{DynamicResource AccentColor}"
                             StrokeShape="RoundRectangle 18"
                             StrokeThickness="0"
                             Padding="18,0"
@@ -90,8 +90,8 @@
                     </Border>
                 </Grid>
 
-                <ActivityIndicator IsRunning="{Binding IsSearching}" IsVisible="{Binding IsSearching}" Color="#FFB800" />
-                <Label Text="{Binding SearchMessage}" TextColor="#FFB800" FontFamily="OpenSansSemibold" FontSize="13" IsVisible="{Binding HasSearchMessage}" />
+                <ActivityIndicator IsRunning="{Binding IsSearching}" IsVisible="{Binding IsSearching}" Color="{DynamicResource AccentColor}" />
+                <Label Text="{Binding SearchMessage}" TextColor="{DynamicResource AccentColor}" FontFamily="OpenSansSemibold" FontSize="13" IsVisible="{Binding HasSearchMessage}" />
 
                 <Border IsVisible="{Binding HasSearchResult}"
                         BackgroundColor="#2C2C2E"
@@ -104,7 +104,7 @@
                             <Label Text="Online" TextColor="#10B981" FontFamily="OpenSansSemibold" FontSize="12" />
                         </VerticalStackLayout>
                         <Border Grid.Column="1"
-                                BackgroundColor="#FFB800"
+                                BackgroundColor="{DynamicResource AccentColor}"
                                 StrokeShape="RoundRectangle 16"
                                 StrokeThickness="0"
                                 Padding="16,8"

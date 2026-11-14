@@ -49,7 +49,7 @@
                         <Border WidthRequest="116"
                                 HeightRequest="116"
                                 StrokeShape="RoundRectangle 58"
-                                Stroke="#FFB800"
+                                Stroke="{DynamicResource AccentColor}"
                                 StrokeThickness="4"
                                 BackgroundColor="#000000"
                                 Padding="5"
@@ -95,7 +95,7 @@
 
                         <!-- Edit Photo Button (Active - bound to EditProfilePhotoCommand) -->
                         <Label Text="Edit Photo"
-                               TextColor="#EAB308"
+                               TextColor="{DynamicResource AccentColor}"
                                FontFamily="OpenSansSemibold"
                                FontSize="15"
                                FontAttributes="Bold"
@@ -184,7 +184,7 @@
                                             WidthRequest="46"
                                             HeightRequest="46"
                                             StrokeShape="RoundRectangle 23"
-                                            Stroke="#FFB800"
+                                            Stroke="{DynamicResource AccentColor}"
                                             StrokeThickness="2"
                                             BackgroundColor="#000000"
                                             Padding="2"
@@ -322,7 +322,7 @@
                                     HeightRequest="32"
                                     StrokeShape="RoundRectangle 16"
                                     StrokeThickness="0"
-                                    BackgroundColor="#F5B301"
+                                    BackgroundColor="{DynamicResource AccentColor}"
                                     Padding="3"
                                     VerticalOptions="Center">
                                 <Border.GestureRecognizers>
@@ -456,7 +456,7 @@
                                     HeightRequest="32"
                                     StrokeShape="RoundRectangle 16"
                                     StrokeThickness="0"
-                                    BackgroundColor="#F5B301"
+                                    BackgroundColor="{DynamicResource AccentColor}"
                                     Padding="3"
                                     VerticalOptions="Center">
                                 <Border.GestureRecognizers>
@@ -508,7 +508,7 @@
                                     HeightRequest="32"
                                     StrokeShape="RoundRectangle 16"
                                     StrokeThickness="0"
-                                    BackgroundColor="#F5B301"
+                                    BackgroundColor="{DynamicResource AccentColor}"
                                     Padding="3"
                                     VerticalOptions="Center">
                                 <Border.GestureRecognizers>
@@ -560,7 +560,7 @@
                                     HeightRequest="32"
                                     StrokeShape="RoundRectangle 16"
                                     StrokeThickness="0"
-                                    BackgroundColor="#F5B301"
+                                    BackgroundColor="{DynamicResource AccentColor}"
                                     Padding="3"
                                     VerticalOptions="Center">
                                 <Border.GestureRecognizers>
@@ -612,7 +612,7 @@
                                     HeightRequest="32"
                                     StrokeShape="RoundRectangle 16"
                                     StrokeThickness="0"
-                                    BackgroundColor="#F5B301"
+                                    BackgroundColor="{DynamicResource AccentColor}"
                                     Padding="3"
                                     VerticalOptions="Center">
                                 <Border.GestureRecognizers>
@@ -664,7 +664,7 @@
                                     HeightRequest="32"
                                     StrokeShape="RoundRectangle 16"
                                     StrokeThickness="0"
-                                    BackgroundColor="#F5B301"
+                                    BackgroundColor="{DynamicResource AccentColor}"
                                     Padding="3"
                                     VerticalOptions="Center">
                                 <Border.GestureRecognizers>
@@ -690,6 +690,123 @@
                                     </DataTrigger>
                                 </Border.Triggers>
                             </Border>
+                        </Grid>
+
+                        <!-- Theme Color / Accent Color Selector -->
+                        <Grid ColumnDefinitions="36, *, Auto" Padding="16,12">
+                            <Grid Grid.Column="0" WidthRequest="22" HeightRequest="22" HorizontalOptions="Start" VerticalOptions="Center">
+                                <Path Fill="#9CA3AF"
+                                      HorizontalOptions="Center"
+                                      VerticalOptions="Center"
+                                      Data="M9,0 C4.03,0 0,4.03 0,9 C0,13.97 4.03,18 9,18 C9.83,18 10.5,17.33 10.5,16.5 C10.5,16.11 10.35,15.76 10.11,15.49 C9.88,15.23 9.73,14.88 9.73,14.5 C9.73,13.67 10.4,13 11.23,13 L13,13 C15.76,13 18,10.76 18,8 C18,3.58 13.97,0 9,0 Z M3.5,9 C2.67,9 2,8.33 2,7.5 C2,6.67 2.67,6 3.5,6 C4.33,6 5,6.67 5,7.5 C5,8.33 4.33,9 3.5,9 Z M6.5,5 C5.67,5 5,4.33 5,3.5 C5,2.67 5.67,2 6.5,2 C7.33,2 8,2.67 8,3.5 C8,4.33 7.33,5 6.5,5 Z M11.5,5 C10.67,5 10,4.33 10,3.5 C10,2.67 10.67,2 11.5,2 C12.33,2 13,2.67 13,3.5 C13,4.33 12.33,5 11.5,5 Z M14.5,9 C13.67,9 13,8.33 13,7.5 C13,6.67 13.67,6 14.5,6 C15.33,6 16,6.67 16,7.5 C16,8.33 15.33,9 14.5,9 Z" />
+                            </Grid>
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2" Margin="6,0,10,0">
+                                <Label Text="Theme color"
+                                       TextColor="#FFFFFF"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="16"
+                                       FontAttributes="Bold" />
+                                <Label Text="Accent color for buttons &amp; switches"
+                                       TextColor="#8E8E93"
+                                       FontFamily="OpenSansRegular"
+                                       FontSize="14" />
+                            </VerticalStackLayout>
+                            <HorizontalStackLayout Grid.Column="2" Spacing="8" VerticalOptions="Center">
+                                <!-- Yellow (#FFB800) -->
+                                <Border WidthRequest="28"
+                                        HeightRequest="28"
+                                        StrokeShape="RoundRectangle 14"
+                                        BackgroundColor="#FFB800"
+                                        Stroke="#FFFFFF"
+                                        StrokeThickness="0"
+                                        Padding="0"
+                                        VerticalOptions="Center">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding ShellModel.SelectAccentColorCommand}" CommandParameter="#FFB800" />
+                                    </Border.GestureRecognizers>
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsAccentYellowSelected}" Value="True">
+                                            <Setter Property="StrokeThickness" Value="2.5" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                </Border>
+
+                                <!-- Light Blue (#00B8D4) -->
+                                <Border WidthRequest="28"
+                                        HeightRequest="28"
+                                        StrokeShape="RoundRectangle 14"
+                                        BackgroundColor="#00B8D4"
+                                        Stroke="#FFFFFF"
+                                        StrokeThickness="0"
+                                        Padding="0"
+                                        VerticalOptions="Center">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding ShellModel.SelectAccentColorCommand}" CommandParameter="#00B8D4" />
+                                    </Border.GestureRecognizers>
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsAccentLightBlueSelected}" Value="True">
+                                            <Setter Property="StrokeThickness" Value="2.5" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                </Border>
+
+                                <!-- Dark Blue (#0066D4) -->
+                                <Border WidthRequest="28"
+                                        HeightRequest="28"
+                                        StrokeShape="RoundRectangle 14"
+                                        BackgroundColor="#0066D4"
+                                        Stroke="#FFFFFF"
+                                        StrokeThickness="0"
+                                        Padding="0"
+                                        VerticalOptions="Center">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding ShellModel.SelectAccentColorCommand}" CommandParameter="#0066D4" />
+                                    </Border.GestureRecognizers>
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsAccentDarkBlueSelected}" Value="True">
+                                            <Setter Property="StrokeThickness" Value="2.5" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                </Border>
+
+                                <!-- Green (#00D458) -->
+                                <Border WidthRequest="28"
+                                        HeightRequest="28"
+                                        StrokeShape="RoundRectangle 14"
+                                        BackgroundColor="#00D458"
+                                        Stroke="#FFFFFF"
+                                        StrokeThickness="0"
+                                        Padding="0"
+                                        VerticalOptions="Center">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding ShellModel.SelectAccentColorCommand}" CommandParameter="#00D458" />
+                                    </Border.GestureRecognizers>
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsAccentGreenSelected}" Value="True">
+                                            <Setter Property="StrokeThickness" Value="2.5" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                </Border>
+
+                                <!-- Red (#D43800) -->
+                                <Border WidthRequest="28"
+                                        HeightRequest="28"
+                                        StrokeShape="RoundRectangle 14"
+                                        BackgroundColor="#D43800"
+                                        Stroke="#FFFFFF"
+                                        StrokeThickness="0"
+                                        Padding="0"
+                                        VerticalOptions="Center">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding ShellModel.SelectAccentColorCommand}" CommandParameter="#D43800" />
+                                    </Border.GestureRecognizers>
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsAccentRedSelected}" Value="True">
+                                            <Setter Property="StrokeThickness" Value="2.5" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                </Border>
+                            </HorizontalStackLayout>
                         </Grid>
 
                         <!-- ========================================== -->
@@ -795,7 +912,7 @@
                                     <Border Grid.Column="0" StrokeThickness="0" StrokeShape="RoundRectangle 14" BackgroundColor="#2C2C2E" Padding="12,0" HeightRequest="42">
                                         <Entry Text="{Binding ShellModel.ServerIp}" Placeholder="Server IP (e.g. 192.168.1.35)" PlaceholderColor="#8E8E93" TextColor="White" FontSize="13" VerticalOptions="Center" />
                                     </Border>
-                                    <Border Grid.Column="1" StrokeShape="RoundRectangle 14" StrokeThickness="0" BackgroundColor="#FFB800" Padding="16,0" HeightRequest="42" VerticalOptions="Center">
+                                    <Border Grid.Column="1" StrokeShape="RoundRectangle 14" StrokeThickness="0" BackgroundColor="{DynamicResource AccentColor}" Padding="16,0" HeightRequest="42" VerticalOptions="Center">
                                         <Border.GestureRecognizers>
                                             <TapGestureRecognizer Command="{Binding ShellModel.SaveServerIpCommand}" />
                                         </Border.GestureRecognizers>
@@ -1119,7 +1236,7 @@
                                         <Border WidthRequest="{Binding ShutterOuterRingSize}"
                                                 HeightRequest="{Binding ShutterOuterRingSize}"
                                                 StrokeShape="RoundRectangle 45"
-                                                Stroke="#FFB800"
+                                                Stroke="{DynamicResource AccentColor}"
                                                 StrokeThickness="4.5"
                                                 BackgroundColor="Transparent"
                                                 Padding="0"
@@ -1780,7 +1897,7 @@
                             <Border WidthRequest="46"
                                     HeightRequest="46"
                                     StrokeShape="RoundRectangle 23"
-                                    Stroke="#FFB800"
+                                    Stroke="{DynamicResource AccentColor}"
                                     StrokeThickness="2.5"
                                     BackgroundColor="#000000"
                                     Padding="3"
@@ -1807,7 +1924,7 @@
                                 </Border>
                             </Border>
                             <Label Text="All"
-                                   TextColor="#FFB800"
+                                   TextColor="{DynamicResource AccentColor}"
                                    FontFamily="OpenSansSemibold"
                                    FontSize="13.5"
                                    FontAttributes="Bold"
@@ -1842,7 +1959,7 @@
                                                 HorizontalOptions="Center">
                                             <Border.Triggers>
                                                 <DataTrigger TargetType="Border" Binding="{Binding IsSelectedForSend}" Value="True">
-                                                    <Setter Property="Stroke" Value="#FFB800" />
+                                                    <Setter Property="Stroke" Value="{DynamicResource AccentColor}" />
                                                 </DataTrigger>
                                             </Border.Triggers>
                                             <Border WidthRequest="36"
@@ -1877,7 +1994,7 @@
                                                HorizontalTextAlignment="Center">
                                             <Label.Triggers>
                                                 <DataTrigger TargetType="Label" Binding="{Binding IsSelectedForSend}" Value="True">
-                                                    <Setter Property="TextColor" Value="#FFB800" />
+                                                    <Setter Property="TextColor" Value="{DynamicResource AccentColor}" />
                                                 </DataTrigger>
                                             </Label.Triggers>
                                         </Label>
@@ -1906,7 +2023,7 @@
                             <TapGestureRecognizer Command="{Binding ScrollToHistoryCommand}" />
                         </HorizontalStackLayout.GestureRecognizers>
                         <Border IsVisible="{Binding ShellModel.HasUnseenPhotos}"
-                                BackgroundColor="#FFB800"
+                                BackgroundColor="{DynamicResource AccentColor}"
                                 StrokeShape="RoundRectangle 7"
                                 StrokeThickness="0"
                                 MinimumWidthRequest="25"
@@ -2921,7 +3038,7 @@
                                     </Border.GestureRecognizers>
                                     <Border.Triggers>
                                         <DataTrigger TargetType="Border" Binding="{Binding HasFeedReplyText}" Value="True">
-                                            <Setter Property="BackgroundColor" Value="#FFB800" />
+                                            <Setter Property="BackgroundColor" Value="{DynamicResource AccentColor}" />
                                         </DataTrigger>
                                     </Border.Triggers>
                                     <Path WidthRequest="16"
@@ -3170,7 +3287,7 @@
                             <Border WidthRequest="38"
                                     HeightRequest="38"
                                     StrokeShape="RoundRectangle 19"
-                                    Stroke="#FFB800"
+                                    Stroke="{DynamicResource AccentColor}"
                                     StrokeThickness="3"
                                     BackgroundColor="Transparent"
                                     Padding="0"
@@ -3253,7 +3370,7 @@
                     HeightRequest="56"
                     StrokeShape="RoundRectangle 28"
                     StrokeThickness="0"
-                    BackgroundColor="#FFB800"
+                    BackgroundColor="{DynamicResource AccentColor}"
                     Padding="0"
                     HorizontalOptions="End"
                     VerticalOptions="Center">

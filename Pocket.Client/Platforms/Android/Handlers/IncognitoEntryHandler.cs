@@ -88,7 +88,8 @@ namespace Pocket.Client.Platforms.Android.Handlers
                 int heightPx = (int)System.Math.Round(22f * density);
                 var cursorDrawable = new global::Android.Graphics.Drawables.GradientDrawable();
                 cursorDrawable.SetShape(global::Android.Graphics.Drawables.ShapeType.Rectangle);
-                cursorDrawable.SetColor(global::Android.Graphics.Color.ParseColor("#FFB800"));
+                cursorDrawable.SetColor(global::Android.Graphics.Color.ParseColor(
+                    Pocket.Client.PageModels.AppShellModel.GetSavedAccentColorHex()));
                 cursorDrawable.SetCornerRadius(1.25f * density);
                 cursorDrawable.SetSize(widthPx, heightPx);
                 platformView.TextCursorDrawable = cursorDrawable;

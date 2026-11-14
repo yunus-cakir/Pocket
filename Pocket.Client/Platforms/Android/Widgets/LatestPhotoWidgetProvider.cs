@@ -332,11 +332,14 @@ namespace Pocket.Client.Platforms.Android.Widgets
 
                 using (var badgePaint = new Paint(PaintFlags.AntiAlias))
                 {
-                    // Outer golden rim
-                    badgePaint.Color = Color.ParseColor("#FFCA28");
+                    var accentColor = Color.ParseColor(
+                        Pocket.Client.PageModels.AppShellModel.GetSavedAccentColorHex());
+
+                    // Outer rim
+                    badgePaint.Color = accentColor;
                     canvas.DrawRoundRect(outerBadgeRect, outerCorner, outerCorner, badgePaint);
 
-                    // Inner warm amber fill
+                    // Inner fill
                     float rimInset = badgeHeight * 0.055f;
                     var innerBadgeRect = new RectF(
                         badgeLeft + rimInset,
@@ -344,7 +347,7 @@ namespace Pocket.Client.Platforms.Android.Widgets
                         badgeRight - rimInset,
                         badgeBottom - rimInset);
                     float innerCorner = (badgeHeight - (2f * rimInset)) / 2f;
-                    badgePaint.Color = Color.ParseColor("#FFB300");
+                    badgePaint.Color = accentColor;
                     canvas.DrawRoundRect(innerBadgeRect, innerCorner, innerCorner, badgePaint);
                 }
 

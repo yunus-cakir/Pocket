@@ -9,6 +9,7 @@ namespace Pocket.Client
         public App(AppShell appShell)
         {
             InitializeComponent();
+            AppShellModel.ApplyAccentColorResources(AppShellModel.GetSavedAccentColorHex());
             _appShell = appShell;
         }
 

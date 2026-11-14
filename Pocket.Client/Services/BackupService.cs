@@ -1286,7 +1286,8 @@ namespace Pocket.Client.Services
                 [CameraView.ZoomSliderPreferenceKey] = Preferences.Default.Get(CameraView.ZoomSliderPreferenceKey, CameraView.ZoomSliderDefault).ToString(),
                 [CameraView.ExposureSliderPreferenceKey] = Preferences.Default.Get(CameraView.ExposureSliderPreferenceKey, CameraView.ExposureSliderDefault).ToString(),
                 [CameraView.KeepZoomPreferenceKey] = Preferences.Default.Get(CameraView.KeepZoomPreferenceKey, CameraView.KeepZoomDefault).ToString(),
-                [CameraView.KeepExposurePreferenceKey] = Preferences.Default.Get(CameraView.KeepExposurePreferenceKey, CameraView.KeepExposureDefault).ToString()
+                [CameraView.KeepExposurePreferenceKey] = Preferences.Default.Get(CameraView.KeepExposurePreferenceKey, CameraView.KeepExposureDefault).ToString(),
+                [Pocket.Client.PageModels.AppShellModel.AccentColorPreferenceKey] = Pocket.Client.PageModels.AppShellModel.GetSavedAccentColorHex()
             };
         }
 
@@ -1300,6 +1301,14 @@ namespace Pocket.Client.Services
             if (prefs.TryGetValue("RecentEmojis", out var recentEmojis) && !string.IsNullOrWhiteSpace(recentEmojis))
             {
                 Preferences.Default.Set("RecentEmojis", recentEmojis);
+            }
+
+            if (prefs.TryGetValue(Pocket.Client.PageModels.AppShellModel.AccentColorPreferenceKey, out var accentHex) &&
+                !string.IsNullOrWhiteSpace(accentHex))
+            {
+                var normalized = Pocket.Client.PageModels.AppShellModel.NormalizeAccentColorHex(accentHex);
+                Preferences.Default.Set(Pocket.Client.PageModels.AppShellModel.AccentColorPreferenceKey, normalized);
+                Pocket.Client.PageModels.AppShellModel.ApplyAccentColorResources(normalized);
             }
 
             SetBoolPrefIfPresent(prefs, CameraView.CaptureFromPreviewPreferenceKey);

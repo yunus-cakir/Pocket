@@ -66,6 +66,87 @@ namespace Pocket.Client.PageModels
             Pocket.Client.Controls.CameraView.KeepExposurePreferenceKey,
             Pocket.Client.Controls.CameraView.KeepExposureDefault);
 
+        public const string AccentColorPreferenceKey = "AccentColorHex";
+        public const string AccentYellowHex = "#FFB800";
+        public const string AccentLightBlueHex = "#00B8D4";
+        public const string AccentDarkBlueHex = "#0066D4";
+        public const string AccentGreenHex = "#00D458";
+        public const string AccentRedHex = "#D43800";
+
+        public static string GetSavedAccentColorHex()
+        {
+            var raw = Microsoft.Maui.Storage.Preferences.Default.Get(AccentColorPreferenceKey, AccentYellowHex);
+            return NormalizeAccentColorHex(raw);
+        }
+
+        public static string NormalizeAccentColorHex(string? hex)
+        {
+            if (string.IsNullOrWhiteSpace(hex))
+                return AccentYellowHex;
+
+            string clean = hex.Trim().ToUpperInvariant();
+            if (!clean.StartsWith("#", StringComparison.Ordinal))
+                clean = "#" + clean;
+
+            return clean switch
+            {
+                AccentYellowHex => AccentYellowHex,
+                AccentLightBlueHex => AccentLightBlueHex,
+                AccentDarkBlueHex => AccentDarkBlueHex,
+                AccentGreenHex => AccentGreenHex,
+                AccentRedHex => AccentRedHex,
+                _ => AccentYellowHex
+            };
+        }
+
+        public static Microsoft.Maui.Graphics.Color GetAccentColor() =>
+            Microsoft.Maui.Graphics.Color.FromArgb(GetSavedAccentColorHex());
+
+        public static void ApplyAccentColorResources(string hex)
+        {
+            string normalized = NormalizeAccentColorHex(hex);
+            var color = Microsoft.Maui.Graphics.Color.FromArgb(normalized);
+            var resources = Application.Current?.Resources;
+            if (resources != null)
+            {
+                resources["AccentColor"] = color;
+                resources["AccentBrush"] = new SolidColorBrush(color);
+                resources["Primary"] = color;
+                resources["PrimaryDark"] = color;
+                resources["LocketGold"] = color;
+                resources["PrimaryBrush"] = new SolidColorBrush(color);
+            }
+        }
+
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(AccentColorValue))]
+        [NotifyPropertyChangedFor(nameof(IsAccentYellowSelected))]
+        [NotifyPropertyChangedFor(nameof(IsAccentLightBlueSelected))]
+        [NotifyPropertyChangedFor(nameof(IsAccentDarkBlueSelected))]
+        [NotifyPropertyChangedFor(nameof(IsAccentGreenSelected))]
+        [NotifyPropertyChangedFor(nameof(IsAccentRedSelected))]
+        private string _accentColorHex = GetSavedAccentColorHex();
+
+        public Microsoft.Maui.Graphics.Color AccentColorValue =>
+            Microsoft.Maui.Graphics.Color.FromArgb(NormalizeAccentColorHex(AccentColorHex));
+
+        public bool IsAccentYellowSelected =>
+            string.Equals(AccentColorHex, AccentYellowHex, StringComparison.OrdinalIgnoreCase);
+
+        public bool IsAccentLightBlueSelected =>
+            string.Equals(AccentColorHex, AccentLightBlueHex, StringComparison.OrdinalIgnoreCase);
+
+        public bool IsAccentDarkBlueSelected =>
+            string.Equals(AccentColorHex, AccentDarkBlueHex, StringComparison.OrdinalIgnoreCase);
+
+        public bool IsAccentGreenSelected =>
+            string.Equals(AccentColorHex, AccentGreenHex, StringComparison.OrdinalIgnoreCase);
+
+        public bool IsAccentRedSelected =>
+            string.Equals(AccentColorHex, AccentRedHex, StringComparison.OrdinalIgnoreCase);
+
+        public event Action<string>? OnAccentColorChanged;
+
         [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasUnseenPhotos))]
         private int _unseenPhotoCount;
 
@@ -106,7 +187,30 @@ namespace Pocket.Client.PageModels
             Friends.CollectionChanged += (_, _) => OnPropertyChanged(nameof(FriendsCountText));
             OnDirectMessageReceived += UpdateFriendLastMessage;
 
+            ApplyAccentColorResources(AccentColorHex);
+
             _ = LoadUserAsync();
+        }
+
+        [RelayCommand]
+        private void SelectAccentColor(string? hex)
+        {
+            AccentColorHex = NormalizeAccentColorHex(hex);
+        }
+
+        partial void OnAccentColorHexChanged(string value)
+        {
+            string normalized = NormalizeAccentColorHex(value);
+            if (!string.Equals(value, normalized, StringComparison.Ordinal))
+            {
+                AccentColorHex = normalized;
+                return;
+            }
+
+            Microsoft.Maui.Storage.Preferences.Default.Set(AccentColorPreferenceKey, normalized);
+            ApplyAccentColorResources(normalized);
+            OnAccentColorChanged?.Invoke(normalized);
+            _ = UpdateLatestPhotoWidgetAsync();
         }
 
         [RelayCommand]
@@ -1583,6 +1687,8 @@ namespace Pocket.Client.PageModels
             IsKeepLastExposure = Microsoft.Maui.Storage.Preferences.Get(
                 Pocket.Client.Controls.CameraView.KeepExposurePreferenceKey,
                 Pocket.Client.Controls.CameraView.KeepExposureDefault);
+            AccentColorHex = GetSavedAccentColorHex();
+            ApplyAccentColorResources(AccentColorHex);
 
             await LoadUserAsync();
 

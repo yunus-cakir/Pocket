@@ -289,7 +289,7 @@
                     <Image Source="{Binding ReplyingToPost.MediaLocalPath}" Aspect="AspectFill" />
                 </Border>
                 <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
-                    <Label Text="Replying to photo" TextColor="#FFB800" FontFamily="OpenSansSemibold" FontSize="12" FontAttributes="Bold" />
+                    <Label Text="Replying to photo" TextColor="{DynamicResource AccentColor}" FontFamily="OpenSansSemibold" FontSize="12" FontAttributes="Bold" />
                     <Label Text="{Binding ReplyingToPost.Caption}" TextColor="#8E8E93" FontSize="12" LineBreakMode="TailTruncation" />
                 </VerticalStackLayout>
                 <Border Grid.Column="2"
@@ -392,7 +392,7 @@
                         HeightRequest="34"
                         StrokeShape="RoundRectangle 17"
                         StrokeThickness="0"
-                        BackgroundColor="#FFB800"
+                        BackgroundColor="{DynamicResource AccentColor}"
                         Padding="0"
                         VerticalOptions="Center">
                     <Border.GestureRecognizers>
