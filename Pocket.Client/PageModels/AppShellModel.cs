@@ -227,6 +227,22 @@ namespace Pocket.Client.PageModels
         }
 
         [RelayCommand]
+        private async Task AddWidgetAsync()
+        {
+            bool requested = false;
+#if ANDROID
+            requested = Pocket.Client.Platforms.Android.Widgets.LatestPhotoWidgetProvider.RequestPin();
+#endif
+            if (!requested && Microsoft.Maui.Controls.Shell.Current != null)
+            {
+                await Microsoft.Maui.Controls.Shell.Current.DisplayAlert(
+                    "Widget Eklenemedi",
+                    "Ana ekranınız otomatik widget eklemeyi desteklemiyor. Ana ekranda boş bir alana basılı tutup \"Widget'lar\" menüsünden Pocket'ı seçerek ekleyebilirsiniz.",
+                    "Tamam");
+            }
+        }
+
+        [RelayCommand]
         private void ToggleStreakOnWidget()
         {
             IsStreakOnWidget = !IsStreakOnWidget;

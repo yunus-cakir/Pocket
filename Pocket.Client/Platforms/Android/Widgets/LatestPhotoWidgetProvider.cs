@@ -117,6 +117,32 @@ namespace Pocket.Client.Platforms.Android.Widgets
             return prefs?.GetString(KeyPostId, null);
         }
 
+        /// <summary>
+        /// Asks the launcher to pin this widget to the home screen (system "Add to home screen?" dialog).
+        /// Returns false when the device/launcher does not support pinning (API &lt; 26 or unsupported launcher).
+        /// </summary>
+        public static bool RequestPin()
+        {
+            try
+            {
+                var context = global::Android.App.Application.Context;
+                if (context == null || !OperatingSystem.IsAndroidVersionAtLeast(26))
+                    return false;
+
+                var manager = AppWidgetManager.GetInstance(context);
+                if (manager == null || !manager.IsRequestPinAppWidgetSupported)
+                    return false;
+
+                var component = new ComponentName(context, Java.Lang.Class.FromType(typeof(LatestPhotoWidgetProvider)));
+                return manager.RequestPinAppWidget(component, null, null);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Widget] Pin request failed: {ex.Message}");
+                return false;
+            }
+        }
+
         public static void RefreshAll(Context context)
         {
             try
