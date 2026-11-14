@@ -15,6 +15,7 @@ namespace Pocket.Client.Models
         private string _friendName = string.Empty;
         private string _friendAvatarUrl = string.Empty;
         private string _emojisText = string.Empty;
+        private string _latestEmoji = string.Empty;
 
         public List<string> Emojis { get; } = new();
 
@@ -42,6 +43,12 @@ namespace Pocket.Client.Models
             set => SetProperty(ref _emojisText, value);
         }
 
+        public string LatestEmoji
+        {
+            get => _latestEmoji;
+            set => SetProperty(ref _latestEmoji, value);
+        }
+
         public void AddEmoji(string emoji)
         {
             if (string.IsNullOrWhiteSpace(emoji))
@@ -53,6 +60,7 @@ namespace Pocket.Client.Models
                 Emojis.RemoveAt(Emojis.Count - 1);
             }
             EmojisText = string.Join("  ", Emojis);
+            LatestEmoji = emoji;
         }
     }
 
@@ -63,7 +71,7 @@ namespace Pocket.Client.Models
         private double _viewportHeight = 820;
         private double _cardSize = 399;
         private double _gridItemSize = 130;
-        private double _topHeaderHeight = 72;
+        private double _topHeaderHeight = 140;
         private double _feedBottomSpacerHeight = 136;
 
         [Ignore]
@@ -137,6 +145,22 @@ namespace Pocket.Client.Models
         public ObservableCollection<PostActivityItem> ActivityItems { get; } = new();
 
         [Ignore]
+        public List<(Guid DmId, string Emoji)> PendingReactionAnimations { get; } = new();
+
+        [Ignore]
+        public HashSet<Guid> ShownReactionDmIds { get; } = new();
+
+        public void EnqueuePendingReaction(Guid dmId, string emoji)
+        {
+            if (string.IsNullOrWhiteSpace(emoji) || ShownReactionDmIds.Contains(dmId))
+                return;
+            if (PendingReactionAnimations.All(x => x.DmId != dmId))
+            {
+                PendingReactionAnimations.Add((dmId, emoji));
+            }
+        }
+
+        [Ignore]
         public bool HasActivity => ActivityItems.Count > 0;
 
         [Ignore]
@@ -147,6 +171,33 @@ namespace Pocket.Client.Models
 
         [Ignore]
         public string LatestActivityAvatarUrl => ActivityItems.FirstOrDefault()?.FriendAvatarUrl ?? string.Empty;
+
+        [Ignore]
+        public string ActivityPillText
+        {
+            get
+            {
+                var latest = ActivityItems.FirstOrDefault();
+                if (latest == null)
+                    return string.Empty;
+
+                var firstName = GetFirstWord(latest.FriendName);
+                if (string.IsNullOrWhiteSpace(firstName))
+                    firstName = "Friend";
+
+                return string.IsNullOrWhiteSpace(latest.LatestEmoji)
+                    ? $"{firstName} sent"
+                    : $"{firstName} sent {latest.LatestEmoji}";
+            }
+        }
+
+        private static string GetFirstWord(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return string.Empty;
+            var parts = text.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length > 0 ? parts[0] : text.Trim();
+        }
 
         public void AddOrUpdateReaction(string friendId, string friendName, string friendAvatarUrl, string emoji)
         {
@@ -172,6 +223,11 @@ namespace Pocket.Client.Models
                 if (!string.IsNullOrWhiteSpace(friendAvatarUrl))
                     existing.FriendAvatarUrl = friendAvatarUrl;
                 existing.AddEmoji(emoji);
+                int idx = ActivityItems.IndexOf(existing);
+                if (idx > 0)
+                {
+                    ActivityItems.Move(idx, 0);
+                }
             }
 
             NotifyActivityChanged();
@@ -183,6 +239,7 @@ namespace Pocket.Client.Models
             OnPropertyChanged(nameof(HasNoActivity));
             OnPropertyChanged(nameof(ShowActivityPill));
             OnPropertyChanged(nameof(LatestActivityAvatarUrl));
+            OnPropertyChanged(nameof(ActivityPillText));
         }
 
         public string MediaLocalPath { get; set; } = string.Empty;
@@ -192,6 +249,8 @@ namespace Pocket.Client.Models
         public string? Caption { get; set; }
 
         public bool IsIncludedInRollcall { get; set; }
+
+        public bool IsUnseen { get; set; }
 
         [Indexed]
         public DateTime SentAt { get; set; } = DateTime.UtcNow;

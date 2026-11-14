@@ -35,6 +35,8 @@ namespace Pocket.Client.Models
 
         public string? ReactionEmoji { get; set; }
 
+        public bool IsReactionAnimationShown { get; set; }
+
         [Indexed]
         public DateTime SentAt { get; set; } = DateTime.UtcNow;
 

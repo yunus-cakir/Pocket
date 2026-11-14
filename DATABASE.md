@@ -164,3 +164,26 @@ adb -s emulator-5556 shell run-as com.companyname.pocket.client rm -rf files/Poc
 ```
 Uygulama bir sonraki açılışında temiz bir veritabanı, yeni kullanıcı kimliği ve yeni ECDH anahtarları oluşturur.
 
+---
+
+### 5. Hazır Seed Veritabanı ve Örnek Fotoğrafları Geri Yükleme (`SeedData/`)
+
+Proje kök dizinindeki [`SeedData/`](SeedData/) klasöründe her iki emülatör için önceden eşleştirilmiş E2EE anahtarları, 4 arkadaş profili (`Mert Kaya`, `Selin Demir`, `Zeynep Yılmaz`, `Can Özkan`, `Elif Arslan`), 15 adet yüksek çözünürlüklü örnek fotoğraf, reaksiyonlar ve sohbet mesajları yedeklenmiştir:
+
+* `SeedData/PocketLocal_5554.db3` : `emulator-5554` (`Mert Kaya`) için hazır SQLite veritabanı
+* `SeedData/PocketLocal_5556.db3` : `emulator-5556` (`Selin Demir`) için hazır SQLite veritabanı
+* `SeedData/Media/` : 15 adet (800×800) örnek akış ve galeri fotoğrafı (`sample_01_coffee.jpg` .. `sample_15_tea.jpg`)
+* `SeedData/Profile/` : 7 adet kullanıcı ve arkadaş profil fotoğrafı
+* `SeedData/Restore-SeedData.ps1` : Tek komutla her iki emülatöre veritabanlarını ve fotoğrafları yükleyen PowerShell betiği
+* `SeedData/generate_seed_db.py` : Veritabanlarındaki tarihleri güncel zamana yenileyen veya sıfırdan oluşturan Python betiği
+
+**Tek Komutla Her İki Cihaza Geri Yükleme:**
+```powershell
+# Mevcut yedek veritabanlarını ve fotoğrafları doğrudan yükler:
+powershell -ExecutionPolicy Bypass -File .\SeedData\Restore-SeedData.ps1
+
+# Gönderi ve mesaj tarihlerini bugünün saatine tazeleyerek yükler:
+powershell -ExecutionPolicy Bypass -File .\SeedData\Restore-SeedData.ps1 -RefreshTimestamps
+```
+
+

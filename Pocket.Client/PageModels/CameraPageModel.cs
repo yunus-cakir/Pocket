@@ -88,7 +88,8 @@ namespace Pocket.Client.PageModels
         public bool IsTopOverlayBarVisible => !IsPreviewing && !IsReplyingToFeedPost;
 
         public bool IsSwipeAllowed => !IsPreviewing && !IsReplyingToFeedPost && !IsActivitySheetOpen &&
-                                      !IsFilterMenuOpen && !IsEmojiPickerOpen;
+                                      !IsFilterMenuOpen && !IsEmojiPickerOpen && !IsPostOptionsMenuOpen &&
+                                      !IsDeleteConfirmOpen;
 
         public bool ShowPreviewControls => IsPreviewing && !IsEditingCaption;
         public bool ShowSaveToGalleryButton => ShowPreviewControls && !IsFromGallery;
@@ -124,8 +125,11 @@ namespace Pocket.Client.PageModels
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(IsBottomBarVisible))]
+        [NotifyPropertyChangedFor(nameof(IsProfilePanelActive))]
+        [NotifyPropertyChangedFor(nameof(IsNotProfilePanelActive))]
         [NotifyPropertyChangedFor(nameof(IsCameraPanelActive))]
         [NotifyPropertyChangedFor(nameof(IsChatPanelActive))]
+        [NotifyPropertyChangedFor(nameof(IsNotChatPanelActive))]
         [NotifyPropertyChangedFor(nameof(ShowHomePillInBottomBar))]
         [NotifyPropertyChangedFor(nameof(ShowHomeIconInBottomBar))]
         [NotifyPropertyChangedFor(nameof(ShowMiniShutterInBottomBar))]
@@ -138,12 +142,15 @@ namespace Pocket.Client.PageModels
         private int _activePanelIndex = 1; // 0=Profile, 1=Camera/Feed, 2=Chat
 
         public bool IsBottomBarVisible =>
-            ActivePanelIndex != 0 && !IsPreviewing && !IsReplyingToFeedPost && !IsEmojiPickerOpen;
+            !IsPreviewing && !IsReplyingToFeedPost && !IsEmojiPickerOpen;
 
+        public bool IsProfilePanelActive => ActivePanelIndex == 0;
+        public bool IsNotProfilePanelActive => ActivePanelIndex != 0;
         public bool IsCameraPanelActive => ActivePanelIndex == 1;
         public bool IsChatPanelActive => ActivePanelIndex == 2;
+        public bool IsNotChatPanelActive => ActivePanelIndex != 2;
         public bool ShowHomePillInBottomBar => ActivePanelIndex == 1 && !IsViewingFeed && !IsGridGalleryOpen;
-        public bool ShowHomeIconInBottomBar => ActivePanelIndex == 2;
+        public bool ShowHomeIconInBottomBar => ActivePanelIndex == 0 || ActivePanelIndex == 2;
         public bool ShowMiniShutterInBottomBar => ActivePanelIndex == 1 && (IsViewingFeed || IsGridGalleryOpen);
         public bool ShowFeedSideButtonsInBottomBar => ActivePanelIndex == 1 && IsViewingFeed && !IsGridGalleryOpen;
 
@@ -157,13 +164,25 @@ namespace Pocket.Client.PageModels
         public bool ShowFeedActivityPill => ShowFeedOverlayBar && CurrentFeedPost!.ShowActivityPill;
         public bool ShowFeedReplyBar => ShowFeedOverlayBar && CurrentFeedPost!.IsIncoming;
 
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsReactionSentPillVisible))]
+        [NotifyPropertyChangedFor(nameof(IsDefaultActivityPillVisible))]
+        private bool _isReactionAnimationPlaying;
+
+        public bool IsReactionSentPillVisible =>
+            IsReactionAnimationPlaying || (CurrentFeedPost != null && CurrentFeedPost.PendingReactionAnimations.Count > 0);
+
+        public bool IsDefaultActivityPillVisible => !IsReactionSentPillVisible;
+
         [ObservableProperty] private double _viewportHeight = 840;
 
         [ObservableProperty] private double _cardSize = 399;
 
         [ObservableProperty] private double _gridItemSize = 130;
 
-        [ObservableProperty] private double _topHeaderHeight = 72;
+        [ObservableProperty] private double _topHeaderHeight = 140;
+
+        [ObservableProperty] private double _galleryTopSpacerHeight = 72;
 
         [ObservableProperty] private double _cameraBottomSpacerHeight = 118;
 
@@ -185,6 +204,8 @@ namespace Pocket.Client.PageModels
 
         [ObservableProperty] private Thickness _filterMenuMargin = new(0, 72, 0, 0);
 
+        [ObservableProperty] private Thickness _postOptionsMenuMargin = new(18, 0, 18, 78);
+
         [ObservableProperty] private Thickness _sharedBottomBarMargin = new(18, 0, 18, 18);
 
         [ObservableProperty] private Thickness _historyOverlayMargin = new(18, 0, 18, 90);
@@ -196,7 +217,17 @@ namespace Pocket.Client.PageModels
         [NotifyPropertyChangedFor(nameof(ShowFeedNoActivityPill))]
         [NotifyPropertyChangedFor(nameof(ShowFeedActivityPill))]
         [NotifyPropertyChangedFor(nameof(ShowFeedReplyBar))]
+        [NotifyPropertyChangedFor(nameof(IsReactionSentPillVisible))]
+        [NotifyPropertyChangedFor(nameof(IsDefaultActivityPillVisible))]
+        [NotifyPropertyChangedFor(nameof(DeleteConfirmDescription))]
         private MediaPost? _currentFeedPost;
+
+        [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsSwipeAllowed))]
+        private bool _isDeleteConfirmOpen;
+
+        public string DeleteConfirmDescription => CurrentFeedPost != null && CurrentFeedPost.IsIncoming
+            ? "This will permanently delete this photo from your device only. Your friend will still be able to see it."
+            : "This will permanently delete your photo from your history and your friends will no longer be able to see the photo.";
 
         [ObservableProperty] private string _firstRecentEmoji = "💗";
 
@@ -206,6 +237,9 @@ namespace Pocket.Client.PageModels
 
         [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsSwipeAllowed))]
         private bool _isActivitySheetOpen;
+
+        [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsSwipeAllowed))]
+        private bool _isPostOptionsMenuOpen;
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(IsBottomBarVisible))]
@@ -283,6 +317,16 @@ namespace Pocket.Client.PageModels
         public Action? CloseFeedReplyAction;
         public Action? OpenFilterMenuAction;
         public Action? CloseFilterMenuAction;
+        public Action? OpenPostOptionsMenuAction;
+        public Action? ClosePostOptionsMenuAction;
+        public Action? OpenDeleteConfirmAction;
+        public Action? CloseDeleteConfirmAction;
+        public Action? ShowSavedToastAction;
+        public Action<Guid, System.Collections.Generic.IReadOnlyList<string>>? PlayReactionEmojiRainAction;
+        public Action? StopReactionEmojiRainAction;
+
+        private readonly System.Collections.Generic.HashSet<Guid> _shownReactionDmIds = new();
+        private System.Threading.CancellationTokenSource? _reactionCheckCts;
 
         partial void OnEmojiSearchTextChanged(string value)
         {
@@ -317,6 +361,11 @@ namespace Pocket.Client.PageModels
             if (IsFilterMenuOpen)
             {
                 CloseFilterMenu();
+            }
+
+            if (IsPostOptionsMenuOpen)
+            {
+                ClosePostOptionsMenu();
             }
 
             if (IsActivitySheetOpen)
@@ -401,6 +450,11 @@ namespace Pocket.Client.PageModels
                     CloseActivitySheet();
                 }
 
+                if (IsPostOptionsMenuOpen)
+                {
+                    ClosePostOptionsMenu();
+                }
+
                 if (IsEmojiPickerOpen)
                 {
                     CloseEmojiPicker();
@@ -414,6 +468,186 @@ namespace Pocket.Client.PageModels
                 IsFilterMenuOpen = true;
                 OpenFilterMenuAction?.Invoke();
             }
+        }
+
+        [RelayCommand]
+        private void TogglePostOptionsMenu()
+        {
+            if (CurrentFeedPost == null)
+                return;
+
+            if (IsPostOptionsMenuOpen)
+            {
+                ClosePostOptionsMenu();
+            }
+            else
+            {
+                if (IsFilterMenuOpen)
+                {
+                    CloseFilterMenu();
+                }
+
+                if (IsActivitySheetOpen)
+                {
+                    CloseActivitySheet();
+                }
+
+                if (IsEmojiPickerOpen)
+                {
+                    CloseEmojiPicker();
+                }
+
+                if (IsReplyingToFeedPost)
+                {
+                    CloseFeedReply();
+                }
+
+                IsPostOptionsMenuOpen = true;
+                OpenPostOptionsMenuAction?.Invoke();
+            }
+        }
+
+        [RelayCommand]
+        private void ClosePostOptionsMenu()
+        {
+            if (ClosePostOptionsMenuAction != null)
+            {
+                ClosePostOptionsMenuAction.Invoke();
+            }
+            else
+            {
+                IsPostOptionsMenuOpen = false;
+            }
+        }
+
+        [RelayCommand]
+        private async Task DownloadCurrentFeedPostAsync()
+        {
+            var post = CurrentFeedPost;
+            if (post == null || string.IsNullOrWhiteSpace(post.MediaLocalPath) ||
+                !System.IO.File.Exists(post.MediaLocalPath))
+                return;
+
+            ClosePostOptionsMenu();
+
+            bool saved = await SavePhotoToGalleryAsync(post.MediaLocalPath);
+            if (saved)
+            {
+                ShowSavedToastAction?.Invoke();
+            }
+        }
+
+        private static async Task<bool> SavePhotoToGalleryAsync(string filePath)
+        {
+#if ANDROID
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    var context = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity
+                                  ?? global::Android.App.Application.Context;
+                    var resolver = context?.ContentResolver;
+                    if (resolver == null)
+                        return false;
+
+                    string fileName = $"Pocket_{DateTime.Now:yyyyMMdd_HHmmss}_{Guid.NewGuid():N}.jpg";
+                    var values = new global::Android.Content.ContentValues();
+                    values.Put(global::Android.Provider.MediaStore.IMediaColumns.DisplayName, fileName);
+                    values.Put(global::Android.Provider.MediaStore.IMediaColumns.MimeType, "image/jpeg");
+
+                    if (global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.Q)
+                    {
+                        values.Put(
+                            global::Android.Provider.MediaStore.IMediaColumns.RelativePath,
+                            global::Android.OS.Environment.DirectoryPictures + "/Pocket");
+                        values.Put(global::Android.Provider.MediaStore.IMediaColumns.IsPending, 1);
+                    }
+
+                    var collection = global::Android.Provider.MediaStore.Images.Media.ExternalContentUri;
+                    if (collection == null)
+                        return false;
+
+                    var uri = resolver.Insert(collection, values);
+                    if (uri == null)
+                        return false;
+
+                    using (var outStream = resolver.OpenOutputStream(uri))
+                    using (var inStream = System.IO.File.OpenRead(filePath))
+                    {
+                        if (outStream == null)
+                            return false;
+                        inStream.CopyTo(outStream);
+                    }
+
+                    if (global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.Q)
+                    {
+                        var updateValues = new global::Android.Content.ContentValues();
+                        updateValues.Put(global::Android.Provider.MediaStore.IMediaColumns.IsPending, 0);
+                        resolver.Update(uri, updateValues, null, null);
+                    }
+
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[GallerySave] Failed to save photo to gallery: {ex.Message}");
+                    return false;
+                }
+            });
+#else
+            await Task.CompletedTask;
+            return true;
+#endif
+        }
+
+        [RelayCommand]
+        private async Task SaveCapturedPreviewToGalleryAsync()
+        {
+            if (string.IsNullOrWhiteSpace(CapturedImagePath) || !System.IO.File.Exists(CapturedImagePath))
+                return;
+
+            bool saved = await SavePhotoToGalleryAsync(CapturedImagePath);
+            if (saved)
+            {
+                ShowSavedToastAction?.Invoke();
+            }
+        }
+
+        [RelayCommand]
+        private void PromptDeleteCurrentFeedPost()
+        {
+            if (CurrentFeedPost == null)
+                return;
+
+            ClosePostOptionsMenu();
+            OnPropertyChanged(nameof(DeleteConfirmDescription));
+            IsDeleteConfirmOpen = true;
+            OpenDeleteConfirmAction?.Invoke();
+        }
+
+        [RelayCommand]
+        private void CloseDeleteConfirm()
+        {
+            if (CloseDeleteConfirmAction != null)
+            {
+                CloseDeleteConfirmAction.Invoke();
+            }
+            else
+            {
+                IsDeleteConfirmOpen = false;
+            }
+        }
+
+        [RelayCommand]
+        private async Task DeleteCurrentFeedPostAsync()
+        {
+            var post = CurrentFeedPost;
+            if (post == null)
+                return;
+
+            CloseDeleteConfirm();
+            ClosePostOptionsMenu();
+            await ShellModel.DeleteMediaPostAsync(post);
         }
 
         [RelayCommand]
@@ -516,6 +750,11 @@ namespace Pocket.Client.PageModels
         {
             if (CurrentFeedPost != null && CurrentFeedPost.HasActivity)
             {
+                if (IsPostOptionsMenuOpen)
+                {
+                    ClosePostOptionsMenu();
+                }
+
                 IsActivitySheetOpen = true;
                 OpenActivitySheetAction?.Invoke();
             }
@@ -572,6 +811,9 @@ namespace Pocket.Client.PageModels
 
         partial void OnCurrentFeedPostChanged(MediaPost? value)
         {
+            IsReactionAnimationPlaying = false;
+            StopReactionEmojiRainAction?.Invoke();
+
             if (CloseActivitySheetAction != null)
             {
                 CloseActivitySheetAction.Invoke();
@@ -579,6 +821,16 @@ namespace Pocket.Client.PageModels
             else
             {
                 IsActivitySheetOpen = false;
+            }
+
+            if (IsPostOptionsMenuOpen)
+            {
+                ClosePostOptionsMenu();
+            }
+
+            if (IsDeleteConfirmOpen)
+            {
+                CloseDeleteConfirm();
             }
 
             if (IsEmojiPickerOpen)
@@ -590,16 +842,132 @@ namespace Pocket.Client.PageModels
             {
                 CloseFeedReply();
             }
+
+            SchedulePendingReactionsCheck();
+        }
+
+        public void SchedulePendingReactionsCheck()
+        {
+            _reactionCheckCts?.Cancel();
+
+            if (!IsViewingFeed || ActivePanelIndex != 1 || IsGridGalleryOpen || IsPreviewing || CurrentFeedPost == null)
+                return;
+
+            var post = CurrentFeedPost;
+            if (post.PendingReactionAnimations.Count == 0)
+                return;
+
+            var cts = new System.Threading.CancellationTokenSource();
+            _reactionCheckCts = cts;
+
+            _ = TriggerPendingReactionsAfterSettleAsync(post, cts.Token);
+        }
+
+        private async Task TriggerPendingReactionsAfterSettleAsync(
+            MediaPost post,
+            System.Threading.CancellationToken token)
+        {
+            try
+            {
+                await Task.Delay(120, token);
+            }
+            catch (TaskCanceledException)
+            {
+                return;
+            }
+
+            if (token.IsCancellationRequested)
+                return;
+
+            if (!IsViewingFeed || ActivePanelIndex != 1 || IsGridGalleryOpen || IsPreviewing ||
+                !ReferenceEquals(CurrentFeedPost, post))
+                return;
+
+            if (post.PendingReactionAnimations.Count == 0)
+                return;
+
+            var pending = post.PendingReactionAnimations.ToList();
+            post.PendingReactionAnimations.Clear();
+
+            var dmIds = new System.Collections.Generic.List<Guid>(pending.Count);
+            var emojis = new System.Collections.Generic.List<string>(pending.Count);
+            foreach (var (dmId, emoji) in pending)
+            {
+                post.ShownReactionDmIds.Add(dmId);
+                _shownReactionDmIds.Add(dmId);
+                dmIds.Add(dmId);
+                if (!string.IsNullOrWhiteSpace(emoji))
+                {
+                    emojis.Add(emoji);
+                }
+            }
+
+            _ = _database.MarkPostReactionsAnimationShownAsync(dmIds);
+
+            if (emojis.Count > 0)
+            {
+                IsReactionAnimationPlaying = true;
+                PlayReactionEmojiRainAction?.Invoke(post.Id, emojis);
+            }
+            else
+            {
+                OnPropertyChanged(nameof(IsReactionSentPillVisible));
+                OnPropertyChanged(nameof(IsDefaultActivityPillVisible));
+            }
+        }
+
+        private void SyncViewingHistoryState()
+        {
+            bool viewingHistory = ActivePanelIndex == 1 && (IsViewingFeed || IsGridGalleryOpen);
+            ShellModel.IsViewingHistory = viewingHistory;
+            if (viewingHistory)
+            {
+                foreach (var p in _allFeedPosts)
+                {
+                    p.IsUnseen = false;
+                }
+
+                _ = ShellModel.MarkAllPhotosSeenAsync();
+            }
+        }
+
+        partial void OnIsGridGalleryOpenChanged(bool value)
+        {
+            SyncViewingHistoryState();
+            if (value)
+            {
+                StopReactionEmojiRainAction?.Invoke();
+            }
+            else
+            {
+                SchedulePendingReactionsCheck();
+            }
+        }
+
+        partial void OnActivePanelIndexChanged(int value)
+        {
+            SyncViewingHistoryState();
+            if (value != 1)
+            {
+                StopReactionEmojiRainAction?.Invoke();
+            }
+            else
+            {
+                SchedulePendingReactionsCheck();
+            }
         }
 
         partial void OnIsViewingFeedChanged(bool value)
         {
+            SyncViewingHistoryState();
             OnPropertyChanged(nameof(ShowHomePillInBottomBar));
             OnPropertyChanged(nameof(ShowMiniShutterInBottomBar));
             OnPropertyChanged(nameof(ShowFeedSideButtonsInBottomBar));
 
             if (!value)
             {
+                StopReactionEmojiRainAction?.Invoke();
+
                 if (CloseActivitySheetAction != null)
                 {
                     CloseActivitySheetAction.Invoke();
@@ -607,6 +975,11 @@ namespace Pocket.Client.PageModels
                 else
                 {
                     IsActivitySheetOpen = false;
+                }
+
+                if (IsPostOptionsMenuOpen)
+                {
+                    ClosePostOptionsMenu();
                 }
 
                 if (IsEmojiPickerOpen)
@@ -623,6 +996,10 @@ namespace Pocket.Client.PageModels
                 {
                     CloseFilterMenu();
                 }
+            }
+            else
+            {
+                SchedulePendingReactionsCheck();
             }
         }
 
@@ -718,7 +1095,8 @@ namespace Pocket.Client.PageModels
             double headerToCardGap =
                 Math.Round(Math.Clamp(16.0 - Math.Max(0.0, excessTopInset - 12.0) - (compactShortfall * 0.05), 6.0,
                     16.0));
-            double topHeaderHeight = topBarTopMargin + 42.0 + headerToCardGap;
+            double topBarBottom = topBarTopMargin + 42.0;
+            double filterHeaderHeight = topBarBottom + headerToCardGap;
 
             double bottomBarBottomMargin =
                 Math.Round(Math.Clamp(18.0 - (excessBottomInset * 0.8) - (compactShortfall * 0.05), 8.0, 18.0));
@@ -742,12 +1120,22 @@ namespace Pocket.Client.PageModels
             double shutterInnerCircleSize = Math.Round(shutterButtonSize * (72.0 / 92.0));
 
             double minShutterZoneHeight = shutterButtonSize + Math.Clamp((height - 620.0) * 0.22, 24.0, 64.0);
-            double maxCardHeight = height - topHeaderHeight - 4.0 - cameraBottomSpacerHeight - minShutterZoneHeight;
+            double maxCardHeight = height - filterHeaderHeight - 4.0 - cameraBottomSpacerHeight - minShutterZoneHeight;
             double maxCardWidth = Math.Max(200.0, width - 12.0);
             double cardSize = Math.Clamp(Math.Min(maxCardWidth, maxCardHeight), 200.0, maxCardWidth);
 
+            // Vertically center/balance the camera and feed photo cards in the open space between the
+            // top bar and bottom controls (matching Locket's layout) while preserving minShutterZoneHeight.
+            double availableBodyHeight = height - topBarBottom - 4.0 - cameraBottomSpacerHeight;
+            double freeVerticalSpace = Math.Max(0.0, availableBodyHeight - cardSize);
+            double maxCardTopGap = Math.Max(headerToCardGap, freeVerticalSpace - minShutterZoneHeight);
+            double cardTopGap =
+                Math.Round(Math.Clamp(freeVerticalSpace * 0.33, headerToCardGap, Math.Min(96.0, maxCardTopGap)));
+            double topHeaderHeight = topBarBottom + cardTopGap;
+
             ViewportHeight = height;
             TopHeaderHeight = topHeaderHeight;
+            GalleryTopSpacerHeight = filterHeaderHeight;
             CameraBottomSpacerHeight = cameraBottomSpacerHeight;
             FeedBottomSpacerHeight = feedBottomSpacerHeight;
             ChatBottomSpacerHeight = chatBottomSpacerHeight;
@@ -760,7 +1148,8 @@ namespace Pocket.Client.PageModels
             TopOverlayMargin = new Thickness(16, topBarTopMargin, 16, 0);
             ProfileTopHeaderPadding = new Thickness(16, topBarTopMargin, 16, 0);
             ChatTopHeaderMargin = new Thickness(16, topBarTopMargin, 16, 12);
-            FilterMenuMargin = new Thickness(0, topHeaderHeight, 0, 0);
+            FilterMenuMargin = new Thickness(0, filterHeaderHeight, 0, 0);
+            PostOptionsMenuMargin = new Thickness(18, 0, 18, bottomBarBottomMargin + 60.0);
             SharedBottomBarMargin = new Thickness(18, 0, 18, bottomBarBottomMargin);
             HistoryOverlayMargin = new Thickness(18, 0, 18, historyBottomMargin);
             PreviewBottomOverlayMargin = new Thickness(16, 0, 16, previewBottomMargin);
@@ -789,11 +1178,24 @@ namespace Pocket.Client.PageModels
 
             ShellModel.OnMediaPostReceived += HandleMediaPostReceived;
             ShellModel.OnMediaPostDelivered += HandleMediaPostDelivered;
+            ShellModel.OnMediaPostDeleted += HandleMediaPostDeleted;
             ShellModel.OnDirectMessageReceived += HandleDirectMessageReceived;
             ShellModel.OnFriendProfileUpdated += HandleFriendProfileUpdated;
             ShellModel.OnUserProfileUpdated += HandleUserProfileUpdated;
+            ShellModel.OnDataImported += HandleDataImported;
 
             LoadRecentEmojis();
+        }
+
+        private async void HandleDataImported()
+        {
+            _shownReactionDmIds.Clear();
+            _allFeedPosts.Clear();
+            LoadRecentEmojis();
+            SelectedFilterMode = FeedFilterMode.AllFriends;
+            SelectedFilterFriendId = string.Empty;
+            SelectedFilterFriendName = string.Empty;
+            await LoadFeedAsync();
         }
 
         private void LoadRecentEmojis()
@@ -863,10 +1265,18 @@ namespace Pocket.Client.PageModels
                     var friendName = friend?.DisplayName ?? "Friend";
                     var friendAvatar = friend?.ProfilePictureUrl ?? string.Empty;
                     targetPost.AddOrUpdateReaction(dm.FriendId, friendName, friendAvatar, dm.ReactionEmoji);
+                    if (!dm.IsReactionAnimationShown && !_shownReactionDmIds.Contains(dm.Id))
+                    {
+                        targetPost.EnqueuePendingReaction(dm.Id, dm.ReactionEmoji);
+                    }
+
                     if (ReferenceEquals(CurrentFeedPost, targetPost))
                     {
                         OnPropertyChanged(nameof(ShowFeedNoActivityPill));
                         OnPropertyChanged(nameof(ShowFeedActivityPill));
+                        OnPropertyChanged(nameof(IsReactionSentPillVisible));
+                        OnPropertyChanged(nameof(IsDefaultActivityPillVisible));
+                        SchedulePendingReactionsCheck();
                     }
                 }
             }
@@ -921,6 +1331,61 @@ namespace Pocket.Client.PageModels
             {
                 existing.SyncStatus = Shared.Enums.SyncStatus.Delivered;
             }
+        }
+
+        private void HandleMediaPostDeleted(Guid postId)
+        {
+            var existingInAll = _allFeedPosts.FirstOrDefault(p => p.Id == postId);
+            if (existingInAll != null)
+            {
+                _allFeedPosts.Remove(existingInAll);
+                OnPropertyChanged(nameof(AllFeedPostsCount));
+            }
+
+            int indexInFeed = -1;
+            for (int i = 0; i < FeedPosts.Count; i++)
+            {
+                if (FeedPosts[i].Id == postId)
+                {
+                    indexInFeed = i;
+                    break;
+                }
+            }
+
+            if (indexInFeed >= 0)
+            {
+                bool wasCurrent = CurrentFeedPost?.Id == postId;
+                FeedPosts.RemoveAt(indexInFeed);
+
+                if (FeedPosts.Count > 0)
+                {
+                    if (wasCurrent || CurrentFeedPost == null)
+                    {
+                        int nextIndex = Math.Clamp(indexInFeed, 0, FeedPosts.Count - 1);
+                        CurrentFeedPost = FeedPosts[nextIndex];
+                        if (IsViewingFeed && !IsGridGalleryOpen)
+                        {
+                            ScrollToFeedPostAction?.Invoke(CurrentFeedPost);
+                        }
+                    }
+                }
+                else
+                {
+                    CurrentFeedPost = null;
+                    if (_allFeedPosts.Count == 0)
+                    {
+                        IsGridGalleryOpen = false;
+                        IsViewingFeed = false;
+                        ScrollToCameraAction?.Invoke();
+                    }
+                }
+            }
+
+            OnPropertyChanged(nameof(ShowEmptyFilteredFeedCard));
+            OnPropertyChanged(nameof(ShowFeedOverlayBar));
+            OnPropertyChanged(nameof(ShowFeedNoActivityPill));
+            OnPropertyChanged(nameof(ShowFeedActivityPill));
+            OnPropertyChanged(nameof(ShowFeedReplyBar));
         }
 
         private void HandleFriendProfileUpdated(Friend friend)
@@ -1036,6 +1501,15 @@ namespace Pocket.Client.PageModels
                     var rName = reactFriend?.DisplayName ?? "Friend";
                     var rAvatar = reactFriend?.ProfilePictureUrl ?? string.Empty;
                     post.AddOrUpdateReaction(dm.FriendId, rName, rAvatar, dm.ReactionEmoji!);
+                    if (dm.IsReactionAnimationShown || _shownReactionDmIds.Contains(dm.Id))
+                    {
+                        post.ShownReactionDmIds.Add(dm.Id);
+                        _shownReactionDmIds.Add(dm.Id);
+                    }
+                    else
+                    {
+                        post.EnqueuePendingReaction(dm.Id, dm.ReactionEmoji!);
+                    }
                 }
 
                 post.ViewportHeight = ViewportHeight;
@@ -1072,6 +1546,17 @@ namespace Pocket.Client.PageModels
                         existing.ActivityItems.Add(item);
                     }
 
+                    foreach (var shownId in updated.ShownReactionDmIds)
+                    {
+                        existing.ShownReactionDmIds.Add(shownId);
+                    }
+
+                    existing.PendingReactionAnimations.Clear();
+                    foreach (var (dmId, emoji) in updated.PendingReactionAnimations)
+                    {
+                        existing.EnqueuePendingReaction(dmId, emoji);
+                    }
+
                     existing.NotifyActivityChanged();
                 }
             }
@@ -1106,6 +1591,8 @@ namespace Pocket.Client.PageModels
             OnPropertyChanged(nameof(ShowFeedNoActivityPill));
             OnPropertyChanged(nameof(ShowFeedActivityPill));
             OnPropertyChanged(nameof(ShowFeedReplyBar));
+
+            SchedulePendingReactionsCheck();
         }
 
         public void OnPhotoCaptured(string imagePath, bool isFromGallery = false)
@@ -1136,6 +1623,16 @@ namespace Pocket.Client.PageModels
             if (IsActivitySheetOpen)
             {
                 CloseActivitySheet();
+            }
+
+            if (IsPostOptionsMenuOpen)
+            {
+                ClosePostOptionsMenu();
+            }
+
+            if (IsDeleteConfirmOpen)
+            {
+                CloseDeleteConfirm();
             }
 
             if (IsEmojiPickerOpen)
@@ -1255,7 +1752,7 @@ namespace Pocket.Client.PageModels
                 CloseFilterMenu();
             }
 
-            if (ActivePanelIndex == 2)
+            if (ActivePanelIndex != 1)
             {
                 SnapToCameraAction?.Invoke();
             }

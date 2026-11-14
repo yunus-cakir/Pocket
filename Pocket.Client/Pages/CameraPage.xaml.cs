@@ -151,10 +151,7 @@ namespace Pocket.Client.Pages
 
             viewModel.FocusEmojiSearchAction = () =>
             {
-                MainThread.BeginInvokeOnMainThread(() =>
-                {
-                    FocusEmojiSearchEntry();
-                });
+                MainThread.BeginInvokeOnMainThread(() => { FocusEmojiSearchEntry(); });
             };
 
             viewModel.OpenFeedReplyAction = () =>
@@ -215,10 +212,83 @@ namespace Pocket.Client.Pages
                 MainThread.BeginInvokeOnMainThread(async () => { await AnimateCloseFilterMenuAsync(); });
             };
 
+            viewModel.OpenPostOptionsMenuAction = () =>
+            {
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    SetVerticalFeedScrollEnabled(false);
+                    PostOptionsMenuCard.AbortAnimation("FadeTo");
+                    PostOptionsMenuCard.AbortAnimation("ScaleTo");
+                    PostOptionsMenuCard.AbortAnimation("TranslateTo");
+                    PostOptionsMenuBackdrop.AbortAnimation("FadeTo");
+
+                    PostOptionsMenuOverlayGrid.IsVisible = true;
+                    PostOptionsMenuCard.Opacity = 0;
+                    PostOptionsMenuCard.Scale = 0.92;
+                    PostOptionsMenuCard.TranslationY = 10;
+                    PostOptionsMenuBackdrop.Opacity = 0;
+
+                    await Task.WhenAll(
+                        PostOptionsMenuCard.FadeToAsync(1, 160, Easing.CubicOut),
+                        PostOptionsMenuCard.ScaleToAsync(1, 180, Easing.CubicOut),
+                        PostOptionsMenuCard.TranslateToAsync(0, 0, 180, Easing.CubicOut),
+                        PostOptionsMenuBackdrop.FadeToAsync(1, 160, Easing.CubicOut)
+                    );
+                });
+            };
+
+            viewModel.ClosePostOptionsMenuAction = () =>
+            {
+                MainThread.BeginInvokeOnMainThread(async () => { await AnimateClosePostOptionsMenuAsync(); });
+            };
+
+            viewModel.OpenDeleteConfirmAction = () =>
+            {
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    SetVerticalFeedScrollEnabled(false);
+                    DeleteConfirmCard.AbortAnimation("FadeTo");
+                    DeleteConfirmCard.AbortAnimation("ScaleTo");
+                    DeleteConfirmBackdrop.AbortAnimation("FadeTo");
+
+                    DeleteConfirmOverlayGrid.IsVisible = true;
+                    DeleteConfirmCard.Opacity = 0;
+                    DeleteConfirmCard.Scale = 0.92;
+                    DeleteConfirmBackdrop.Opacity = 0;
+
+                    await Task.WhenAll(
+                        DeleteConfirmCard.FadeToAsync(1, 160, Easing.CubicOut),
+                        DeleteConfirmCard.ScaleToAsync(1, 180, Easing.CubicOut),
+                        DeleteConfirmBackdrop.FadeToAsync(1, 160, Easing.CubicOut)
+                    );
+                });
+            };
+
+            viewModel.CloseDeleteConfirmAction = () =>
+            {
+                MainThread.BeginInvokeOnMainThread(async () => { await AnimateCloseDeleteConfirmAsync(); });
+            };
+
+            viewModel.ShowSavedToastAction = () =>
+            {
+                MainThread.BeginInvokeOnMainThread(async () => { await ShowSavedToastAsync(); });
+            };
+
+            viewModel.PlayReactionEmojiRainAction = (postId, emojis) =>
+            {
+                MainThread.BeginInvokeOnMainThread(() => { PlayReactionEmojiRain(postId, emojis); });
+            };
+
+            viewModel.StopReactionEmojiRainAction = () =>
+            {
+                MainThread.BeginInvokeOnMainThread(StopReactionEmojiRain);
+            };
+
             viewModel.PreviewStateChangedAction = (isPreviewing) =>
             {
                 MainThread.BeginInvokeOnMainThread(() =>
                 {
+                    ResetShutterVisualState();
                     SetVerticalFeedScrollEnabled(!isPreviewing);
                     UpdateOrientationLockButtonVisibility(isPreviewing);
                     if (!isPreviewing)
@@ -784,6 +854,18 @@ namespace Pocket.Client.Pages
                     return true;
                 }
 
+                if (vm.IsDeleteConfirmOpen)
+                {
+                    _ = AnimateCloseDeleteConfirmAsync();
+                    return true;
+                }
+
+                if (vm.IsPostOptionsMenuOpen)
+                {
+                    _ = AnimateClosePostOptionsMenuAsync();
+                    return true;
+                }
+
                 if (vm.IsReplyingToFeedPost)
                 {
                     _ = AnimateCloseFeedReplyAsync();
@@ -849,9 +931,301 @@ namespace Pocket.Client.Pages
             if (BindingContext is CameraPageModel vm)
             {
                 vm.IsFilterMenuOpen = false;
-                if (!vm.IsPreviewing && !vm.IsReplyingToFeedPost)
+                if (!vm.IsPreviewing && !vm.IsReplyingToFeedPost && !vm.IsPostOptionsMenuOpen)
                 {
                     SetVerticalFeedScrollEnabled(true);
+                }
+            }
+        }
+
+        private async void OnPostOptionsMenuBackdropTapped(object? sender, TappedEventArgs e)
+        {
+            await AnimateClosePostOptionsMenuAsync();
+        }
+
+        private async Task AnimateClosePostOptionsMenuAsync()
+        {
+            if (!PostOptionsMenuOverlayGrid.IsVisible)
+            {
+                if (BindingContext is CameraPageModel earlyVm)
+                {
+                    earlyVm.IsPostOptionsMenuOpen = false;
+                    if (!earlyVm.IsPreviewing && !earlyVm.IsReplyingToFeedPost && !earlyVm.IsFilterMenuOpen)
+                    {
+                        SetVerticalFeedScrollEnabled(true);
+                    }
+                }
+
+                return;
+            }
+
+            PostOptionsMenuCard.AbortAnimation("FadeTo");
+            PostOptionsMenuCard.AbortAnimation("ScaleTo");
+            PostOptionsMenuCard.AbortAnimation("TranslateTo");
+            PostOptionsMenuBackdrop.AbortAnimation("FadeTo");
+
+            await Task.WhenAll(
+                PostOptionsMenuCard.FadeToAsync(0, 130, Easing.CubicIn),
+                PostOptionsMenuCard.ScaleToAsync(0.94, 130, Easing.CubicIn),
+                PostOptionsMenuCard.TranslateToAsync(0, 8, 130, Easing.CubicIn),
+                PostOptionsMenuBackdrop.FadeToAsync(0, 130, Easing.Linear)
+            );
+
+            PostOptionsMenuOverlayGrid.IsVisible = false;
+            if (BindingContext is CameraPageModel vm)
+            {
+                vm.IsPostOptionsMenuOpen = false;
+                if (!vm.IsPreviewing && !vm.IsReplyingToFeedPost && !vm.IsFilterMenuOpen && !vm.IsDeleteConfirmOpen)
+                {
+                    SetVerticalFeedScrollEnabled(true);
+                }
+            }
+        }
+
+        private async void OnDeleteConfirmBackdropTapped(object? sender, TappedEventArgs e)
+        {
+            await AnimateCloseDeleteConfirmAsync();
+        }
+
+        private async Task AnimateCloseDeleteConfirmAsync()
+        {
+            if (!DeleteConfirmOverlayGrid.IsVisible)
+            {
+                if (BindingContext is CameraPageModel earlyVm)
+                {
+                    earlyVm.IsDeleteConfirmOpen = false;
+                    if (!earlyVm.IsPreviewing && !earlyVm.IsReplyingToFeedPost && !earlyVm.IsFilterMenuOpen &&
+                        !earlyVm.IsPostOptionsMenuOpen)
+                    {
+                        SetVerticalFeedScrollEnabled(true);
+                    }
+                }
+
+                return;
+            }
+
+            DeleteConfirmCard.AbortAnimation("FadeTo");
+            DeleteConfirmCard.AbortAnimation("ScaleTo");
+            DeleteConfirmBackdrop.AbortAnimation("FadeTo");
+
+            await Task.WhenAll(
+                DeleteConfirmCard.FadeToAsync(0, 130, Easing.CubicIn),
+                DeleteConfirmCard.ScaleToAsync(0.94, 130, Easing.CubicIn),
+                DeleteConfirmBackdrop.FadeToAsync(0, 130, Easing.Linear)
+            );
+
+            DeleteConfirmOverlayGrid.IsVisible = false;
+            if (BindingContext is CameraPageModel vm)
+            {
+                vm.IsDeleteConfirmOpen = false;
+                if (!vm.IsPreviewing && !vm.IsReplyingToFeedPost && !vm.IsFilterMenuOpen && !vm.IsPostOptionsMenuOpen)
+                {
+                    SetVerticalFeedScrollEnabled(true);
+                }
+            }
+        }
+
+        private System.Threading.CancellationTokenSource? _savedToastCts;
+
+        private async Task ShowSavedToastAsync()
+        {
+            _savedToastCts?.Cancel();
+            var cts = new System.Threading.CancellationTokenSource();
+            _savedToastCts = cts;
+
+            SavedToastPill.AbortAnimation("FadeTo");
+            SavedToastPill.AbortAnimation("TranslateTo");
+
+            SavedToastPill.Opacity = 0;
+            SavedToastPill.TranslationY = 24;
+            SavedToastPill.IsVisible = true;
+
+            await Task.WhenAll(
+                SavedToastPill.FadeToAsync(1, 180, Easing.CubicOut),
+                SavedToastPill.TranslateToAsync(0, 0, 180, Easing.CubicOut)
+            );
+
+            try
+            {
+                await Task.Delay(1600, cts.Token);
+            }
+            catch (TaskCanceledException)
+            {
+                return;
+            }
+
+            if (cts.IsCancellationRequested)
+                return;
+
+            await Task.WhenAll(
+                SavedToastPill.FadeToAsync(0, 180, Easing.CubicIn),
+                SavedToastPill.TranslateToAsync(0, 20, 180, Easing.CubicIn)
+            );
+
+            if (!cts.IsCancellationRequested)
+            {
+                SavedToastPill.IsVisible = false;
+            }
+        }
+
+        private System.Threading.CancellationTokenSource? _emojiRainCts;
+        private Guid _activeEmojiRainPostId;
+
+        private void StopReactionEmojiRain()
+        {
+            _emojiRainCts?.Cancel();
+            _emojiRainCts = null;
+            _activeEmojiRainPostId = Guid.Empty;
+
+            if (ReactionEmojiRainOverlay.Children.Count > 0)
+            {
+                foreach (var child in ReactionEmojiRainOverlay.Children)
+                {
+                    if (child is VisualElement ve)
+                    {
+                        ve.AbortAnimation("TranslateTo");
+                        ve.AbortAnimation("FadeTo");
+                        ve.AbortAnimation("RotateTo");
+                        ve.AbortAnimation("ScaleTo");
+                    }
+                }
+
+                ReactionEmojiRainOverlay.Children.Clear();
+            }
+
+            ReactionEmojiRainOverlay.IsVisible = false;
+            if (BindingContext is CameraPageModel vm)
+            {
+                vm.IsReactionAnimationPlaying = false;
+            }
+        }
+
+        private void PlayReactionEmojiRain(Guid postId, System.Collections.Generic.IReadOnlyList<string> emojis)
+        {
+            if (emojis == null || emojis.Count == 0)
+                return;
+
+            if (_activeEmojiRainPostId != postId || _emojiRainCts == null || _emojiRainCts.IsCancellationRequested)
+            {
+                StopReactionEmojiRain();
+                _activeEmojiRainPostId = postId;
+                _emojiRainCts = new System.Threading.CancellationTokenSource();
+            }
+
+            var cts = _emojiRainCts;
+            var vm = BindingContext as CameraPageModel;
+            if (vm != null)
+            {
+                vm.IsReactionAnimationPlaying = true;
+            }
+
+            double screenWidth = this.Width > 0 ? this.Width : 390;
+            double screenHeight = this.Height > 0
+                ? this.Height
+                : (vm != null && vm.ViewportHeight > 0 ? vm.ViewportHeight : 840);
+            double minX = 16;
+            double maxX = Math.Max(minX + 80, screenWidth - 74);
+            double startY = -80;
+            double endY = screenHeight + 80;
+
+            int particleCount = Math.Clamp(Math.Max(8, emojis.Count * 4), 8, 16);
+            var rng = new Random();
+
+            // Build shuffled horizontal lanes so falling emojis spread naturally across the photo card
+            int laneCount = 6;
+            var lanes = new int[particleCount];
+            for (int i = 0; i < particleCount; i++)
+            {
+                lanes[i] = i % laneCount;
+            }
+
+            for (int i = particleCount - 1; i > 0; i--)
+            {
+                // Keep adjacent particles in different lanes
+                int swapIdx = rng.Next(0, i + 1);
+                (lanes[i], lanes[swapIdx]) = (lanes[swapIdx], lanes[i]);
+            }
+
+            double laneWidth = (maxX - minX) / laneCount;
+            ReactionEmojiRainOverlay.IsVisible = true;
+
+            for (int i = 0; i < particleCount; i++)
+            {
+                string emoji = emojis[i % emojis.Count];
+                int lane = lanes[i];
+                double xPos = minX + (lane * laneWidth) + (rng.NextDouble() * Math.Max(8, laneWidth - 10));
+                xPos = Math.Clamp(xPos, minX, maxX);
+
+                double driftX = (rng.NextDouble() - 0.5) * 26;
+                double endX = Math.Clamp(xPos + driftX, minX, maxX);
+                double fontSize = 44 + (rng.NextDouble() * 8);
+                double startRotation = -16 + (rng.NextDouble() * 24);
+                double endRotation = startRotation + (-10 + (rng.NextDouble() * 20));
+                int delayMs = (i * 110) + rng.Next(0, 35);
+                uint fallDurationMs = (uint)(1050 + rng.Next(0, 240));
+
+                var label = new Label
+                {
+                    Text = emoji,
+                    FontSize = fontSize,
+                    HorizontalOptions = LayoutOptions.Start,
+                    VerticalOptions = LayoutOptions.Start,
+                    InputTransparent = true,
+                    TranslationX = xPos,
+                    TranslationY = startY,
+                    Rotation = startRotation,
+                    Opacity = 1
+                };
+
+                ReactionEmojiRainOverlay.Children.Add(label);
+                _ = AnimateSingleFallingEmojiAsync(label, endX, endY, endRotation, delayMs, fallDurationMs, cts.Token);
+            }
+        }
+
+        private static readonly Easing GentleFallEasing = new(t => (0.45 * t) + (0.55 * t * t));
+
+        private async Task AnimateSingleFallingEmojiAsync(
+            Label label,
+            double endX,
+            double endY,
+            double endRotation,
+            int delayMs,
+            uint fallDurationMs,
+            System.Threading.CancellationToken token)
+        {
+            try
+            {
+                if (delayMs > 0)
+                {
+                    await Task.Delay(delayMs, token);
+                }
+
+                if (token.IsCancellationRequested)
+                    return;
+
+                var translateTask = label.TranslateToAsync(endX, endY, fallDurationMs, GentleFallEasing);
+                var rotateTask = label.RotateToAsync(endRotation, fallDurationMs, Easing.Linear);
+
+                await Task.WhenAll(translateTask, rotateTask);
+            }
+            catch (TaskCanceledException)
+            {
+                return;
+            }
+            finally
+            {
+                if (!token.IsCancellationRequested)
+                {
+                    ReactionEmojiRainOverlay.Children.Remove(label);
+                    if (ReactionEmojiRainOverlay.Children.Count == 0)
+                    {
+                        ReactionEmojiRainOverlay.IsVisible = false;
+                        _activeEmojiRainPostId = Guid.Empty;
+                        if (BindingContext is CameraPageModel vm)
+                        {
+                            vm.IsReactionAnimationPlaying = false;
+                        }
+                    }
                 }
             }
         }
@@ -938,6 +1312,7 @@ namespace Pocket.Client.Pages
                         SetVerticalFeedScrollEnabled(true);
                     }
                 }
+
                 return;
             }
 
@@ -979,6 +1354,7 @@ namespace Pocket.Client.Pages
                         double progress = Math.Clamp(1.0 - (EmojiPickerSheetCard.TranslationY / 460.0), 0.0, 1.0);
                         EmojiPickerBackdrop.Opacity = progress;
                     }
+
                     break;
 
                 case GestureStatus.Completed:
@@ -994,6 +1370,7 @@ namespace Pocket.Client.Pages
                             EmojiPickerBackdrop.FadeToAsync(1, 160, Easing.Linear)
                         );
                     }
+
                     break;
             }
         }
@@ -1013,6 +1390,7 @@ namespace Pocket.Client.Pages
                     llm.ScrollToPositionWithOffset(rowIndex, 0);
                     return;
                 }
+
                 rv.ScrollToPosition(rowIndex);
                 return;
             }
@@ -1141,9 +1519,65 @@ namespace Pocket.Client.Pages
                         _page._isScrollingToCamera = false;
                         recyclerView.ScrollToPosition(0);
                     }
+                    else
+                    {
+                        // Run after the built-in SnapHelper had its chance to start a settle scroll.
+                        recyclerView.Post(() => _page.EnsureFeedPageAligned(recyclerView));
+                    }
 
                     _page.UpdateViewingFeedStateFromRecyclerView(recyclerView);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Fallback snap: MAUI's MandatorySingle snap helper refuses to snap when the list is at its
+        /// trailing edge (e.g. no feed posts, only the camera header plus the empty-view slot, or the
+        /// last post). That lets the user leave the feed half-scrolled. When scrolling has fully stopped
+        /// and no page is aligned to the top, smoothly scroll to the nearest reachable page start.
+        /// </summary>
+        private void EnsureFeedPageAligned(AndroidX.RecyclerView.Widget.RecyclerView rv)
+        {
+            if (BindingContext is not CameraPageModel vm || rv.Height <= 0 || rv.ChildCount == 0)
+                return;
+            if (rv.ScrollState != AndroidX.RecyclerView.Widget.RecyclerView.ScrollStateIdle || _isScrollingToCamera)
+                return;
+
+            // Use exact child geometry (ComputeVerticalScrollOffset is only an estimate).
+            int remainingDown = int.MaxValue;
+            var layoutManager = rv.GetLayoutManager();
+            if (layoutManager != null)
+            {
+                var lastChild = rv.GetChildAt(rv.ChildCount - 1);
+                if (lastChild != null && rv.GetChildAdapterPosition(lastChild) == layoutManager.ItemCount - 1)
+                    remainingDown = Math.Max(0, lastChild.Bottom - (rv.Height - rv.PaddingBottom));
+            }
+
+            // Valid snap targets: header (adapter pos 0) and real feed post pages (1..FeedPosts.Count).
+            int lastPageAdapterPos = vm.FeedPosts.Count;
+            int? bestDelta = null;
+
+            for (int i = 0; i < rv.ChildCount; i++)
+            {
+                var child = rv.GetChildAt(i);
+                if (child == null)
+                    continue;
+
+                int adapterPos = rv.GetChildAdapterPosition(child);
+                if (adapterPos < 0 || adapterPos > lastPageAdapterPos)
+                    continue;
+
+                int delta = child.Top - rv.PaddingTop; // >0 scroll down, <0 scroll up
+                if (delta > 0 && delta > remainingDown + 1)
+                    continue; // page start is not reachable
+
+                if (bestDelta == null || Math.Abs(delta) < Math.Abs(bestDelta.Value))
+                    bestDelta = delta;
+            }
+
+            if (bestDelta is int d && Math.Abs(d) > 1)
+            {
+                rv.SmoothScrollBy(0, d);
             }
         }
 
@@ -1815,7 +2249,177 @@ namespace Pocket.Client.Pages
             await FlipCameraButton.RotateToAsync(FlipCameraButton.Rotation + 180, 220, Easing.CubicOut);
         }
 
-        private async void OnShutterTapped(object? sender, TappedEventArgs e)
+        private const double ShutterPressedScale = 0.85;
+        private const double ShutterPressedOpacity = 0.46;
+        private bool _isTriggeringShutter;
+        private long _shutterPressDownTick;
+
+#if ANDROID
+        private global::Android.Views.View? _attachedShutterNativeView;
+        private bool _isShutterPressed;
+        private bool _isShutterTouchInside;
+#endif
+
+        private void OnShutterButtonHandlerChanged(object? sender, EventArgs e)
+        {
+#if ANDROID
+            if (_attachedShutterNativeView != null)
+            {
+                _attachedShutterNativeView.Touch -= OnShutterNativeTouch;
+                _attachedShutterNativeView = null;
+            }
+
+            if (ShutterButtonGrid.Handler?.PlatformView is global::Android.Views.View nativeView)
+            {
+                _attachedShutterNativeView = nativeView;
+                nativeView.Clickable = true;
+                nativeView.Touch += OnShutterNativeTouch;
+            }
+#endif
+        }
+
+#if ANDROID
+        private void OnShutterNativeTouch(object? sender, global::Android.Views.View.TouchEventArgs e)
+        {
+            var ev = e.Event;
+            if (ev == null || sender is not global::Android.Views.View nativeView)
+                return;
+
+            switch (ev.ActionMasked)
+            {
+                case global::Android.Views.MotionEventActions.Down:
+                    if (_isCapturingWithFlash || _isTriggeringShutter ||
+                        (BindingContext is CameraPageModel vm && vm.IsPreviewing))
+                    {
+                        e.Handled = true;
+                        return;
+                    }
+
+                    _isShutterPressed = true;
+                    _isShutterTouchInside = true;
+                    _shutterPressDownTick = Environment.TickCount64;
+                    nativeView.Parent?.RequestDisallowInterceptTouchEvent(true);
+                    SetShutterPressedVisual(true);
+                    e.Handled = true;
+                    break;
+
+                case global::Android.Views.MotionEventActions.Move:
+                    if (!_isShutterPressed)
+                        return;
+
+                    float density = nativeView.Resources?.DisplayMetrics?.Density ?? 2.75f;
+                    float slop = 24f * density;
+                    float x = ev.GetX();
+                    float y = ev.GetY();
+                    bool inside = x >= -slop && x <= nativeView.Width + slop &&
+                                  y >= -slop && y <= nativeView.Height + slop;
+
+                    if (inside != _isShutterTouchInside)
+                    {
+                        _isShutterTouchInside = inside;
+                        SetShutterPressedVisual(inside);
+                    }
+
+                    e.Handled = true;
+                    break;
+
+                case global::Android.Views.MotionEventActions.Up:
+                    if (!_isShutterPressed)
+                        return;
+
+                    bool shouldTrigger = _isShutterTouchInside;
+                    _isShutterPressed = false;
+                    _isShutterTouchInside = false;
+                    nativeView.Parent?.RequestDisallowInterceptTouchEvent(false);
+                    e.Handled = true;
+
+                    if (shouldTrigger)
+                    {
+                        _ = ReleaseAndTriggerShutterAsync();
+                    }
+                    else
+                    {
+                        SetShutterPressedVisual(false);
+                    }
+
+                    break;
+
+                case global::Android.Views.MotionEventActions.Cancel:
+                    if (!_isShutterPressed)
+                        return;
+
+                    _isShutterPressed = false;
+                    _isShutterTouchInside = false;
+                    nativeView.Parent?.RequestDisallowInterceptTouchEvent(false);
+                    SetShutterPressedVisual(false);
+                    e.Handled = true;
+                    break;
+            }
+        }
+#endif
+
+        private void SetShutterPressedVisual(bool pressed)
+        {
+            ShutterInnerCircle.AbortAnimation("ScaleTo");
+            ShutterInnerCircle.AbortAnimation("FadeTo");
+
+            if (pressed)
+            {
+                _ = ShutterInnerCircle.ScaleToAsync(ShutterPressedScale, 80, Easing.CubicOut);
+                _ = ShutterInnerCircle.FadeToAsync(ShutterPressedOpacity, 80, Easing.CubicOut);
+            }
+            else
+            {
+                _ = ShutterInnerCircle.ScaleToAsync(1.0, 100, Easing.CubicOut);
+                _ = ShutterInnerCircle.FadeToAsync(1.0, 100, Easing.CubicOut);
+            }
+        }
+
+        private void ResetShutterVisualState()
+        {
+#if ANDROID
+            _isShutterPressed = false;
+            _isShutterTouchInside = false;
+#endif
+            ShutterInnerCircle.AbortAnimation("ScaleTo");
+            ShutterInnerCircle.AbortAnimation("FadeTo");
+            ShutterInnerCircle.Scale = 1.0;
+            ShutterInnerCircle.Opacity = 1.0;
+        }
+
+        private async Task ReleaseAndTriggerShutterAsync()
+        {
+            if (_isTriggeringShutter || _isCapturingWithFlash)
+            {
+                SetShutterPressedVisual(false);
+                return;
+            }
+
+            _isTriggeringShutter = true;
+            try
+            {
+                long elapsedMs = Environment.TickCount64 - _shutterPressDownTick;
+                if (elapsedMs < 70)
+                {
+                    await Task.Delay((int)(70 - elapsedMs));
+                }
+
+                ShutterInnerCircle.AbortAnimation("ScaleTo");
+                ShutterInnerCircle.AbortAnimation("FadeTo");
+                await Task.WhenAll(
+                    ShutterInnerCircle.ScaleToAsync(1.0, 85, Easing.CubicOut),
+                    ShutterInnerCircle.FadeToAsync(1.0, 85, Easing.CubicOut)
+                );
+
+                await TriggerShutterCaptureAsync();
+            }
+            finally
+            {
+                _isTriggeringShutter = false;
+            }
+        }
+
+        private async Task TriggerShutterCaptureAsync()
         {
             if (_isCapturingWithFlash) return;
             HideCameraSliders(animated: false);

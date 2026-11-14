@@ -692,6 +692,88 @@
                             </Border>
                         </Grid>
 
+                        <!-- ========================================== -->
+                        <!-- Section: Data & Backup                     -->
+                        <!-- ========================================== -->
+                        <Label Text="Data &amp; Backup"
+                               TextColor="#FFFFFF"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="19"
+                               FontAttributes="Bold"
+                               Margin="16,24,16,8" />
+
+                        <!-- Export Data (Active - bound to ExportDataCommand) -->
+                        <Grid ColumnDefinitions="36, *, Auto" Padding="16,12" BackgroundColor="Transparent">
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding ShellModel.ExportDataCommand}" />
+                            </Grid.GestureRecognizers>
+                            <Grid Grid.Column="0" WidthRequest="22" HeightRequest="22" HorizontalOptions="Start" VerticalOptions="Center">
+                                <Path Stroke="#9CA3AF"
+                                      StrokeThickness="2"
+                                      StrokeLineCap="Round"
+                                      StrokeLineJoin="Round"
+                                      HorizontalOptions="Center"
+                                      VerticalOptions="Center"
+                                      Data="M9,12 L9,2 M5,6 L9,2 L13,6 M3,13 L3,16 C3,17.1 3.9,18 5,18 L13,18 C14.1,18 15,17.1 15,16 L15,13" />
+                            </Grid>
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2" Margin="6,0,10,0">
+                                <Label Text="Export data"
+                                       TextColor="#FFFFFF"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="16"
+                                       FontAttributes="Bold" />
+                                <Label Text="Backup profile, messages, photos &amp; E2EE keys"
+                                       TextColor="#8E8E93"
+                                       FontFamily="OpenSansRegular"
+                                       FontSize="14" />
+                            </VerticalStackLayout>
+                            <Path Grid.Column="2"
+                                  WidthRequest="8"
+                                  HeightRequest="14"
+                                  Stroke="#636366"
+                                  StrokeThickness="2.2"
+                                  StrokeLineCap="Round"
+                                  StrokeLineJoin="Round"
+                                  VerticalOptions="Center"
+                                  Data="M1,1 L7,7 L1,13" />
+                        </Grid>
+
+                        <!-- Import Data (Active - bound to ImportDataCommand) -->
+                        <Grid ColumnDefinitions="36, *, Auto" Padding="16,12" BackgroundColor="Transparent">
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding ShellModel.ImportDataCommand}" />
+                            </Grid.GestureRecognizers>
+                            <Grid Grid.Column="0" WidthRequest="22" HeightRequest="22" HorizontalOptions="Start" VerticalOptions="Center">
+                                <Path Stroke="#9CA3AF"
+                                      StrokeThickness="2"
+                                      StrokeLineCap="Round"
+                                      StrokeLineJoin="Round"
+                                      HorizontalOptions="Center"
+                                      VerticalOptions="Center"
+                                      Data="M9,2 L9,12 M5,8 L9,12 L13,8 M3,13 L3,16 C3,17.1 3.9,18 5,18 L13,18 C14.1,18 15,17.1 15,16 L15,13" />
+                            </Grid>
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2" Margin="6,0,10,0">
+                                <Label Text="Import data"
+                                       TextColor="#FFFFFF"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="16"
+                                       FontAttributes="Bold" />
+                                <Label Text="Restore clean or merge from a backup file"
+                                       TextColor="#8E8E93"
+                                       FontFamily="OpenSansRegular"
+                                       FontSize="14" />
+                            </VerticalStackLayout>
+                            <Path Grid.Column="2"
+                                  WidthRequest="8"
+                                  HeightRequest="14"
+                                  Stroke="#636366"
+                                  StrokeThickness="2.2"
+                                  StrokeLineCap="Round"
+                                  StrokeLineJoin="Round"
+                                  VerticalOptions="Center"
+                                  Data="M1,1 L7,7 L1,13" />
+                        </Grid>
+
                         <!-- Relay Server Settings Card (Preserves existing network configuration functionality) -->
                         <Border Margin="16,24,16,10"
                                 Padding="16"
@@ -723,6 +805,8 @@
                             </VerticalStackLayout>
                         </Border>
 
+                        <BoxView HeightRequest="{Binding ChatBottomSpacerHeight}" BackgroundColor="Transparent" Color="Transparent" />
+
                     </VerticalStackLayout>
                 </ScrollView>
             </Grid>
@@ -751,7 +835,7 @@
                               BackgroundColor="#000000">
 
                             <!-- Row 0: Top Spacer for Persistent Top Header -->
-                            <BoxView Grid.Row="0" HeightRequest="{Binding TopHeaderHeight}" BackgroundColor="Transparent" Color="Transparent" />
+                            <BoxView Grid.Row="0" HeightRequest="{Binding GalleryTopSpacerHeight}" BackgroundColor="Transparent" Color="Transparent" />
 
                             <!-- Row 1: Camera Viewfinder Rounded Square Card -->
                             <Border Grid.Row="1"
@@ -1024,7 +1108,14 @@
                                     </Grid>
 
                                     <!-- Center: Locket Gold-Ring Shutter Button (Active) -->
-                                    <Grid Grid.Column="1" WidthRequest="{Binding ShutterButtonSize}" HeightRequest="{Binding ShutterButtonSize}" HorizontalOptions="Center" VerticalOptions="Center">
+                                    <Grid x:Name="ShutterButtonGrid"
+                                          Grid.Column="1"
+                                          WidthRequest="{Binding ShutterButtonSize}"
+                                          HeightRequest="{Binding ShutterButtonSize}"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center"
+                                          BackgroundColor="Transparent"
+                                          HandlerChanged="OnShutterButtonHandlerChanged">
                                         <Border WidthRequest="{Binding ShutterOuterRingSize}"
                                                 HeightRequest="{Binding ShutterOuterRingSize}"
                                                 StrokeShape="RoundRectangle 45"
@@ -1033,19 +1124,18 @@
                                                 BackgroundColor="Transparent"
                                                 Padding="0"
                                                 HorizontalOptions="Center"
-                                                VerticalOptions="Center" />
-                                        <Border WidthRequest="{Binding ShutterInnerCircleSize}"
+                                                VerticalOptions="Center"
+                                                InputTransparent="True" />
+                                        <Border x:Name="ShutterInnerCircle"
+                                                WidthRequest="{Binding ShutterInnerCircleSize}"
                                                 HeightRequest="{Binding ShutterInnerCircleSize}"
                                                 StrokeShape="RoundRectangle 36"
                                                 StrokeThickness="0"
                                                 BackgroundColor="#FFFFFF"
                                                 Padding="0"
                                                 HorizontalOptions="Center"
-                                                VerticalOptions="Center">
-                                            <Border.GestureRecognizers>
-                                                <TapGestureRecognizer Tapped="OnShutterTapped" />
-                                            </Border.GestureRecognizers>
-                                        </Border>
+                                                VerticalOptions="Center"
+                                                InputTransparent="True" />
                                     </Grid>
 
                                     <!-- Right: Camera Flip / Switch Button -->
@@ -1243,6 +1333,16 @@
                 </Grid>
 
                 <!-- ============================================================== -->
+                <!-- REACTION EMOJI RAIN OVERLAY (Falls once per un-animated react) -->
+                <!-- ============================================================== -->
+                <Grid x:Name="ReactionEmojiRainOverlay"
+                      IsVisible="False"
+                      InputTransparent="True"
+                      IsClippedToBounds="True"
+                      HorizontalOptions="Fill"
+                      VerticalOptions="Fill" />
+
+                <!-- ============================================================== -->
                 <!-- GRID GALLERY VIEW OVERLAY (3-Column Photo Grid)                -->
                 <!-- ============================================================== -->
                 <Grid x:Name="GridGalleryContainer"
@@ -1251,7 +1351,7 @@
                       BackgroundColor="#000000"
                       HorizontalOptions="Fill"
                       VerticalOptions="Fill">
-                    <BoxView Grid.Row="0" HeightRequest="{Binding TopHeaderHeight}" BackgroundColor="Transparent" Color="Transparent" />
+                    <BoxView Grid.Row="0" HeightRequest="{Binding GalleryTopSpacerHeight}" BackgroundColor="Transparent" Color="Transparent" />
                     <CollectionView x:Name="GridGalleryCollectionView"
                                     Grid.Row="1"
                                     ItemsSource="{Binding FeedPosts}"
@@ -1503,24 +1603,13 @@
                       Margin="{Binding TopOverlayMargin}"
                       VerticalOptions="Start">
 
-                    <!-- Left: Megaphone / Rollcall Circular Button (Unimplemented feature - noted) -->
-                    <Border Grid.Column="0"
-                            WidthRequest="42"
-                            HeightRequest="42"
-                            StrokeShape="RoundRectangle 21"
-                            StrokeThickness="0"
-                            BackgroundColor="#1C1C1E"
-                            Padding="0"
-                            VerticalOptions="Center">
-                        <Path WidthRequest="19"
-                              HeightRequest="16"
-                              Fill="#FFFFFF"
-                              Stroke="#FFFFFF"
-                              StrokeThickness="1"
-                              HorizontalOptions="Center"
-                              VerticalOptions="Center"
-                              Data="M13,2 L4.5,6 L1.8,6 C1,6 0.5,6.6 0.5,7.4 L0.5,9.2 C0.5,10 1,10.6 1.8,10.6 L3,10.6 L4.2,14.2 L6,14.2 L4.8,10.6 L13,14.2 L13,2 Z M15.5,6 L17.5,5 M16,8.3 L18.2,8.3 M15.5,10.6 L17.5,11.6" />
-                    </Border>
+                    <!-- Left: Empty spacer to balance layout and keep center pill centered -->
+                    <BoxView Grid.Column="0"
+                             WidthRequest="42"
+                             HeightRequest="42"
+                             BackgroundColor="Transparent"
+                             Color="Transparent"
+                             InputTransparent="True" />
 
                     <!-- Center Mode A: "1 Friend" Pill on Camera (Image 3) -->
                     <Border Grid.Column="1"
@@ -1605,7 +1694,7 @@
                         </HorizontalStackLayout>
                     </Border>
 
-                    <!-- Right: Circular User Profile Avatar (Active - Snaps to Profile) -->
+                    <!-- Right: Circular User Profile Avatar (Active - Opens Add Friends) -->
                     <Border Grid.Column="2"
                             WidthRequest="42"
                             HeightRequest="42"
@@ -1615,7 +1704,7 @@
                             Padding="0"
                             VerticalOptions="Center">
                         <Border.GestureRecognizers>
-                            <TapGestureRecognizer Command="{Binding SnapToProfileCommand}" />
+                            <TapGestureRecognizer Command="{Binding ShellModel.AddFriendCommand}" />
                         </Border.GestureRecognizers>
                         <Grid>
                             <Path WidthRequest="24"
@@ -1650,20 +1739,24 @@
                            HorizontalOptions="Center"
                            VerticalOptions="Center" />
 
-                    <!-- Right: Save to Gallery Icon (UI only, unimplemented per user request - noted in TODO) -->
                     <!-- Right: Save to Gallery Icon (Hidden when photo is selected from gallery) -->
                     <Grid Grid.Column="2"
                           IsVisible="{Binding ShowSaveToGalleryButton}"
                           WidthRequest="42"
                           HeightRequest="42"
+                          BackgroundColor="Transparent"
                           HorizontalOptions="End"
                           VerticalOptions="Center">
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding SaveCapturedPreviewToGalleryCommand}" />
+                        </Grid.GestureRecognizers>
                         <Path Stroke="#D1D5DB"
                               StrokeThickness="2.5"
                               StrokeLineCap="Round"
                               StrokeLineJoin="Round"
                               HorizontalOptions="Center"
                               VerticalOptions="Center"
+                              InputTransparent="True"
                               Data="M12,3 L12,15 M7,10 L12,15 L17,10 M4,15 L4,18 C4,19.66 5.34,21 7,21 L17,21 C18.66,21 20,19.66 20,18 L20,15" />
                     </Grid>
                 </Grid>
@@ -1812,6 +1905,25 @@
                         <HorizontalStackLayout.GestureRecognizers>
                             <TapGestureRecognizer Command="{Binding ScrollToHistoryCommand}" />
                         </HorizontalStackLayout.GestureRecognizers>
+                        <Border IsVisible="{Binding ShellModel.HasUnseenPhotos}"
+                                BackgroundColor="#FFB800"
+                                StrokeShape="RoundRectangle 7"
+                                StrokeThickness="0"
+                                MinimumWidthRequest="25"
+                                HeightRequest="25"
+                                Padding="6,0"
+                                Margin="0,0,4,0"
+                                VerticalOptions="Center">
+                            <Label Text="{Binding ShellModel.UnseenPhotoCount}"
+                                   TextColor="#111111"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="14"
+                                   FontAttributes="Bold"
+                                   HorizontalOptions="Center"
+                                   VerticalOptions="Center"
+                                   HorizontalTextAlignment="Center"
+                                   VerticalTextAlignment="Center" />
+                        </Border>
                         <Label Text="History"
                                TextColor="#FFFFFF"
                                FontFamily="OpenSansSemibold"
@@ -1852,7 +1964,7 @@
                             </HorizontalStackLayout>
                         </Border>
 
-                        <!-- Own Post (Has Activity): "✨ Activity [Avatar]" Pill -->
+                        <!-- Own Post (Has Activity): Shows "[Avatar] Yunus sent ❤️🔥" while reaction animation plays, then "✨ Activity [Avatar]" -->
                         <Border IsVisible="{Binding ShowFeedActivityPill}"
                                 BackgroundColor="#222224"
                                 StrokeShape="RoundRectangle 24"
@@ -1863,35 +1975,75 @@
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Command="{Binding OpenActivitySheetCommand}" />
                             </Border.GestureRecognizers>
-                            <HorizontalStackLayout Spacing="10" VerticalOptions="Center">
-                                <Path Fill="#C7C7CC"
-                                      VerticalOptions="Center"
-                                      Data="M9,0 L11,5.5 L16.5,7.5 L11,9.5 L9,15 L7,9.5 L1.5,7.5 L7,5.5 L9,0 Z M3,11 L3.8,13.2 L6,14 L3.8,14.8 L3,17 L2.2,14.8 L0,14 L2.2,13.2 L3,11 Z" />
-                                <Label Text="Activity"
-                                       TextColor="#C7C7CC"
-                                       FontFamily="OpenSansSemibold"
-                                       FontSize="16"
-                                       FontAttributes="Bold"
-                                       VerticalOptions="Center" />
-                                <Border WidthRequest="30"
-                                        HeightRequest="30"
-                                        StrokeShape="RoundRectangle 15"
-                                        StrokeThickness="0"
-                                        BackgroundColor="#3A3A3C"
-                                        Padding="0"
-                                        VerticalOptions="Center">
-                                    <Grid>
-                                        <Path Fill="#8E8E93"
-                                              HorizontalOptions="Center"
-                                              VerticalOptions="Center"
-                                              Scale="0.7"
-                                              Data="M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z" />
-                                        <Image Source="{Binding CurrentFeedPost.LatestActivityAvatarUrl}"
-                                               IsVisible="{Binding CurrentFeedPost.LatestActivityAvatarUrl, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}"
-                                               Aspect="AspectFill" />
-                                    </Grid>
-                                </Border>
-                            </HorizontalStackLayout>
+                            <Border.Triggers>
+                                <DataTrigger TargetType="Border" Binding="{Binding IsReactionSentPillVisible}" Value="True">
+                                    <Setter Property="Padding" Value="10,0,16,0" />
+                                </DataTrigger>
+                            </Border.Triggers>
+                            <Grid VerticalOptions="Center">
+                                <!-- Default Activity Pill Content ("✨ Activity [Avatar]") -->
+                                <HorizontalStackLayout IsVisible="{Binding IsDefaultActivityPillVisible}"
+                                                       Spacing="10"
+                                                       VerticalOptions="Center">
+                                    <Path Fill="#C7C7CC"
+                                          VerticalOptions="Center"
+                                          Data="M9,0 L11,5.5 L16.5,7.5 L11,9.5 L9,15 L7,9.5 L1.5,7.5 L7,5.5 L9,0 Z M3,11 L3.8,13.2 L6,14 L3.8,14.8 L3,17 L2.2,14.8 L0,14 L2.2,13.2 L3,11 Z" />
+                                    <Label Text="Activity"
+                                           TextColor="#C7C7CC"
+                                           FontFamily="OpenSansSemibold"
+                                           FontSize="16"
+                                           FontAttributes="Bold"
+                                           VerticalOptions="Center" />
+                                    <Border WidthRequest="30"
+                                            HeightRequest="30"
+                                            StrokeShape="RoundRectangle 15"
+                                            StrokeThickness="0"
+                                            BackgroundColor="#3A3A3C"
+                                            Padding="0"
+                                            VerticalOptions="Center">
+                                        <Grid>
+                                            <Path Fill="#8E8E93"
+                                                  HorizontalOptions="Center"
+                                                  VerticalOptions="Center"
+                                                  Scale="0.7"
+                                                  Data="M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z" />
+                                            <Image Source="{Binding CurrentFeedPost.LatestActivityAvatarUrl}"
+                                                   IsVisible="{Binding CurrentFeedPost.LatestActivityAvatarUrl, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}"
+                                                   Aspect="AspectFill" />
+                                        </Grid>
+                                    </Border>
+                                </HorizontalStackLayout>
+
+                                <!-- Active Reaction Animation Pill Content ("[Avatar] Yunus sent ❤️🔥") -->
+                                <HorizontalStackLayout IsVisible="{Binding IsReactionSentPillVisible}"
+                                                       Spacing="10"
+                                                       VerticalOptions="Center">
+                                    <Border WidthRequest="30"
+                                            HeightRequest="30"
+                                            StrokeShape="RoundRectangle 15"
+                                            StrokeThickness="0"
+                                            BackgroundColor="#3A3A3C"
+                                            Padding="0"
+                                            VerticalOptions="Center">
+                                        <Grid>
+                                            <Path Fill="#8E8E93"
+                                                  HorizontalOptions="Center"
+                                                  VerticalOptions="Center"
+                                                  Scale="0.7"
+                                                  Data="M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z" />
+                                            <Image Source="{Binding CurrentFeedPost.LatestActivityAvatarUrl}"
+                                                   IsVisible="{Binding CurrentFeedPost.LatestActivityAvatarUrl, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}"
+                                                   Aspect="AspectFill" />
+                                        </Grid>
+                                    </Border>
+                                    <Label Text="{Binding CurrentFeedPost.ActivityPillText}"
+                                           TextColor="#FFFFFF"
+                                           FontFamily="OpenSansSemibold"
+                                           FontSize="16"
+                                           FontAttributes="Bold"
+                                           VerticalOptions="Center" />
+                                </HorizontalStackLayout>
+                            </Grid>
                         </Border>
 
                         <!-- Friend's Post: Wide Reply & Emoji Reactions Bar ("Send message...") -->
@@ -2808,28 +2960,7 @@
                            HorizontalOptions="Center"
                            VerticalOptions="Center" />
 
-                    <Border Grid.Column="2"
-                            WidthRequest="42"
-                            HeightRequest="42"
-                            StrokeShape="RoundRectangle 21"
-                            StrokeThickness="0"
-                            BackgroundColor="#1C1C1E"
-                            Padding="0"
-                            VerticalOptions="Center">
-                        <Border.GestureRecognizers>
-                            <TapGestureRecognizer Command="{Binding SnapToProfileCommand}" />
-                        </Border.GestureRecognizers>
-                        <Grid>
-                            <Path Fill="#8E8E93"
-                                  HorizontalOptions="Center"
-                                  VerticalOptions="Center"
-                                  Scale="0.95"
-                                  Data="M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z" />
-                            <Image Source="{Binding ShellModel.CurrentUser.ProfilePictureUrl}"
-                                   IsVisible="{Binding ShellModel.CurrentUser.ProfilePictureUrl, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}"
-                                   Aspect="AspectFill" />
-                        </Grid>
-                    </Border>
+                    <BoxView Grid.Column="2" BackgroundColor="Transparent" Color="Transparent" />
                 </Grid>
 
                 <!-- Row 1: Chat / Friends List (Reference Image 2) -->
@@ -2963,28 +3094,40 @@
                     VerticalOptions="Center">
                 <Grid ColumnDefinitions="*, *, *">
 
-                    <!-- Tab 0: Calendar / Rollcall Icon (Unimplemented feature - noted) -->
+                    <!-- Tab 0: Hamburger Menu Icon (Active Pill on Profile/Settings, Inactive Icon on Camera/Feed & Chat) -->
                     <Grid Grid.Column="0" HorizontalOptions="Fill" VerticalOptions="Fill">
-                        <Border WidthRequest="22"
-                                HeightRequest="20"
-                                StrokeShape="RoundRectangle 5"
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding SnapToProfileCommand}" />
+                        </Grid.GestureRecognizers>
+
+                        <!-- Active Profile/Settings Pill -->
+                        <Border IsVisible="{Binding IsProfilePanelActive}"
+                                BackgroundColor="#3A3A3C"
+                                StrokeShape="RoundRectangle 23"
                                 StrokeThickness="0"
-                                BackgroundColor="#8E8E93"
                                 Padding="0"
-                                HorizontalOptions="Center"
-                                VerticalOptions="Center">
-                            <Grid RowDefinitions="6, *" Padding="3,2">
-                                <BoxView Grid.Row="0" HeightRequest="2" BackgroundColor="#1C1C1E" Color="#1C1C1E" VerticalOptions="End" />
-                                <Grid Grid.Row="1" RowDefinitions="*, *" ColumnDefinitions="*, *, *" Margin="1,2,1,1">
-                                    <BoxView Grid.Row="0" Grid.Column="0" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
-                                    <BoxView Grid.Row="0" Grid.Column="1" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
-                                    <BoxView Grid.Row="0" Grid.Column="2" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
-                                    <BoxView Grid.Row="1" Grid.Column="0" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
-                                    <BoxView Grid.Row="1" Grid.Column="1" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
-                                    <BoxView Grid.Row="1" Grid.Column="2" WidthRequest="2.5" HeightRequest="2.5" CornerRadius="1.2" Color="#1C1C1E" BackgroundColor="#1C1C1E" HorizontalOptions="Center" VerticalOptions="Center" />
-                                </Grid>
-                            </Grid>
+                                HorizontalOptions="Fill"
+                                VerticalOptions="Fill">
+                            <Path WidthRequest="20"
+                                  HeightRequest="16"
+                                  Stroke="#FFFFFF"
+                                  StrokeThickness="2.4"
+                                  StrokeLineCap="Round"
+                                  HorizontalOptions="Center"
+                                  VerticalOptions="Center"
+                                  Data="M2,2 L18,2 M2,8 L18,8 M2,14 L18,14" />
                         </Border>
+
+                        <!-- Inactive Hamburger Menu Icon -->
+                        <Path IsVisible="{Binding IsNotProfilePanelActive}"
+                              WidthRequest="20"
+                              HeightRequest="16"
+                              Stroke="#8E8E93"
+                              StrokeThickness="2.4"
+                              StrokeLineCap="Round"
+                              HorizontalOptions="Center"
+                              VerticalOptions="Center"
+                              Data="M2,2 L18,2 M2,8 L18,8 M2,14 L18,14" />
                     </Grid>
 
                     <!-- Tab 1 (Center): Active Home Pill (Camera) OR Inactive Home Icon (Chat) OR Mini Gold Shutter (Feed) -->
@@ -3067,7 +3210,7 @@
                         </Border>
 
                         <!-- Inactive Chat Icon -->
-                        <Path IsVisible="{Binding IsCameraPanelActive}"
+                        <Path IsVisible="{Binding IsNotChatPanelActive}"
                               WidthRequest="20"
                               HeightRequest="20"
                               Fill="#8E8E93"
@@ -3079,7 +3222,7 @@
                 </Grid>
             </Border>
 
-            <!-- Right (Feed Mode): Share Button (Visible in Feed View - Image 4, Unimplemented feature noted) -->
+            <!-- Right (Feed Mode): More Options "..." Button -->
             <Border Grid.Column="2"
                     IsVisible="{Binding ShowFeedSideButtonsInBottomBar}"
                     WidthRequest="48"
@@ -3090,14 +3233,17 @@
                     Padding="0"
                     HorizontalOptions="End"
                     VerticalOptions="Center">
-                <Path WidthRequest="17"
-                      HeightRequest="17"
-                      Stroke="#FFFFFF"
-                      StrokeThickness="2"
-                      Fill="#FFFFFF"
-                      HorizontalOptions="Center"
-                      VerticalOptions="Center"
-                      Data="M14,3.5 C15,3.5 15.8,2.7 15.8,1.7 C15.8,0.7 15,0 14,0 C13,0 12.2,0.7 12.2,1.7 C12.2,2.7 13,3.5 14,3.5 Z M2.5,10.2 C3.5,10.2 4.3,9.4 4.3,8.4 C4.3,7.4 3.5,6.7 2.5,6.7 C1.5,6.7 0.7,7.4 0.7,8.4 C0.7,9.4 1.5,10.2 2.5,10.2 Z M14,17 C15,17 15.8,16.2 15.8,15.2 C15.8,14.2 15,13.5 14,13.5 C13,13.5 12.2,14.2 12.2,15.2 C12.2,16.2 13,17 14,17 Z M4.1,7.5 L12.4,2.6 M4.1,9.3 L12.4,14.2" />
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding TogglePostOptionsMenuCommand}" />
+                </Border.GestureRecognizers>
+                <HorizontalStackLayout Spacing="4"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center"
+                                       InputTransparent="True">
+                    <Ellipse WidthRequest="4.5" HeightRequest="4.5" Fill="#FFFFFF" />
+                    <Ellipse WidthRequest="4.5" HeightRequest="4.5" Fill="#FFFFFF" />
+                    <Ellipse WidthRequest="4.5" HeightRequest="4.5" Fill="#FFFFFF" />
+                </HorizontalStackLayout>
             </Border>
 
             <!-- Right (Chat Mode): Floating Gold Circle Pencil Button (Active - Opens Add Friend / New Chat) -->
@@ -3123,6 +3269,219 @@
             </Border>
 
         </Grid>
+
+        <!-- ================================================================== -->
+        <!-- POST OPTIONS POPUP MENU OVERLAY (Triggered by "..." in Feed View)  -->
+        <!-- ================================================================== -->
+        <Grid x:Name="PostOptionsMenuOverlayGrid"
+              IsVisible="False"
+              HorizontalOptions="Fill"
+              VerticalOptions="Fill">
+            <!-- Backdrop to dismiss menu when tapping outside -->
+            <BoxView x:Name="PostOptionsMenuBackdrop"
+                     BackgroundColor="#55000000"
+                     Color="#55000000"
+                     Opacity="0"
+                     HorizontalOptions="Fill"
+                     VerticalOptions="Fill">
+                <BoxView.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnPostOptionsMenuBackdropTapped" />
+                </BoxView.GestureRecognizers>
+            </BoxView>
+
+            <!-- Floating Rounded Popup Card above the "..." Button -->
+            <Border x:Name="PostOptionsMenuCard"
+                    WidthRequest="200"
+                    Margin="{Binding PostOptionsMenuMargin}"
+                    HorizontalOptions="End"
+                    VerticalOptions="End"
+                    BackgroundColor="#242426"
+                    StrokeShape="RoundRectangle 24"
+                    StrokeThickness="0"
+                    Padding="0"
+                    Opacity="0"
+                    Scale="0.92">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer />
+                </Border.GestureRecognizers>
+                <VerticalStackLayout Spacing="0">
+                    <!-- Option 1: Download -->
+                    <Grid ColumnDefinitions="26, *"
+                          ColumnSpacing="14"
+                          Padding="20,16"
+                          BackgroundColor="Transparent">
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding DownloadCurrentFeedPostCommand}" />
+                        </Grid.GestureRecognizers>
+                        <Path Grid.Column="0"
+                              WidthRequest="22"
+                              HeightRequest="22"
+                              Stroke="#D4D4D8"
+                              StrokeThickness="2.4"
+                              StrokeLineCap="Round"
+                              StrokeLineJoin="Round"
+                              HorizontalOptions="Center"
+                              VerticalOptions="Center"
+                              InputTransparent="True"
+                              Data="M11,3 L11,14 M6.5,9.5 L11,14 L15.5,9.5 M3.5,14 L3.5,16.5 C3.5,18.2 4.8,19.5 6.5,19.5 L15.5,19.5 C17.2,19.5 18.5,18.2 18.5,16.5 L18.5,14" />
+                        <Label Grid.Column="1"
+                               Text="Download"
+                               TextColor="#E5E5EA"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="17"
+                               FontAttributes="Bold"
+                               VerticalOptions="Center"
+                               InputTransparent="True" />
+                    </Grid>
+
+                    <!-- Divider -->
+                    <BoxView HeightRequest="1"
+                             BackgroundColor="#3A3A3C"
+                             Color="#3A3A3C"
+                             Margin="18,0" />
+
+                    <!-- Option 2: Delete -->
+                    <Grid ColumnDefinitions="26, *"
+                          ColumnSpacing="14"
+                          Padding="20,16"
+                          BackgroundColor="Transparent">
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding PromptDeleteCurrentFeedPostCommand}" />
+                        </Grid.GestureRecognizers>
+                        <!-- Filled Red Trash Icon with vertical cutouts -->
+                        <Path Grid.Column="0"
+                              WidthRequest="22"
+                              HeightRequest="22"
+                              Fill="#FF453A"
+                              HorizontalOptions="Center"
+                              VerticalOptions="Center"
+                              InputTransparent="True"
+                              Data="M8.5,2 C7.95,2 7.5,2.45 7.5,3 L7.5,4 L4,4 C3.45,4 3,4.45 3,5 C3,5.55 3.45,6 4,6 L18,6 C18.55,6 19,5.55 19,5 C19,4.45 18.55,4 18,4 L14.5,4 L14.5,3 C14.5,2.45 14.05,2 13.5,2 L8.5,2 Z M5,7.5 L5.7,18.2 C5.78,19.2 6.6,20 7.6,20 L14.4,20 C15.4,20 16.22,19.2 16.3,18.2 L17,7.5 L5,7.5 Z M9.2,10 C9.75,10 10.2,10.45 10.2,11 L10.2,16.5 C10.2,17.05 9.75,17.5 9.2,17.5 C8.65,17.5 8.2,17.05 8.2,16.5 L8.2,11 C8.2,10.45 8.65,10 9.2,10 Z M12.8,10 C13.35,10 13.8,10.45 13.8,11 L13.8,16.5 C13.8,17.05 13.35,17.5 12.8,17.5 C12.25,17.5 11.8,17.05 11.8,16.5 L11.8,11 C11.8,10.45 12.25,10 12.8,10 Z" />
+                        <Label Grid.Column="1"
+                               Text="Delete"
+                               TextColor="#FF453A"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="17"
+                               FontAttributes="Bold"
+                               VerticalOptions="Center"
+                               InputTransparent="True" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
+
+        <!-- ================================================================== -->
+        <!-- DELETE CONFIRMATION DIALOG OVERLAY                                 -->
+        <!-- ================================================================== -->
+        <Grid x:Name="DeleteConfirmOverlayGrid"
+              IsVisible="False"
+              HorizontalOptions="Fill"
+              VerticalOptions="Fill">
+            <!-- Darkened backdrop to dismiss dialog on tap outside -->
+            <BoxView x:Name="DeleteConfirmBackdrop"
+                     BackgroundColor="#78000000"
+                     Color="#78000000"
+                     Opacity="0"
+                     HorizontalOptions="Fill"
+                     VerticalOptions="Fill">
+                <BoxView.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnDeleteConfirmBackdropTapped" />
+                </BoxView.GestureRecognizers>
+            </BoxView>
+
+            <!-- Centered Rounded Dialog Card -->
+            <Border x:Name="DeleteConfirmCard"
+                    Margin="26,0"
+                    MaximumWidthRequest="360"
+                    HorizontalOptions="Fill"
+                    VerticalOptions="Center"
+                    BackgroundColor="#1E1E20"
+                    StrokeShape="RoundRectangle 28"
+                    StrokeThickness="0"
+                    Padding="26,24,26,20"
+                    Opacity="0"
+                    Scale="0.92">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer />
+                </Border.GestureRecognizers>
+                <VerticalStackLayout Spacing="14">
+                    <Label Text="Delete picture?"
+                           TextColor="#FFFFFF"
+                           FontFamily="OpenSansSemibold"
+                           FontSize="22"
+                           FontAttributes="Bold" />
+
+                    <Label Text="{Binding DeleteConfirmDescription}"
+                           TextColor="#D4D4D8"
+                           FontFamily="OpenSansRegular"
+                           FontSize="15.5"
+                           LineHeight="1.25" />
+
+                    <HorizontalStackLayout Spacing="28"
+                                           HorizontalOptions="End"
+                                           Margin="0,10,0,0">
+                        <Grid Padding="8,6" BackgroundColor="Transparent">
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding CloseDeleteConfirmCommand}" />
+                            </Grid.GestureRecognizers>
+                            <Label Text="Cancel"
+                                   TextColor="#FFFFFF"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="16.5"
+                                   FontAttributes="Bold"
+                                   VerticalOptions="Center"
+                                   InputTransparent="True" />
+                        </Grid>
+
+                        <Grid Padding="8,6" BackgroundColor="Transparent">
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding DeleteCurrentFeedPostCommand}" />
+                            </Grid.GestureRecognizers>
+                            <Label Text="Delete"
+                                   TextColor="#FF453A"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="16.5"
+                                   FontAttributes="Bold"
+                                   VerticalOptions="Center"
+                                   InputTransparent="True" />
+                        </Grid>
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
+
+        <!-- ================================================================== -->
+        <!-- "SAVED" BOTTOM TOAST NOTIFICATION                                  -->
+        <!-- ================================================================== -->
+        <Border x:Name="SavedToastPill"
+                IsVisible="False"
+                Opacity="0"
+                TranslationY="24"
+                InputTransparent="True"
+                HorizontalOptions="Center"
+                VerticalOptions="End"
+                Margin="0,0,0,90"
+                BackgroundColor="#E62C2C2E"
+                StrokeShape="RoundRectangle 22"
+                StrokeThickness="0"
+                Padding="20,11">
+            <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                <Path WidthRequest="16"
+                      HeightRequest="13"
+                      Stroke="#FFFFFF"
+                      StrokeThickness="2.4"
+                      StrokeLineCap="Round"
+                      StrokeLineJoin="Round"
+                      VerticalOptions="Center"
+                      Data="M1.5,7 L5.5,11 L14.5,2" />
+                <Label Text="Saved"
+                       TextColor="#FFFFFF"
+                       FontFamily="OpenSansSemibold"
+                       FontSize="15.5"
+                       FontAttributes="Bold"
+                       VerticalOptions="Center" />
+            </HorizontalStackLayout>
+        </Border>
 
         <!-- Full-screen white overlay for front-camera / no-hardware-flash "screen flash" -->
         <BoxView x:Name="ScreenFlashOverlay"

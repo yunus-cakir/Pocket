@@ -101,6 +101,11 @@ namespace Pocket.Server.Hubs
                 payload.SenderId = authenticatedUserId;
             }
 
+            if (payload.MediaType == Pocket.Shared.Enums.MediaType.PostDeleted && payload.MediaPostId.HasValue)
+            {
+                _memoryStore.RemovePostFromUserQueue(payload.RecipientId, payload.SenderId, payload.MediaPostId.Value);
+            }
+
             // Store transiently in memory until recipient explicitly confirms delivery (BR-201, BR-202)
             _memoryStore.EnqueuePayload(payload);
 

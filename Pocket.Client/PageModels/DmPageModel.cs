@@ -194,10 +194,16 @@ namespace Pocket.Client.PageModels
 
             _shellModel.OnDirectMessageReceived += HandleDirectMessageReceived;
             _shellModel.OnDirectMessageDelivered += HandleDirectMessageDelivered;
+            _shellModel.OnMediaPostDeleted += HandleMediaPostDeleted;
             _shellModel.OnFriendProfileUpdated += HandleFriendProfileUpdated;
             _shellModel.OnUserProfileUpdated += HandleUserProfileUpdated;
 
             LoadRecentEmojis();
+        }
+
+        public void SetDmWindowActive(bool isActive)
+        {
+            _shellModel.IsInDmWindow = isActive;
         }
 
         public void LoadRecentEmojis()
@@ -387,6 +393,25 @@ namespace Pocket.Client.PageModels
             if (existing != null)
             {
                 existing.SyncStatus = Shared.Enums.SyncStatus.Delivered;
+            }
+        }
+
+        private void HandleMediaPostDeleted(Guid postId)
+        {
+            if (ReplyingToPost?.Id == postId)
+            {
+                ReplyingToPost = null;
+                MediaPostId = null;
+            }
+
+            foreach (var msg in Messages)
+            {
+                if (msg.MediaPostId == postId)
+                {
+                    msg.MediaPostId = null;
+                    msg.ReferencedPostPath = string.Empty;
+                    msg.ShowMediaCard = false;
+                }
             }
         }
 

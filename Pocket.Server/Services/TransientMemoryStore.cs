@@ -44,5 +44,21 @@ namespace Pocket.Server.Services
             }
             return false;
         }
+
+        public void RemovePostFromUserQueue(string userId, string senderId, Guid postId)
+        {
+            if (_pendingPayloads.TryGetValue(userId, out var userMessages))
+            {
+                userMessages.TryRemove(postId, out _);
+                foreach (var kvp in userMessages.ToArray())
+                {
+                    if (kvp.Value.SenderId == senderId && kvp.Value.MediaPostId == postId &&
+                        kvp.Value.MediaType != Pocket.Shared.Enums.MediaType.PostDeleted)
+                    {
+                        userMessages.TryRemove(kvp.Key, out _);
+                    }
+                }
+            }
+        }
     }
 }

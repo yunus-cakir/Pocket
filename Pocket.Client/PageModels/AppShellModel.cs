@@ -18,64 +18,64 @@ namespace Pocket.Client.PageModels
         private readonly LocalDatabase? _database;
         private readonly ICryptoService? _cryptoService;
         private readonly IRelayService? _relayService;
+        private readonly IBackupService? _backupService;
+        private readonly INotificationService? _notificationService;
 
-        [ObservableProperty]
-        private User _currentUser = new User(); // Default empty user until loaded
+        [ObservableProperty] private User _currentUser = new User(); // Default empty user until loaded
 
-        [ObservableProperty]
-        private string _serverIp = string.Empty;
+        [ObservableProperty] private string _serverIp = string.Empty;
 
-        [ObservableProperty]
-        private bool _isConnected;
+        [ObservableProperty] private bool _isConnected;
 
-        [ObservableProperty]
-        private string _connectionStatusText = "Bağlı Değil";
+        [ObservableProperty] private string _connectionStatusText = "Bağlı Değil";
 
-        [ObservableProperty]
-        private string _connectionStatusColor = "#EF4444";
+        [ObservableProperty] private string _connectionStatusColor = "#EF4444";
 
-        [ObservableProperty]
-        private string _connectedUrlText = "-";
+        [ObservableProperty] private string _connectedUrlText = "-";
 
-        [ObservableProperty]
-        private string _connectedAtText = "-";
+        [ObservableProperty] private string _connectedAtText = "-";
 
-        [ObservableProperty]
-        private bool _isStreakOnWidget = true;
+        [ObservableProperty] private bool _isStreakOnWidget = true;
 
         /// <summary>
         /// When true, the shutter saves the exact preview frame (WYSIWYG colors).
         /// When false, the camera's native still-capture pipeline is used (may alter tone/colors).
         /// Persisted via <see cref="Pocket.Client.Controls.CameraView.CaptureFromPreviewPreferenceKey"/>.
         /// </summary>
-        [ObservableProperty]
-        private bool _isCaptureFromPreview = Microsoft.Maui.Storage.Preferences.Get(
+        [ObservableProperty] private bool _isCaptureFromPreview = Microsoft.Maui.Storage.Preferences.Get(
             Pocket.Client.Controls.CameraView.CaptureFromPreviewPreferenceKey,
             Pocket.Client.Controls.CameraView.CaptureFromPreviewDefault);
 
         /// <summary>Show a vertical zoom slider on the right of the viewfinder after tap-to-focus.</summary>
-        [ObservableProperty]
-        private bool _isZoomSliderEnabled = Microsoft.Maui.Storage.Preferences.Get(
+        [ObservableProperty] private bool _isZoomSliderEnabled = Microsoft.Maui.Storage.Preferences.Get(
             Pocket.Client.Controls.CameraView.ZoomSliderPreferenceKey,
             Pocket.Client.Controls.CameraView.ZoomSliderDefault);
 
         /// <summary>Show a horizontal exposure slider at the bottom of the viewfinder after tap-to-focus.</summary>
-        [ObservableProperty]
-        private bool _isExposureSliderEnabled = Microsoft.Maui.Storage.Preferences.Get(
+        [ObservableProperty] private bool _isExposureSliderEnabled = Microsoft.Maui.Storage.Preferences.Get(
             Pocket.Client.Controls.CameraView.ExposureSliderPreferenceKey,
             Pocket.Client.Controls.CameraView.ExposureSliderDefault);
 
         /// <summary>Keep the last zoom level instead of resetting it to 1.0x.</summary>
-        [ObservableProperty]
-        private bool _isKeepLastZoom = Microsoft.Maui.Storage.Preferences.Get(
+        [ObservableProperty] private bool _isKeepLastZoom = Microsoft.Maui.Storage.Preferences.Get(
             Pocket.Client.Controls.CameraView.KeepZoomPreferenceKey,
             Pocket.Client.Controls.CameraView.KeepZoomDefault);
 
         /// <summary>Keep the last exposure compensation instead of resetting it to 0 EV.</summary>
-        [ObservableProperty]
-        private bool _isKeepLastExposure = Microsoft.Maui.Storage.Preferences.Get(
+        [ObservableProperty] private bool _isKeepLastExposure = Microsoft.Maui.Storage.Preferences.Get(
             Pocket.Client.Controls.CameraView.KeepExposurePreferenceKey,
             Pocket.Client.Controls.CameraView.KeepExposureDefault);
+
+        [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasUnseenPhotos))]
+        private int _unseenPhotoCount;
+
+        public bool HasUnseenPhotos => UnseenPhotoCount > 0;
+
+        public bool IsViewingHistory { get; set; }
+
+        public bool IsAppInForeground { get; set; } = true;
+
+        public bool IsInDmWindow { get; set; }
 
         public ObservableCollection<Friend> Friends { get; } = new();
 
@@ -83,16 +83,25 @@ namespace Pocket.Client.PageModels
 
         public event Action<MediaPost>? OnMediaPostReceived;
         public event Action<Guid>? OnMediaPostDelivered;
+        public event Action<Guid>? OnMediaPostDeleted;
         public event Action<DirectMessage>? OnDirectMessageReceived;
         public event Action<Guid>? OnDirectMessageDelivered;
         public event Action<Friend>? OnFriendProfileUpdated;
         public event Action<User>? OnUserProfileUpdated;
+        public event Action? OnDataImported;
 
-        public AppShellModel(LocalDatabase database, ICryptoService cryptoService, IRelayService relayService)
+        public AppShellModel(
+            LocalDatabase database,
+            ICryptoService cryptoService,
+            IRelayService relayService,
+            IBackupService backupService,
+            INotificationService notificationService)
         {
             _database = database;
             _cryptoService = cryptoService;
             _relayService = relayService;
+            _backupService = backupService;
+            _notificationService = notificationService;
 
             Friends.CollectionChanged += (_, _) => OnPropertyChanged(nameof(FriendsCountText));
             OnDirectMessageReceived += UpdateFriendLastMessage;
@@ -114,7 +123,8 @@ namespace Pocket.Client.PageModels
 
         partial void OnIsCaptureFromPreviewChanged(bool value)
         {
-            Microsoft.Maui.Storage.Preferences.Set(Pocket.Client.Controls.CameraView.CaptureFromPreviewPreferenceKey, value);
+            Microsoft.Maui.Storage.Preferences.Set(Pocket.Client.Controls.CameraView.CaptureFromPreviewPreferenceKey,
+                value);
         }
 
         [RelayCommand]
@@ -136,7 +146,8 @@ namespace Pocket.Client.PageModels
 
         partial void OnIsExposureSliderEnabledChanged(bool value)
         {
-            Microsoft.Maui.Storage.Preferences.Set(Pocket.Client.Controls.CameraView.ExposureSliderPreferenceKey, value);
+            Microsoft.Maui.Storage.Preferences.Set(Pocket.Client.Controls.CameraView.ExposureSliderPreferenceKey,
+                value);
         }
 
         [RelayCommand]
@@ -176,7 +187,7 @@ namespace Pocket.Client.PageModels
             }
         }
 
-        public AppShellModel() : this(null!, null!, null!)
+        public AppShellModel() : this(null!, null!, null!, null!, null!)
         {
         }
 
@@ -185,7 +196,8 @@ namespace Pocket.Client.PageModels
 
         private byte[] GetOrDeriveSharedSecret(string privateKey, string friendPublicKey)
         {
-            return _sharedSecretCache.GetOrAdd(friendPublicKey, pk => _cryptoService!.DeriveSharedSecret(privateKey, pk));
+            return _sharedSecretCache.GetOrAdd(friendPublicKey,
+                pk => _cryptoService!.DeriveSharedSecret(privateKey, pk));
         }
 
         public async Task<string> GetPrivateKeyAsync()
@@ -198,7 +210,8 @@ namespace Pocket.Client.PageModels
 
             try
             {
-                var secureKey = await Microsoft.Maui.Storage.SecureStorage.Default.GetAsync($"pocket_pk_{CurrentUser.Id}");
+                var secureKey =
+                    await Microsoft.Maui.Storage.SecureStorage.Default.GetAsync($"pocket_pk_{CurrentUser.Id}");
                 if (!string.IsNullOrEmpty(secureKey))
                 {
                     _cachedPrivateKey = secureKey;
@@ -219,7 +232,7 @@ namespace Pocket.Client.PageModels
             if (_database != null && _cryptoService != null && _relayService != null)
             {
                 var user = await _database.GetUserAsync();
-                
+
                 if (user == null)
                 {
                     // First launch: Generate identity and keys
@@ -232,10 +245,11 @@ namespace Pocket.Client.PageModels
                         EncryptedPrivateKey = keys.PrivateKey
                     };
                     user.DisplayName = user.Username;
-                    
+
                     try
                     {
-                        await Microsoft.Maui.Storage.SecureStorage.Default.SetAsync($"pocket_pk_{user.Id}", keys.PrivateKey);
+                        await Microsoft.Maui.Storage.SecureStorage.Default.SetAsync($"pocket_pk_{user.Id}",
+                            keys.PrivateKey);
                     }
                     catch (Exception ex)
                     {
@@ -244,7 +258,7 @@ namespace Pocket.Client.PageModels
 
                     await _database.SaveUserAsync(user);
                 }
-                
+
                 CurrentUser = user;
 
                 // Load Server IP from Preferences
@@ -270,8 +284,12 @@ namespace Pocket.Client.PageModels
                         friend.LastMessagePreview = "Sohbeti başlatmak için dokun";
                         friend.LastMessageTimeText = MediaPost.FormatRelativeTime(friend.AddedAt);
                     }
+
                     Friends.Add(friend);
                 }
+
+                // Sync home-screen widget with the latest stored photo
+                _ = UpdateLatestPhotoWidgetAsync();
 
                 // Subscribe to real-time events BEFORE connecting so offline queued payloads aren't missed
                 _relayService.OnConnectionStateChanged -= HandleConnectionStateChanged;
@@ -363,6 +381,7 @@ namespace Pocket.Client.PageModels
                         targetFriend.LastMessageTimeText = MediaPost.FormatRelativeTime(dm.SentAt);
                     }
                 }
+
                 OnDirectMessageReceived?.Invoke(dm);
             });
 
@@ -431,7 +450,8 @@ namespace Pocket.Client.PageModels
                 var senderFriend = await _database.GetFriendAsync(payload.SenderId);
                 if (senderFriend == null || string.IsNullOrEmpty(senderFriend.PublicKey))
                 {
-                    Debug.WriteLine($"[E2EE] Rejected payload {payload.MessageId} from unknown sender {payload.SenderId}");
+                    Debug.WriteLine(
+                        $"[E2EE] Rejected payload {payload.MessageId} from unknown sender {payload.SenderId}");
                     return;
                 }
 
@@ -447,17 +467,21 @@ namespace Pocket.Client.PageModels
                     if (payload.EncryptedContent is { Length: > 0 })
                     {
                         var decryptedBytes = _cryptoService.DecryptData(payload.EncryptedContent, sharedSecret);
-                        var profileUpdate = System.Text.Json.JsonSerializer.Deserialize<Pocket.Shared.DTOs.ProfileUpdateDto>(decryptedBytes);
+                        var profileUpdate =
+                            System.Text.Json.JsonSerializer.Deserialize<Pocket.Shared.DTOs.ProfileUpdateDto>(
+                                decryptedBytes);
                         if (profileUpdate != null)
                         {
                             if (!string.IsNullOrWhiteSpace(profileUpdate.Username))
                             {
                                 senderFriend.Username = profileUpdate.Username;
                             }
+
                             if (!string.IsNullOrWhiteSpace(profileUpdate.DisplayName))
                             {
                                 senderFriend.DisplayName = profileUpdate.DisplayName;
                             }
+
                             if (profileUpdate.AvatarCleared)
                             {
                                 TryDeleteLocalFile(senderFriend.ProfilePictureUrl);
@@ -473,13 +497,17 @@ namespace Pocket.Client.PageModels
                         Directory.CreateDirectory(profileDir);
 
                         var oldAvatarPath = senderFriend.ProfilePictureUrl;
-                        var newAvatarPath = Path.Combine(profileDir, $"friend_{senderFriend.Id}_{payload.MessageId:N}.jpg");
+                        var newAvatarPath = Path.Combine(profileDir,
+                            $"friend_{senderFriend.Id}_{payload.MessageId:N}.jpg");
                         await File.WriteAllBytesAsync(newAvatarPath, decryptedAvatarBytes);
                         senderFriend.ProfilePictureUrl = newAvatarPath;
                         TryDeleteLocalFile(oldAvatarPath);
                     }
 
                     await _database.SaveFriendAsync(senderFriend);
+
+                    // Sender avatar may be shown on the home-screen widget
+                    await UpdateLatestPhotoWidgetAsync();
 
                     Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
                     {
@@ -490,10 +518,39 @@ namespace Pocket.Client.PageModels
                             targetFriend.DisplayName = senderFriend.DisplayName;
                             targetFriend.ProfilePictureUrl = senderFriend.ProfilePictureUrl;
                         }
+
                         OnFriendProfileUpdated?.Invoke(senderFriend);
                     });
 
                     // BR-202: Confirm delivery so server immediately purges payload from RAM
+                    await _relayService.ConfirmDeliveryAsync(payload.SenderId, payload.MessageId);
+                    return;
+                }
+
+                if (payload.MediaType == Pocket.Shared.Enums.MediaType.PostDeleted)
+                {
+                    if (payload.EncryptedContent is { Length: > 0 })
+                    {
+                        var decryptedBytes = _cryptoService.DecryptData(payload.EncryptedContent, sharedSecret);
+                        var postIdStr = Encoding.UTF8.GetString(decryptedBytes);
+                        if (Guid.TryParse(postIdStr, out var targetPostId))
+                        {
+                            var postToDelete = await _database.GetMediaPostAsync(targetPostId);
+                            if (postToDelete != null && postToDelete.IsIncoming &&
+                                postToDelete.FriendId == payload.SenderId)
+                            {
+                                TryDeleteLocalFile(postToDelete.MediaLocalPath);
+                                await _database.DeleteMediaPostAsync(targetPostId);
+                                await UpdateLatestPhotoWidgetAsync();
+
+                                Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+                                {
+                                    OnMediaPostDeleted?.Invoke(targetPostId);
+                                });
+                            }
+                        }
+                    }
+
                     await _relayService.ConfirmDeliveryAsync(payload.SenderId, payload.MessageId);
                     return;
                 }
@@ -518,7 +575,8 @@ namespace Pocket.Client.PageModels
                     string? reactionEmoji = null;
                     if (payload.EncryptedReaction is { Length: > 0 })
                     {
-                        var decryptedReactionBytes = _cryptoService.DecryptData(payload.EncryptedReaction, sharedSecret);
+                        var decryptedReactionBytes =
+                            _cryptoService.DecryptData(payload.EncryptedReaction, sharedSecret);
                         reactionEmoji = Encoding.UTF8.GetString(decryptedReactionBytes);
                     }
 
@@ -552,6 +610,36 @@ namespace Pocket.Client.PageModels
 
                     await _database.SaveDirectMessageAsync(dm);
 
+                    string senderHeader = !string.IsNullOrWhiteSpace(senderFriend.DisplayName)
+                        ? senderFriend.DisplayName
+                        : senderFriend.Username;
+
+                    if (!string.IsNullOrWhiteSpace(reactionEmoji) && string.IsNullOrWhiteSpace(textContent))
+                    {
+                        _notificationService?.ShowReactionNotification(
+                            senderFriend.Id,
+                            senderHeader,
+                            senderFriend.ProfilePictureUrl,
+                            dm.MediaPostId);
+                    }
+                    else if (!string.IsNullOrWhiteSpace(textContent))
+                    {
+                        bool isForeground = IsAppInForeground;
+#if ANDROID
+                        isForeground = isForeground && MainActivity.IsActivityResumed;
+#endif
+                        bool isDmWindowActive = isForeground &&
+                                                (IsInDmWindow || Microsoft.Maui.Controls.Shell.Current?.CurrentPage is Pocket.Client.Pages.DmPage);
+                        if (!isDmWindowActive)
+                        {
+                            _notificationService?.ShowMessageNotification(
+                                senderFriend.Id,
+                                senderHeader,
+                                textContent,
+                                senderFriend.ProfilePictureUrl);
+                        }
+                    }
+
                     Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
                     {
                         if (!dm.IsPostReactionOnly)
@@ -565,6 +653,7 @@ namespace Pocket.Client.PageModels
                                 targetFriend.LastMessageTimeText = MediaPost.FormatRelativeTime(dm.SentAt);
                             }
                         }
+
                         OnDirectMessageReceived?.Invoke(dm);
                     });
 
@@ -610,11 +699,15 @@ namespace Pocket.Client.PageModels
                     Caption = caption,
                     SentAt = payload.Timestamp,
                     IsIncludedInRollcall = false,
+                    IsUnseen = !IsViewingHistory,
                     SyncStatus = Pocket.Shared.Enums.SyncStatus.Delivered,
                     SenderDisplayName = senderFriend.DisplayName
                 };
 
                 await _database.SaveMediaPostAsync(mediaPost);
+
+                // Refresh the home-screen "latest photo" widget
+                await UpdateLatestPhotoWidgetAsync();
 
                 // BR-202: Immediately confirm delivery so the Relay Server purges the transient payload from RAM
                 await _relayService.ConfirmDeliveryAsync(payload.SenderId, payload.MessageId);
@@ -626,7 +719,126 @@ namespace Pocket.Client.PageModels
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[E2EE Receive Error] Failed to decrypt/save payload {payload.MessageId}: {ex.Message}");
+                Debug.WriteLine(
+                    $"[E2EE Receive Error] Failed to decrypt/save payload {payload.MessageId}: {ex.Message}");
+            }
+        }
+
+        public async Task MarkAllPhotosSeenAsync()
+        {
+            if (_database == null)
+                return;
+
+            Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() => { UnseenPhotoCount = 0; });
+
+            try
+            {
+                await _database.MarkAllIncomingPhotosSeenAsync();
+                await UpdateLatestPhotoWidgetAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Unseen] MarkAllPhotosSeenAsync failed: {ex.Message}");
+            }
+        }
+
+        public async Task UpdateLatestPhotoWidgetAsync()
+        {
+            if (_database == null)
+                return;
+
+            try
+            {
+                int unseenCount = await _database.GetUnseenIncomingPhotoCountAsync();
+                Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    UnseenPhotoCount = unseenCount;
+                });
+
+#if ANDROID
+                var post = await _database.GetLatestIncomingPhotoPostAsync();
+                if (post == null || string.IsNullOrWhiteSpace(post.MediaLocalPath) || !File.Exists(post.MediaLocalPath))
+                {
+                    Pocket.Client.Platforms.Android.Widgets.LatestPhotoWidgetProvider.Clear();
+                    return;
+                }
+
+                var friend = await _database.GetFriendAsync(post.FriendId);
+                Pocket.Client.Platforms.Android.Widgets.LatestPhotoWidgetProvider.Publish(
+                    post.Id,
+                    post.MediaLocalPath,
+                    friend?.ProfilePictureUrl,
+                    post.Caption,
+                    friend?.DisplayName,
+                    unseenCount);
+#endif
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Widget] Update failed: {ex.Message}");
+            }
+        }
+
+        public async Task DeleteMediaPostAsync(MediaPost post)
+        {
+            if (_database == null)
+                return;
+
+            bool isOwnPost = !post.IsIncoming;
+            Guid postId = post.Id;
+            string recipientFriendId = post.FriendId;
+
+            TryDeleteLocalFile(post.MediaLocalPath);
+            await _database.DeleteMediaPostAsync(postId);
+            await UpdateLatestPhotoWidgetAsync();
+
+            Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+            {
+                OnMediaPostDeleted?.Invoke(postId);
+            });
+
+            if (isOwnPost && _cryptoService != null && _relayService != null && _relayService.IsConnected)
+            {
+                var privateKey = await GetPrivateKeyAsync();
+                if (!string.IsNullOrEmpty(privateKey))
+                {
+                    var allFriends = await _database.GetFriendsAsync();
+                    var targetFriends = !string.IsNullOrEmpty(recipientFriendId)
+                        ? allFriends.Where(f => f.Id == recipientFriendId).ToList()
+                        : allFriends;
+
+                    var postIdBytes = Encoding.UTF8.GetBytes(postId.ToString());
+
+                    foreach (var friend in targetFriends)
+                    {
+                        if (string.IsNullOrEmpty(friend.PublicKey))
+                            continue;
+
+                        try
+                        {
+                            var sharedSecret = GetOrDeriveSharedSecret(privateKey, friend.PublicKey);
+                            var encryptedContent = _cryptoService.EncryptData(postIdBytes, sharedSecret);
+
+                            var payload = new Pocket.Shared.DTOs.EncryptedPayloadDto
+                            {
+                                MessageId = Guid.NewGuid(),
+                                SenderId = CurrentUser.Id,
+                                RecipientId = friend.Id,
+                                MediaPostId = postId,
+                                EncryptedContent = encryptedContent,
+                                MediaType = Pocket.Shared.Enums.MediaType.PostDeleted,
+                                Timestamp = DateTime.UtcNow
+                            };
+
+                            await _relayService.SendPayloadAsync(payload);
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine(
+                                $"[E2EE Delete Post Error] Failed for friend {friend.Username}: {ex.Message}");
+                        }
+                    }
+                }
             }
         }
 
@@ -700,13 +912,13 @@ namespace Pocket.Client.PageModels
             Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(async () =>
             {
                 if (Microsoft.Maui.Controls.Shell.Current == null) return;
-                
+
                 bool accept = await Microsoft.Maui.Controls.Shell.Current.DisplayAlert(
-                    "Arkadaşlık İsteği", 
-                    $"{request.SenderUsername} size bir arkadaşlık isteği gönderdi. Kabul ediyor musunuz?", 
-                    "Kabul Et", 
+                    "Arkadaşlık İsteği",
+                    $"{request.SenderUsername} size bir arkadaşlık isteği gönderdi. Kabul ediyor musunuz?",
+                    "Kabul Et",
                     "Reddet");
-                    
+
                 if (accept && _database != null && _relayService != null)
                 {
                     var friend = new Friend
@@ -717,7 +929,7 @@ namespace Pocket.Client.PageModels
                         PublicKey = request.SenderPublicKey,
                         AddedAt = DateTime.UtcNow
                     };
-                    
+
                     var existing = await _database.GetFriendAsync(friend.Id);
                     if (existing == null)
                     {
@@ -759,16 +971,17 @@ namespace Pocket.Client.PageModels
                         PublicKey = acceptDto.SenderPublicKey,
                         AddedAt = DateTime.UtcNow
                     };
-                    
+
                     var existing = await _database.GetFriendAsync(friend.Id);
                     if (existing == null)
                     {
                         await _database.SaveFriendAsync(friend);
                         Friends.Add(friend);
-                        
+
                         if (Microsoft.Maui.Controls.Shell.Current != null)
                         {
-                            await Microsoft.Maui.Controls.Shell.Current.DisplayAlert("İstek Kabul Edildi", $"{acceptDto.SenderUsername} arkadaşlık isteğinizi kabul etti!", "Tamam");
+                            await Microsoft.Maui.Controls.Shell.Current.DisplayAlert("İstek Kabul Edildi",
+                                $"{acceptDto.SenderUsername} arkadaşlık isteğinizi kabul etti!", "Tamam");
                         }
                     }
                     else
@@ -811,11 +1024,14 @@ namespace Pocket.Client.PageModels
                 {
                     if (_relayService.IsConnected)
                     {
-                        await Microsoft.Maui.Controls.Shell.Current.DisplayAlert("Bağlantı Başarılı", $"Sunucuya '{cleanIp}' adresi üzerinden erişildi!", "Tamam");
+                        await Microsoft.Maui.Controls.Shell.Current.DisplayAlert("Bağlantı Başarılı",
+                            $"Sunucuya '{cleanIp}' adresi üzerinden erişildi!", "Tamam");
                     }
                     else
                     {
-                        await Microsoft.Maui.Controls.Shell.Current.DisplayAlert("Bağlantı Başarısız", $"'{cleanIp}:5200' adresindeki sunucuya ulaşılamadı. Sunucunun açık olduğundan emin olun.", "Tamam");
+                        await Microsoft.Maui.Controls.Shell.Current.DisplayAlert("Bağlantı Başarısız",
+                            $"'{cleanIp}:5200' adresindeki sunucuya ulaşılamadı. Sunucunun açık olduğundan emin olun.",
+                            "Tamam");
                     }
                 }
             }
@@ -825,7 +1041,9 @@ namespace Pocket.Client.PageModels
         public IAsyncRelayCommand EditProfileCommand => _editProfileCommand ??= new AsyncRelayCommand(EditProfileAsync);
 
         private IAsyncRelayCommand? _editProfilePhotoCommand;
-        public IAsyncRelayCommand EditProfilePhotoCommand => _editProfilePhotoCommand ??= new AsyncRelayCommand(EditProfilePhotoAsync);
+
+        public IAsyncRelayCommand EditProfilePhotoCommand =>
+            _editProfilePhotoCommand ??= new AsyncRelayCommand(EditProfilePhotoAsync);
 
         private bool _isPickingProfilePhoto;
 
@@ -1007,7 +1225,8 @@ namespace Pocket.Client.PageModels
                     const int maxAvatarDim = 512;
                     if (current.Width > maxAvatarDim)
                     {
-                        scaled = global::Android.Graphics.Bitmap.CreateScaledBitmap(current, maxAvatarDim, maxAvatarDim, true);
+                        scaled = global::Android.Graphics.Bitmap.CreateScaledBitmap(current, maxAvatarDim, maxAvatarDim,
+                            true);
                         if (scaled != null)
                             current = scaled;
                     }
@@ -1017,9 +1236,11 @@ namespace Pocket.Client.PageModels
                 }
                 finally
                 {
-                    if (scaled != null && !ReferenceEquals(scaled, squareCropped) && !ReferenceEquals(scaled, rotated) && !ReferenceEquals(scaled, decoded))
+                    if (scaled != null && !ReferenceEquals(scaled, squareCropped) &&
+                        !ReferenceEquals(scaled, rotated) && !ReferenceEquals(scaled, decoded))
                         scaled.Dispose();
-                    if (squareCropped != null && !ReferenceEquals(squareCropped, rotated) && !ReferenceEquals(squareCropped, decoded))
+                    if (squareCropped != null && !ReferenceEquals(squareCropped, rotated) &&
+                        !ReferenceEquals(squareCropped, decoded))
                         squareCropped.Dispose();
                     if (rotated != null && !ReferenceEquals(rotated, decoded))
                         rotated.Dispose();
@@ -1160,7 +1381,7 @@ namespace Pocket.Client.PageModels
                     if (_database != null && _relayService != null)
                     {
                         await _database.SaveUserAsync(CurrentUser);
-                        
+
                         // Reconnect to generate a new JWT with the updated username while preserving UserId & ECDH PublicKey
                         await _relayService.ConnectAsync(CurrentUser.Id, CurrentUser.Username);
                         if (_relayService.IsConnected)
@@ -1178,6 +1399,217 @@ namespace Pocket.Client.PageModels
                     }
                 }
             }
+        }
+
+        private bool _isBackupOperationInProgress;
+
+        [RelayCommand]
+        private async Task ExportDataAsync()
+        {
+            if (_isBackupOperationInProgress || _backupService == null || Microsoft.Maui.Controls.Shell.Current == null)
+                return;
+
+            _isBackupOperationInProgress = true;
+            try
+            {
+                var privateKey = await GetPrivateKeyAsync();
+                var package = await _backupService.CreateExportPackageAsync(privateKey);
+
+                string? savedDisplayPath = null;
+#if ANDROID
+                savedDisplayPath = await MainActivity.SaveToDownloadsAsync(package.SuggestedFileName, package.ZipBytes);
+#endif
+                if (string.IsNullOrEmpty(savedDisplayPath))
+                {
+                    var fallbackPath = Path.Combine(Microsoft.Maui.Storage.FileSystem.AppDataDirectory,
+                        package.SuggestedFileName);
+                    await File.WriteAllBytesAsync(fallbackPath, package.ZipBytes);
+                    savedDisplayPath = fallbackPath;
+                }
+
+                string summaryMessage =
+                    $"Kullanıcı profili, arkadaşlar, gönderiler, mesajlar, reaksiyonlar ve E2EE şifreleme anahtarları başarıyla dışa aktarıldı.\n\n" +
+                    $"📁 Konum: {savedDisplayPath}\n" +
+                    $"📦 Boyut: {package.ZipBytes.Length / 1024.0:F1} KB";
+
+                bool share = await Microsoft.Maui.Controls.Shell.Current.DisplayAlert(
+                    "Dışa Aktarma (Export) Tamamlandı",
+                    summaryMessage,
+                    "Paylaş / Farklı Kaydet",
+                    "Tamam");
+
+                if (share)
+                {
+                    var shareTempPath = Path.Combine(Microsoft.Maui.Storage.FileSystem.CacheDirectory,
+                        package.SuggestedFileName);
+                    await File.WriteAllBytesAsync(shareTempPath, package.ZipBytes);
+                    await Microsoft.Maui.ApplicationModel.DataTransfer.Share.Default.RequestAsync(
+                        new Microsoft.Maui.ApplicationModel.DataTransfer.ShareFileRequest
+                        {
+                            Title = "Pocket Yedeğini Paylaş",
+                            File = new Microsoft.Maui.ApplicationModel.DataTransfer.ShareFile(shareTempPath)
+                        });
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Backup Export Error] {ex}");
+                if (Microsoft.Maui.Controls.Shell.Current != null)
+                {
+                    await Microsoft.Maui.Controls.Shell.Current.DisplayAlert(
+                        "Dışa Aktarma Hatası",
+                        $"Yedek oluşturulurken bir hata oluştu:\n{ex.Message}",
+                        "Tamam");
+                }
+            }
+            finally
+            {
+                _isBackupOperationInProgress = false;
+            }
+        }
+
+        [RelayCommand]
+        private async Task ImportDataAsync()
+        {
+            if (_isBackupOperationInProgress || _backupService == null || Microsoft.Maui.Controls.Shell.Current == null)
+                return;
+
+            _isBackupOperationInProgress = true;
+            try
+            {
+                Stream? fileStream = null;
+                string fileName = "backup.zip";
+
+#if ANDROID
+                var pickedUri = await MainActivity.PickBackupFileAsync();
+                if (pickedUri == null)
+                    return;
+
+                var resolver = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity?.ContentResolver
+                               ?? global::Android.App.Application.Context?.ContentResolver;
+                if (resolver == null)
+                    return;
+
+                fileName = pickedUri.LastPathSegment ?? "backup.zip";
+                fileStream = resolver.OpenInputStream(pickedUri);
+#else
+                var picked = await Microsoft.Maui.Storage.FilePicker.Default.PickAsync();
+                if (picked == null)
+                    return;
+
+                fileName = picked.FileName;
+                fileStream = await picked.OpenReadAsync();
+#endif
+                if (fileStream == null)
+                    return;
+
+                await using (fileStream)
+                {
+                    const string optionMerge = "Mevcut Verilerin Üzerine Ekle (Birleştir)";
+                    const string optionClean = "Öncekileri Sıfırla (Temiz Kurulum)";
+
+                    string? modeChoice = await Microsoft.Maui.Controls.Shell.Current.DisplayActionSheet(
+                        "Varolan Verilere Ne Yapılsın?",
+                        "İptal",
+                        optionClean,
+                        optionMerge);
+
+                    if (string.IsNullOrEmpty(modeChoice) || modeChoice == "İptal")
+                        return;
+
+                    bool mergeWithExisting = (modeChoice == optionMerge);
+                    var importResult = await _backupService.ImportBackupAsync(fileStream, fileName, mergeWithExisting);
+
+                    if (!importResult.Success)
+                    {
+                        await Microsoft.Maui.Controls.Shell.Current.DisplayAlert(
+                            "İçe Aktarma Başarısız",
+                            importResult.ErrorMessage ?? "Yedek dosyası okunamadı.",
+                            "Tamam");
+                        return;
+                    }
+
+                    await ReloadAfterImportAsync();
+
+                    string modeLabel = mergeWithExisting
+                        ? "Üzerine Eklendi (Birleştirildi)"
+                        : "Temiz Kurulum Olarak Yüklendi";
+                    await Microsoft.Maui.Controls.Shell.Current.DisplayAlert(
+                        "İçe Aktarma (Import) Başarılı",
+                        $"Mod: {modeLabel}\n" +
+                        $"👤 Kullanıcı: {CurrentUser.DisplayName} (@{CurrentUser.Username})\n" +
+                        $"👥 Arkadaşlar: {importResult.FriendsCount} (🔐 {importResult.SharedSecretsCount} E2EE Anahtar)\n" +
+                        $"📸 Gönderiler: {importResult.PostsCount}\n" +
+                        $"💬 Mesaj & Reaksiyonlar: {importResult.MessagesAndReactionsCount}\n" +
+                        $"🗄️ İşlenen Tablo / Satır: {importResult.TablesProcessed} tablo, {importResult.TotalRowsImported} kayıt",
+                        "Tamam");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Backup Import Error] {ex}");
+                if (Microsoft.Maui.Controls.Shell.Current != null)
+                {
+                    await Microsoft.Maui.Controls.Shell.Current.DisplayAlert(
+                        "İçe Aktarma Hatası",
+                        $"Yedek geri yüklenirken bir hata oluştu:\n{ex.Message}",
+                        "Tamam");
+                }
+            }
+            finally
+            {
+                _isBackupOperationInProgress = false;
+            }
+        }
+
+        public async Task ReloadAfterImportAsync()
+        {
+            _cachedPrivateKey = null;
+            _sharedSecretCache.Clear();
+
+            // Refresh preference-bound properties
+            IsCaptureFromPreview = Microsoft.Maui.Storage.Preferences.Get(
+                Pocket.Client.Controls.CameraView.CaptureFromPreviewPreferenceKey,
+                Pocket.Client.Controls.CameraView.CaptureFromPreviewDefault);
+            IsZoomSliderEnabled = Microsoft.Maui.Storage.Preferences.Get(
+                Pocket.Client.Controls.CameraView.ZoomSliderPreferenceKey,
+                Pocket.Client.Controls.CameraView.ZoomSliderDefault);
+            IsExposureSliderEnabled = Microsoft.Maui.Storage.Preferences.Get(
+                Pocket.Client.Controls.CameraView.ExposureSliderPreferenceKey,
+                Pocket.Client.Controls.CameraView.ExposureSliderDefault);
+            IsKeepLastZoom = Microsoft.Maui.Storage.Preferences.Get(
+                Pocket.Client.Controls.CameraView.KeepZoomPreferenceKey,
+                Pocket.Client.Controls.CameraView.KeepZoomDefault);
+            IsKeepLastExposure = Microsoft.Maui.Storage.Preferences.Get(
+                Pocket.Client.Controls.CameraView.KeepExposurePreferenceKey,
+                Pocket.Client.Controls.CameraView.KeepExposureDefault);
+
+            await LoadUserAsync();
+
+            // Pre-warm E2EE shared secrets for all restored friends
+            var privateKey = await GetPrivateKeyAsync();
+            if (!string.IsNullOrEmpty(privateKey) && _cryptoService != null)
+            {
+                foreach (var friend in Friends)
+                {
+                    if (!string.IsNullOrEmpty(friend.PublicKey))
+                    {
+                        try
+                        {
+                            _ = GetOrDeriveSharedSecret(privateKey, friend.PublicKey);
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine(
+                                $"[E2EE Warmup] Could not derive secret for {friend.Username}: {ex.Message}");
+                        }
+                    }
+                }
+            }
+
+            OnPropertyChanged(nameof(CurrentUser));
+            OnUserProfileUpdated?.Invoke(CurrentUser);
+            OnDataImported?.Invoke();
         }
 
         [RelayCommand]

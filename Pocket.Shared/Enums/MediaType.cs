@@ -5,6 +5,7 @@ namespace Pocket.Shared.Enums
         None = 0,
         Photo = 1,
         Video = 2,
-        ProfileUpdate = 3
+        ProfileUpdate = 3,
+        PostDeleted = 4
     }
 }

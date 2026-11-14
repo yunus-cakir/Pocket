@@ -271,12 +271,18 @@ namespace Pocket.Client.Pages
 #endif
             if (BindingContext is DmPageModel vm)
             {
+                vm.SetDmWindowActive(true);
                 await vm.LoadConversationAsync();
             }
         }
 
         protected override void OnDisappearing()
         {
+            if (BindingContext is DmPageModel vm)
+            {
+                vm.SetDmWindowActive(false);
+            }
+
             base.OnDisappearing();
 #if ANDROID
             Platform.CurrentActivity?.Window?.SetSoftInputMode(global::Android.Views.SoftInput.AdjustNothing);

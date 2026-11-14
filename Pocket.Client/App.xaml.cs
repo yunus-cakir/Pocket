@@ -1,3 +1,5 @@
+using Pocket.Client.PageModels;
+
 namespace Pocket.Client
 {
     public partial class App : Application
@@ -12,7 +14,21 @@ namespace Pocket.Client
 
         protected override Window CreateWindow(IActivationState? activationState)
         {
-            return new Window(_appShell);
+            var window = new Window(_appShell);
+            window.Created += (_, _) => SetForegroundState(true);
+            window.Activated += (_, _) => SetForegroundState(true);
+            window.Resumed += (_, _) => SetForegroundState(true);
+            window.Deactivated += (_, _) => SetForegroundState(false);
+            window.Stopped += (_, _) => SetForegroundState(false);
+            return window;
+        }
+
+        private void SetForegroundState(bool isForeground)
+        {
+            if (_appShell.BindingContext is AppShellModel shellModel)
+            {
+                shellModel.IsAppInForeground = isForeground;
+            }
         }
     }
 }
