@@ -251,6 +251,16 @@ namespace Pocket.Client.Data
                 .ToListAsync();
         }
 
+        /// <summary>All DMs that reference a media post, in one query (avoids an N+1 lookup per post when loading the feed).</summary>
+        public async Task<List<DirectMessage>> GetAllPostLinkedDirectMessagesAsync()
+        {
+            await InitAsync();
+            return await _connection!.Table<DirectMessage>()
+                .Where(dm => dm.MediaPostId != null)
+                .OrderBy(dm => dm.SentAt)
+                .ToListAsync();
+        }
+
         public async Task<List<DirectMessage>> GetDirectMessagesForPostAsync(Guid mediaPostId)
         {
             await InitAsync();

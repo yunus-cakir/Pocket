@@ -22,6 +22,7 @@ namespace Pocket.Client.Pages
         {
             InitializeComponent();
             BindingContext = viewModel;
+            PrepareInitialCameraPanelPosition();
 
             // Wire horizontal swipe events from the custom Android ViewGroup.
             // Direction detection and touch routing happen at the native level —
@@ -1859,21 +1860,69 @@ namespace Pocket.Client.Pages
             }
         }
 
+        /// <summary>
+        /// Sizes the three panels from the display width before the first layout pass and keeps the
+        /// panel container hidden until it is laid out at its final width, so the first frame shows the
+        /// camera panel instead of briefly flashing the profile panel (TranslationX = 0) on app launch.
+        /// </summary>
+        private void PrepareInitialCameraPanelPosition()
+        {
+            try
+            {
+                var info = DeviceDisplay.Current.MainDisplayInfo;
+                bool portrait = info.Height >= info.Width;
+                double widthDp = (portrait ? info.Width : info.Height) / (info.Density > 0 ? info.Density : 1);
+                if (widthDp > 0)
+                    ApplyPanelWidths(widthDp);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Initial panel sizing error: {ex.Message}");
+            }
+
+            PanContainer.Opacity = 0;
+            PanContainer.SizeChanged += OnPanContainerInitialSizeChanged;
+
+            // Failsafe: never leave the UI hidden if the expected width is not reached (e.g. rounding)
+            Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(800), () =>
+            {
+                if (PanContainer.Opacity >= 1) return;
+                PanContainer.SizeChanged -= OnPanContainerInitialSizeChanged;
+                if (Width > 0) PanContainer.TranslationX = -(_currentIndex * Width);
+                PanContainer.Opacity = 1;
+            });
+        }
+
+        private void OnPanContainerInitialSizeChanged(object? sender, EventArgs e)
+        {
+            if (Width <= 0 || PanContainer.Width < Width * 3 - 1)
+                return; // Not laid out at the final 3-panel width yet
+
+            PanContainer.SizeChanged -= OnPanContainerInitialSizeChanged;
+            PanContainer.TranslationX = -(_currentIndex * Width);
+            PanContainer.Opacity = 1;
+        }
+
+        private void ApplyPanelWidths(double width)
+        {
+            // Each panel takes full width
+            ProfilePanel.WidthRequest = width;
+            CameraPanel.WidthRequest = width;
+            ChatPanel.WidthRequest = width;
+
+            // Ensure the panning container doesn't get clamped to 1x screen width by the ContentView
+            PanContainer.WidthRequest = width * 3;
+
+            // Immediately jump to the correct panel without animation
+            PanContainer.TranslationX = -(_currentIndex * width);
+        }
+
         protected override void OnSizeAllocated(double width, double height)
         {
             base.OnSizeAllocated(width, height);
             if (width > 0)
             {
-                // Each panel takes full width
-                ProfilePanel.WidthRequest = width;
-                CameraPanel.WidthRequest = width;
-                ChatPanel.WidthRequest = width;
-
-                // Ensure the panning container doesn't get clamped to 1x screen width by the ContentView
-                PanContainer.WidthRequest = width * 3;
-
-                // Immediately jump to the correct panel without animation
-                PanContainer.TranslationX = -(_currentIndex * width);
+                ApplyPanelWidths(width);
 
                 if (height > 0)
                 {

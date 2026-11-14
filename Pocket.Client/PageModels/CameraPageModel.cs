@@ -712,6 +712,50 @@ namespace Pocket.Client.PageModels
             };
         }
 
+        /// <summary>
+        /// Updates FeedPosts in place (remove / move / insert / replace) instead of Clear() + Add().
+        /// Clear() raises a Reset, which makes the feed RecyclerView detach and recycle every row —
+        /// including the header that hosts the camera TextureView — destroying the preview surface
+        /// and causing a visible black gap in the camera on app launch.
+        /// </summary>
+        private void SyncFeedPosts(System.Collections.Generic.List<MediaPost> target)
+        {
+            var targetIds = target.Select(p => p.Id).ToHashSet();
+            for (int i = FeedPosts.Count - 1; i >= 0; i--)
+            {
+                if (!targetIds.Contains(FeedPosts[i].Id))
+                    FeedPosts.RemoveAt(i);
+            }
+
+            for (int i = 0; i < target.Count; i++)
+            {
+                var post = target[i];
+                if (i < FeedPosts.Count && FeedPosts[i].Id == post.Id)
+                {
+                    if (!ReferenceEquals(FeedPosts[i], post))
+                        FeedPosts[i] = post;
+                    continue;
+                }
+
+                int existingIndex = -1;
+                for (int j = i + 1; j < FeedPosts.Count; j++)
+                {
+                    if (FeedPosts[j].Id == post.Id) { existingIndex = j; break; }
+                }
+
+                if (existingIndex >= 0)
+                {
+                    FeedPosts.Move(existingIndex, i);
+                    if (!ReferenceEquals(FeedPosts[i], post))
+                        FeedPosts[i] = post;
+                }
+                else
+                {
+                    FeedPosts.Insert(i, post);
+                }
+            }
+        }
+
         private void ApplyFeedFilter(bool scrollToTop)
         {
             var filtered = _allFeedPosts.Where(DoesPostMatchFilter).ToList();
@@ -720,11 +764,7 @@ namespace Pocket.Client.PageModels
 
             if (!sameSequence)
             {
-                FeedPosts.Clear();
-                foreach (var post in filtered)
-                {
-                    FeedPosts.Add(post);
-                }
+                SyncFeedPosts(filtered);
             }
 
             if (FeedPosts.Count > 0)
@@ -1572,6 +1612,10 @@ namespace Pocket.Client.PageModels
             var friendMap = friends.ToDictionary(f => f.Id, f => f);
 
             var posts = await _database.GetAllMediaPostsAsync();
+            var reactionsByPost = (await _database.GetAllPostLinkedDirectMessagesAsync())
+                .Where(d => d.IsIncoming && !string.IsNullOrWhiteSpace(d.ReactionEmoji))
+                .GroupBy(d => d.MediaPostId!.Value)
+                .ToDictionary(g => g.Key, g => g.ToList());
             var preparedPosts = new System.Collections.Generic.List<MediaPost>(posts.Count);
             foreach (var post in posts)
             {
@@ -1589,8 +1633,9 @@ namespace Pocket.Client.PageModels
                     }
                 }
 
-                var postDms = await _database.GetDirectMessagesForPostAsync(post.Id);
-                foreach (var dm in postDms.Where(d => d.IsIncoming && !string.IsNullOrWhiteSpace(d.ReactionEmoji)))
+                if (!reactionsByPost.TryGetValue(post.Id, out var postDms))
+                    postDms = new System.Collections.Generic.List<DirectMessage>();
+                foreach (var dm in postDms)
                 {
                     friendMap.TryGetValue(dm.FriendId, out var reactFriend);
                     var rName = reactFriend?.DisplayName ?? "Friend";

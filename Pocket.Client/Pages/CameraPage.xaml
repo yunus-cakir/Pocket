@@ -964,7 +964,7 @@
                                     Margin="6,4,6,0"
                                     StrokeShape="RoundRectangle 44"
                                     StrokeThickness="0"
-                                    BackgroundColor="#141414"
+                                    BackgroundColor="#000000"
                                     Padding="0"
                                     HorizontalOptions="Center"
                                     VerticalOptions="Start">

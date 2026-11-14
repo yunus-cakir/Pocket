@@ -74,6 +74,7 @@ namespace Pocket.Client.Platforms.Android.Handlers
         protected override TextureView CreatePlatformView()
         {
             var textureView = new TextureView(Context);
+            textureView.Alpha = 0f; // black until the camera delivers its first frames
             _listener = new CameraSurfaceTextureListener(this);
             textureView.SurfaceTextureListener = _listener;
             return textureView;
@@ -185,81 +186,258 @@ namespace Pocket.Client.Platforms.Android.Handlers
             return (_sensorOrientation + device) % 360;
         }
 
+        // All camera I/O (open, bind surface, stop, release) runs on one serial background queue:
+        // Camera.Open / SetParameters / StartPreview can block for seconds on some HALs, which froze the UI on launch.
+        // The queue is static, so a release always completes before the next open connects to the device.
+        // Queue threads have no Looper, so camera callbacks are still delivered on the main looper.
+        private static readonly object s_queueLock = new();
+        private static System.Threading.Tasks.Task s_cameraQueue = System.Threading.Tasks.Task.CompletedTask;
+        private static readonly global::Android.OS.Handler s_mainHandler = new(global::Android.OS.Looper.MainLooper!);
+
+        private static void EnqueueCameraWork(System.Action work)
+        {
+            lock (s_queueLock)
+            {
+                s_cameraQueue = s_cameraQueue.ContinueWith(_ =>
+                {
+                    try { work(); }
+                    catch (System.Exception ex) { System.Diagnostics.Debug.WriteLine($"Camera Queue Error: {ex.Message}"); }
+                }, System.Threading.Tasks.TaskScheduler.Default);
+            }
+        }
+
+        // UI-thread state
+        private int _startGeneration;          // invalidates an in-flight open when the camera is stopped meanwhile
+        private bool _isStarting;
+        private int _releaseToken;             // cancels a deferred release when a new surface arrives in time
+        private SurfaceTexture? _boundSurface; // surface the camera is (or is being) bound to
+        private int _framesUntilVisible;       // preview stays hidden (black) until the camera delivers real frames
+
+        // The TextureView lives in a CollectionView header, which can be detached/re-attached during layout
+        // (e.g. when the feed loads on launch). That destroys and recreates its SurfaceTexture; rebinding the
+        // still-open camera to the new surface is far faster than closing and reopening the device.
+        private const int SurfaceLossReleaseDelayMs = 1500;
+        // Skip the first frames after a (re)bind: some HALs deliver dark / unsettled frames first.
+        private const int FramesToSkipBeforeShowing = 2;
+
+        private SurfaceTexture? CurrentSurface =>
+            PlatformView is { IsAvailable: true } tv ? tv.SurfaceTexture : null;
+
+        private void HidePreviewUntilFirstFrames()
+        {
+            _framesUntilVisible = FramesToSkipBeforeShowing;
+            if (PlatformView != null) PlatformView.Alpha = 0f;
+        }
+
+        internal void OnPreviewFrameRendered()
+        {
+            if (_framesUntilVisible <= 0 || _camera == null || PlatformView == null) return;
+            if (--_framesUntilVisible == 0)
+                PlatformView.Alpha = 1f;
+        }
+
+        internal void OnSurfaceAvailable(SurfaceTexture surface)
+        {
+            _releaseToken++; // keep the camera: a pending deferred release is no longer needed
+            HidePreviewUntilFirstFrames();
+
+            if (_camera != null)
+                BindSurface(_camera, surface);
+            else if (!_isStarting)
+                StartCamera(surface);
+            // else: the in-flight open re-binds to the current surface when it completes
+        }
+
+        internal void OnSurfaceLost(SurfaceTexture surface)
+        {
+            HidePreviewUntilFirstFrames();
+
+            var cam = _camera;
+            bool wasBound = ReferenceEquals(_boundSurface, surface);
+            if (wasBound) _boundSurface = null;
+
+            // OnSurfaceTextureDestroyed returns false, so the SurfaceTexture is released here, after the camera
+            // stopped drawing into it (and after any queued open/bind that still targets it).
+            EnqueueCameraWork(() =>
+            {
+                if (cam != null && wasBound)
+                {
+                    try { cam.StopPreview(); } catch { }
+                }
+                try { surface.Release(); } catch { }
+            });
+
+            if (cam != null || _isStarting)
+                ScheduleDeferredRelease();
+        }
+
+        private void ScheduleDeferredRelease()
+        {
+            int token = ++_releaseToken;
+            s_mainHandler.PostDelayed(() =>
+            {
+                if (token == _releaseToken && CurrentSurface == null)
+                    StopCamera();
+            }, SurfaceLossReleaseDelayMs);
+        }
+
+        private void BindSurface(global::Android.Hardware.Camera cam, SurfaceTexture surface)
+        {
+            if (!ReferenceEquals(_boundSurface, surface))
+            {
+                _boundSurface = surface;
+                int displayOrientation = _displayOrientation;
+                EnqueueCameraWork(() =>
+                {
+                    try { cam.StopPreview(); } catch { }
+                    cam.SetPreviewTexture(surface);
+                    cam.SetDisplayOrientation(displayOrientation);
+                    cam.StartPreview();
+                });
+            }
+
+            if (PlatformView != null)
+                AdjustAspectRatio(PlatformView.Width, PlatformView.Height);
+        }
+
         internal void StartCamera(SurfaceTexture? surface)
         {
-            if (surface == null) return;
-            if (_camera != null) return;
+            if (surface == null || _camera != null || _isStarting) return;
 
+            _isStarting = true;
+            int generation = ++_startGeneration;
+            // Context-dependent work (display rotation) and preferences are read on the UI thread
+            SelectCamera(Microsoft.Maui.Storage.Preferences.Get(CameraView.UseFrontCameraPreferenceKey, false));
+            int cameraId = _cameraId;
+            int displayOrientation = _displayOrientation;
+            _boundSurface = surface;
+            HidePreviewUntilFirstFrames();
+
+            EnqueueCameraWork(() =>
+            {
+                if (generation != System.Threading.Volatile.Read(ref _startGeneration)) return;
+                var cam = OpenAndConfigureCamera(cameraId, displayOrientation, surface);
+                Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() => OnCameraOpened(cam, generation));
+            });
+        }
+
+        private void OnCameraOpened(global::Android.Hardware.Camera? cam, int generation)
+        {
+            if (generation != _startGeneration || PlatformView == null)
+            {
+                // Stopped while opening: discard this instance
+                if (cam != null) EnqueueCameraWork(() => ReleaseCamera(cam));
+                return;
+            }
+
+            _isStarting = false;
+            if (cam == null)
+            {
+                _boundSurface = null;
+                return;
+            }
+
+            _camera = cam;
+            _softwareZoomFactor = 1f;
+            _exposureIndex = 0;
+            UpdatePreviewBrightnessFilter();
+            ReportCapabilities();
+
+            // The surface may have been destroyed / recreated while the device was opening
+            var current = CurrentSurface;
+            if (current == null)
+            {
+                _boundSurface = null;
+                EnqueueCameraWork(() => { try { cam.StopPreview(); } catch { } });
+                ScheduleDeferredRelease();
+                return;
+            }
+
+            BindSurface(cam, current);
+        }
+
+        private static global::Android.Hardware.Camera? OpenAndConfigureCamera(int cameraId, int displayOrientation, SurfaceTexture surface)
+        {
+            global::Android.Hardware.Camera? camera = null;
             try
             {
-                SelectCamera(Microsoft.Maui.Storage.Preferences.Get(CameraView.UseFrontCameraPreferenceKey, false));
-                _camera = _cameraId >= 0
-                    ? global::Android.Hardware.Camera.Open(_cameraId)
+                // Opened on a thread without a Looper, so camera callbacks are delivered on the main looper
+                camera = cameraId >= 0
+                    ? global::Android.Hardware.Camera.Open(cameraId)
                     : global::Android.Hardware.Camera.Open();
-                if (_camera != null)
-                {
-                    var parameters = _camera.GetParameters();
-                    if (parameters != null)
-                    {
-                        var supportedPreviewSizes = parameters.SupportedPreviewSizes;
-                        var supportedPictureSizes = parameters.SupportedPictureSizes;
+                if (camera == null) return null;
 
-                        if (supportedPreviewSizes != null && supportedPreviewSizes.Count > 0)
-                        {
-                            var optimalPreview = supportedPreviewSizes
-                                .OrderByDescending(s => s.Width * s.Height)
-                                .FirstOrDefault(s => s.Width <= 1920);
-
-                            if (optimalPreview != null)
-                            {
-                                parameters.SetPreviewSize(optimalPreview.Width, optimalPreview.Height);
-
-                                // Match picture size aspect ratio to preview size to prevent driver stride corruption
-                                double targetRatio = (double)optimalPreview.Width / optimalPreview.Height;
-                                var optimalPicture = supportedPictureSizes?
-                                    .OrderByDescending(s => s.Width * s.Height)
-                                    .FirstOrDefault(s => System.Math.Abs(((double)s.Width / s.Height) - targetRatio) < 0.1 && s.Width <= 1920)
-                                    ?? supportedPictureSizes?.FirstOrDefault();
-
-                                if (optimalPicture != null)
-                                {
-                                    parameters.SetPictureSize(optimalPicture.Width, optimalPicture.Height);
-                                }
-                            }
-
-                            parameters.PictureFormat = ImageFormatType.Jpeg;
-                            _camera.SetParameters(parameters);
-                        }
-
-                        // Continuous autofocus by default (tap-to-focus switches to a one-shot "auto" focus)
-                        try
-                        {
-                            var p = _camera.GetParameters();
-                            if (p?.SupportedFocusModes?.Contains(global::Android.Hardware.Camera.Parameters.FocusModeContinuousPicture) == true)
-                            {
-                                p.FocusMode = global::Android.Hardware.Camera.Parameters.FocusModeContinuousPicture;
-                                _camera.SetParameters(p);
-                            }
-                        }
-                        catch (System.Exception ex)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"Focus Mode Error: {ex.Message}");
-                        }
-                    }
-
-                    _camera.SetPreviewTexture(surface);
-                    _camera.SetDisplayOrientation(_displayOrientation);
-                    _camera.StartPreview();
-
-                    _softwareZoomFactor = 1f;
-                    _exposureIndex = 0;
-                    UpdatePreviewBrightnessFilter();
-                    ReportCapabilities();
-                }
+                ConfigureCamera(camera);
+                camera.SetPreviewTexture(surface);
+                camera.SetDisplayOrientation(displayOrientation);
+                camera.StartPreview();
+                return camera;
             }
             catch (System.Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Camera Start Error: {ex.Message}");
+                ReleaseCamera(camera);
+                return null;
+            }
+        }
+
+        private static void ReleaseCamera(global::Android.Hardware.Camera? cam)
+        {
+            if (cam == null) return;
+            try { cam.StopPreview(); }
+            catch (System.Exception ex) { System.Diagnostics.Debug.WriteLine($"Camera StopPreview Error: {ex.Message}"); }
+            try { cam.Release(); }
+            catch (System.Exception ex) { System.Diagnostics.Debug.WriteLine($"Camera Release Error: {ex.Message}"); }
+        }
+
+        private static void ConfigureCamera(global::Android.Hardware.Camera camera)
+        {
+            var parameters = camera.GetParameters();
+            if (parameters == null) return;
+
+            var supportedPreviewSizes = parameters.SupportedPreviewSizes;
+            var supportedPictureSizes = parameters.SupportedPictureSizes;
+
+            if (supportedPreviewSizes != null && supportedPreviewSizes.Count > 0)
+            {
+                var optimalPreview = supportedPreviewSizes
+                    .OrderByDescending(s => s.Width * s.Height)
+                    .FirstOrDefault(s => s.Width <= 1920);
+
+                if (optimalPreview != null)
+                {
+                    parameters.SetPreviewSize(optimalPreview.Width, optimalPreview.Height);
+
+                    // Match picture size aspect ratio to preview size to prevent driver stride corruption
+                    double targetRatio = (double)optimalPreview.Width / optimalPreview.Height;
+                    var optimalPicture = supportedPictureSizes?
+                        .OrderByDescending(s => s.Width * s.Height)
+                        .FirstOrDefault(s => System.Math.Abs(((double)s.Width / s.Height) - targetRatio) < 0.1 && s.Width <= 1920)
+                        ?? supportedPictureSizes?.FirstOrDefault();
+
+                    if (optimalPicture != null)
+                    {
+                        parameters.SetPictureSize(optimalPicture.Width, optimalPicture.Height);
+                    }
+                }
+
+                parameters.PictureFormat = ImageFormatType.Jpeg;
+                camera.SetParameters(parameters);
+            }
+
+            // Continuous autofocus by default (tap-to-focus switches to a one-shot "auto" focus)
+            try
+            {
+                var p = camera.GetParameters();
+                if (p?.SupportedFocusModes?.Contains(global::Android.Hardware.Camera.Parameters.FocusModeContinuousPicture) == true)
+                {
+                    p.FocusMode = global::Android.Hardware.Camera.Parameters.FocusModeContinuousPicture;
+                    camera.SetParameters(p);
+                }
+            }
+            catch (System.Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Focus Mode Error: {ex.Message}");
             }
         }
 
@@ -375,7 +553,7 @@ namespace Pocket.Client.Platforms.Android.Handlers
         /// <summary>Toggles between the back and front cameras and restarts the preview on the same surface.</summary>
         private void SwitchCamera()
         {
-            if (PlatformView == null || _isCapturing) return;
+            if (PlatformView == null || _isCapturing || _isStarting) return;
             if (global::Android.Hardware.Camera.NumberOfCameras < 2) return;
 
             bool useFront = !_isFrontCamera;
@@ -385,8 +563,7 @@ namespace Pocket.Client.Platforms.Android.Handlers
             StopCamera();
             if (surface == null) return; // Will start with the new facing once the surface becomes available
 
-            StartCamera(surface);
-            AdjustAspectRatio(PlatformView.Width, PlatformView.Height);
+            StartCamera(surface); // Aspect ratio is re-applied once the camera finishes starting
         }
 
         public static void MapSwitchCamera(CameraViewHandler handler, CameraView view, object? arg)
@@ -396,28 +573,18 @@ namespace Pocket.Client.Platforms.Android.Handlers
 
         internal void StopCamera()
         {
+            // Invalidate any in-flight background open (it releases its own camera when it completes)
+            // and any pending deferred release
+            _startGeneration++;
+            _isStarting = false;
+            _releaseToken++;
+            _boundSurface = null;
+            HidePreviewUntilFirstFrames();
+
             var cam = _camera;
             _camera = null;
             if (cam != null)
-            {
-                try
-                {
-                    cam.StopPreview();
-                }
-                catch (System.Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Camera StopPreview Error: {ex.Message}");
-                }
-
-                try
-                {
-                    cam.Release();
-                }
-                catch (System.Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Camera Release Error: {ex.Message}");
-                }
-            }
+                EnqueueCameraWork(() => ReleaseCamera(cam));
         }
 
         public static void MapCapturePhoto(CameraViewHandler handler, CameraView view, object? arg)
@@ -801,16 +968,22 @@ namespace Pocket.Client.Platforms.Android.Handlers
 
         public void OnSurfaceTextureAvailable(SurfaceTexture surface, int width, int height)
         {
+#if DEBUG
+            global::Android.Util.Log.Debug("PocketCamera", "Surface available");
+#endif
             _handler.StartOrientationListener();
-            _handler.StartCamera(surface);
+            _handler.OnSurfaceAvailable(surface);
             _handler.AdjustAspectRatio(width, height);
         }
 
         public bool OnSurfaceTextureDestroyed(SurfaceTexture surface)
         {
+#if DEBUG
+            global::Android.Util.Log.Debug("PocketCamera", "Surface destroyed");
+#endif
             _handler.StopOrientationListener();
-            _handler.StopCamera();
-            return true;
+            _handler.OnSurfaceLost(surface);
+            return false; // released by the handler once the camera has stopped drawing into it
         }
 
         public void OnSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height)
@@ -820,6 +993,7 @@ namespace Pocket.Client.Platforms.Android.Handlers
 
         public void OnSurfaceTextureUpdated(SurfaceTexture surface)
         {
+            _handler.OnPreviewFrameRendered();
         }
     }
 
