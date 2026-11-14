@@ -1,44 +1,58 @@
-# 🧪 Pocket - Android Build, Multi-Emulator Deployment & Testing Guide
+# 🧪 Pocket - Android Build, Multi-Emulator & Physical Device Deployment & Testing Guide
 
-Bu doküman, `Pocket.Client` (.NET 10.0 MAUI) ve `Pocket.Server` projelerinin yerel Android emülatörlerinde hızlı derlenmesi (rebuild), çoklu cihaza dağıtımı (deployment), otomatik etkileşim ve hata ayıklama süreçlerinde zaman kazandıracak komutları içerir.
+Bu doküman, `Pocket.Client` (.NET 10.0 MAUI) ve `Pocket.Server` projelerinin yerel Android emülatörlerinde ve USB ile bağlı fiziksel Android cihazlarda hızlı derlenmesi (rebuild), dağıtımı (deployment), otomatik etkileşim ve hata ayıklama süreçlerinde zaman kazandıracak komutları içerir.
 
 ---
 
-## 📱 Test Emülatör Yapılandırması
+## 📱 Test Cihazları ve Emülatör Yapılandırması
 
-Test ortamında iki farklı Android emülatörü (karşılıklı mesajlaşma, arkadaş ekleme ve E2EE relay testleri için) eşzamanlı olarak kullanılmaktadır:
+Test ortamında iki farklı Android emülatörü (karşılıklı mesajlaşma, arkadaş ekleme ve E2EE relay testleri için) ve bağlı fiziksel Android cihazlar kullanılabilir:
 
-| Rol | AVD Adı / Görünen Ad | Sürüm & API | Varsayılan ADB Serial | Önerilen Teknik İsimlendirme |
+| Rol | AVD / Cihaz Modeli | Sürüm & API | Varsayılan ADB Serial | Açıklama |
 | :--- | :--- | :--- | :--- | :--- |
-| **Emülatör 1 (Birincil)** | `pixel_7_-_api_35` (`Pixel 7 - API 35`) | Android 15 (API 35) | `emulator-5554` | `Pixel7_A15_API35` (Uygulama içi: `@pixel7_api35`) |
-| **Emülatör 2 (İkincil)** | `pixel_7_-_api_34_0` (`Pixel 7 - API 34.0`) | Android 14 (API 34) | `emulator-5556` | `Pixel7_A14_API34` (Uygulama içi: `@pixel7_api34`) |
+| **Emülatör 1 (Birincil)** | `pixel_7_-_api_35` | Android 15 (API 35) | `emulator-5554` | `Pixel7_A15_API35` (Uygulama içi: `@pixel7_api35`) |
+| **Emülatör 2 (İkincil)** | `pixel_7_-_api_34_0` | Android 14 (API 34) | `emulator-5556` | `Pixel7_A14_API34` (Uygulama içi: `@pixel7_api34`) |
+| **Fiziksel Cihaz (Gerçek)** | Redmi Note 13 Pro 5G vb. | Android 14+ | Değişken (örn: `dd9fc8be`) | USB ile bağlı gerçek Android test cihazı |
 
 * **Uygulama Kimliği (ApplicationId):** `com.companyname.pocket.client`
 * **MainActivity Bileşeni:** `com.companyname.pocket.client/crc646dd0ab311caf03fd.MainActivity`
 * **Target Framework:** `net10.0-android`
 * **Relay Server Adresi (Host):** `http://0.0.0.0:5200` (Health Check: `GET http://localhost:5200/`)
 * **Relay Hub Adresi (Emülatör İçi):** `http://10.0.2.2:5200/hubs/relay`
+* **Relay Hub Adresi (Fiziksel Cihaz İçi):** `http://<bilgisayar_yerel_ip>:5200/hubs/relay` veya `adb reverse tcp:5200 tcp:5200` sonrası `http://127.0.0.1:5200/hubs/relay`
 
-### Aktif Emülatörleri Kontrol Etme
+### Aktif Cihazları ve Emülatörleri Kontrol Etme
 ```powershell
 adb devices -l
-adb -s emulator-5554 shell getprop ro.build.version.sdk
-adb -s emulator-5556 shell getprop ro.build.version.sdk
 ```
+> **Not:** Cihaz durumu `device` olmalıdır. `unauthorized` görünüyorsa cihaz ekranından USB hata ayıklama izni verilmelidir.
 
 ---
 
 ## ⚡ Hızlı Rebuild ve Dağıtım Komutları
 
 > **⚠️ Önemli (.NET MAUI Fast Deployment Notu):**
-> `Debug` modunda `.NET MAUI` "Fast Deployment" kullanır; yani C# DLL'leri APK'nın içine gömülmek yerine cihazdaki `files/.__override__` dizinine doğrudan kopyalanır. Bu nedenle **sadece `adb install -r` yapmak güncel C# kodunu ikinci cihaza taşımaz**. Her iki emülatöre de `-t:Run` ve `-p:AdbTarget` ile dağıtım yapılmalıdır (`--no-restore` ile çok hızlı tamamlanır).
+> `Debug` modunda `.NET MAUI` "Fast Deployment" kullanır; yani C# DLL'leri APK'nın içine gömülmek yerine cihazdaki `files/.__override__` dizinine doğrudan kopyalanır. Bu nedenle **sadece `adb install -r` yapmak güncel C# kodunu ikinci cihaza taşımaz**. Hedeflenen her cihaza `-t:Run` ve `-p:AdbTarget` ile dağıtım yapılmalıdır (`--no-restore` ile çok hızlı tamamlanır).
 
-### Her İki Emülatöre Sıralı Hızlı Rebuild & Run (Tek Satır)
+### 📱 Gerçek (Fiziksel) Android Cihaz Kuralı
+> **Kritik Kural:** Eğer sisteme USB veya Wi-Fi üzerinden bağlı yetkilendirilmiş (`device` statüsünde) **gerçek/fiziksel bir Android cihaz varsa**, derleme ve dağıtım adımlarında **mutlaka bu gerçek cihaza da kurulum yapılmalıdır**.
+>
+> 1. `adb devices -l` ile fiziksel cihaz serial'ini bulun (örn. `dd9fc8be`).
+> 2. Emülatörlerin yanına fiziksel cihazı da ekleyerek deploy edin.
+> 3. **Xiaomi / Redmi / MIUI / HyperOS Cihazlar İçin:** Geliştirici Seçenekleri'nde *"USB üzerinden yükle"* (Install via USB) açık olmalıdır, aksi halde `INSTALL_FAILED_USER_RESTRICTED` hatası alınır.
+
+### Emülatörler + Gerçek Cihaza Birlikte Dağıtım (Örnek)
 ```powershell
-dotnet build Pocket.Client/Pocket.Client.csproj -t:Run -f net10.0-android -p:AdbTarget=-s%20emulator-5554 --no-restore; dotnet build Pocket.Client/Pocket.Client.csproj -t:Run -f net10.0-android -p:AdbTarget=-s%20emulator-5556 --no-restore
+# Emülatör 1, Emülatör 2 ve Gerçek Cihaza Sıralı Deploy:
+dotnet build Pocket.Client/Pocket.Client.csproj -t:Run -f net10.0-android -p:AdbTarget=-s%20emulator-5554 --no-restore; dotnet build Pocket.Client/Pocket.Client.csproj -t:Run -f net10.0-android -p:AdbTarget=-s%20emulator-5556 --no-restore; dotnet build Pocket.Client/Pocket.Client.csproj -t:Run -f net10.0-android -p:AdbTarget=-s%20dd9fc8be --no-restore
 ```
 
-### Tek Emülatöre Build & Run
+### Tek Cihaza Build & Run
+**Gerçek Cihaz (Örn: `dd9fc8be`):**
+```powershell
+dotnet build Pocket.Client/Pocket.Client.csproj -t:Run -f net10.0-android -p:AdbTarget=-s%20<cihaz_serial> --no-restore
+```
+
 **Emülatör 1 (API 35 - `emulator-5554`):**
 ```powershell
 dotnet build Pocket.Client/Pocket.Client.csproj -t:Run -f net10.0-android -p:AdbTarget=-s%20emulator-5554 --no-restore

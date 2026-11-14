@@ -17,20 +17,15 @@ namespace Pocket.Client.PageModels
         private readonly LocalDatabase _database;
         private readonly AppShellModel _shellModel;
 
-        [ObservableProperty]
-        private string _friendId = string.Empty;
+        [ObservableProperty] private string _friendId = string.Empty;
 
-        [ObservableProperty]
-        private string? _mediaPostId;
+        [ObservableProperty] private string? _mediaPostId;
 
-        [ObservableProperty]
-        private string _friendDisplayName = "Sohbet";
+        [ObservableProperty] private string _friendDisplayName = "Sohbet";
 
-        [ObservableProperty]
-        private string _friendUsername = string.Empty;
+        [ObservableProperty] private string _friendUsername = string.Empty;
 
-        [ObservableProperty]
-        private string _friendAvatarUrl = string.Empty;
+        [ObservableProperty] private string _friendAvatarUrl = string.Empty;
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(HasMessageText))]
@@ -40,20 +35,15 @@ namespace Pocket.Client.PageModels
         public bool HasMessageText => !string.IsNullOrWhiteSpace(MessageText);
         public bool ShowQuickEmojis => string.IsNullOrWhiteSpace(MessageText);
 
-        [ObservableProperty]
-        private string _firstRecentEmoji = "💗";
+        [ObservableProperty] private string _firstRecentEmoji = "💗";
 
-        [ObservableProperty]
-        private string _secondRecentEmoji = "🙃";
+        [ObservableProperty] private string _secondRecentEmoji = "🙃";
 
-        [ObservableProperty]
-        private string _thirdRecentEmoji = "😘";
+        [ObservableProperty] private string _thirdRecentEmoji = "😘";
 
-        [ObservableProperty]
-        private bool _isEmojiPickerOpen;
+        [ObservableProperty] private bool _isEmojiPickerOpen;
 
-        [ObservableProperty]
-        [NotifyPropertyChangedFor(nameof(HasEmojiSearchText))]
+        [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasEmojiSearchText))]
         private string _emojiSearchText = string.Empty;
 
         public bool HasEmojiSearchText => !string.IsNullOrWhiteSpace(EmojiSearchText);
@@ -177,15 +167,26 @@ namespace Pocket.Client.PageModels
             CloseEmojiPicker();
         }
 
-        [ObservableProperty]
-        [NotifyPropertyChangedFor(nameof(HasReplyPost))]
+        [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasReplyPost))]
         private MediaPost? _replyingToPost;
 
         public bool HasReplyPost => ReplyingToPost != null;
 
+        [ObservableProperty] [NotifyPropertyChangedFor(nameof(SelectedMessageDeleteLabel))]
+        private DirectMessage? _selectedActionMessage;
+
+        public string SelectedMessageDeleteLabel =>
+            SelectedActionMessage?.IsOutgoing == true ? "Undo Send" : "Delete";
+
+        [ObservableProperty] private bool _isMessageActionsOpen;
+
         public ObservableCollection<DirectMessage> Messages { get; } = new();
 
         public Action? ScrollToBottomAction { get; set; }
+        public Action? ShowSendFailedToastAction { get; set; }
+        public Action? OpenMessageActionsAction { get; set; }
+        public Action? CloseMessageActionsAction { get; set; }
+        public Action? ShowCopiedToastAction { get; set; }
 
         public DmPageModel(LocalDatabase database, AppShellModel shellModel)
         {
@@ -194,6 +195,8 @@ namespace Pocket.Client.PageModels
 
             _shellModel.OnDirectMessageReceived += HandleDirectMessageReceived;
             _shellModel.OnDirectMessageDelivered += HandleDirectMessageDelivered;
+            _shellModel.OnDirectMessageSendFailed += HandleDirectMessageSendFailed;
+            _shellModel.OnDirectMessageDeleted += HandleDirectMessageDeleted;
             _shellModel.OnMediaPostDeleted += HandleMediaPostDeleted;
             _shellModel.OnFriendProfileUpdated += HandleFriendProfileUpdated;
             _shellModel.OnUserProfileUpdated += HandleUserProfileUpdated;
@@ -219,7 +222,8 @@ namespace Pocket.Client.PageModels
         {
             if (string.IsNullOrWhiteSpace(emoji)) return;
 
-            var list = new System.Collections.Generic.List<string> { FirstRecentEmoji, SecondRecentEmoji, ThirdRecentEmoji };
+            var list = new System.Collections.Generic.List<string>
+                { FirstRecentEmoji, SecondRecentEmoji, ThirdRecentEmoji };
             list.Remove(emoji);
             list.Insert(0, emoji);
 
@@ -227,7 +231,8 @@ namespace Pocket.Client.PageModels
             SecondRecentEmoji = list.Count > 1 ? list[1] : "🙃";
             ThirdRecentEmoji = list.Count > 2 ? list[2] : "😘";
 
-            Microsoft.Maui.Storage.Preferences.Default.Set("RecentEmojis", $"{FirstRecentEmoji},{SecondRecentEmoji},{ThirdRecentEmoji}");
+            Microsoft.Maui.Storage.Preferences.Default.Set("RecentEmojis",
+                $"{FirstRecentEmoji},{SecondRecentEmoji},{ThirdRecentEmoji}");
         }
 
         private void HandleFriendProfileUpdated(Friend friend)
@@ -244,6 +249,7 @@ namespace Pocket.Client.PageModels
                     {
                         msg.SenderAvatarUrl = FriendAvatarUrl;
                     }
+
                     if (msg.HasMediaReference && msg.ReferencedPostAuthorLabel != "You")
                     {
                         msg.ReferencedPostAuthorLabel = FriendDisplayName;
@@ -261,6 +267,7 @@ namespace Pocket.Client.PageModels
                 {
                     msg.SenderAvatarUrl = user.ProfilePictureUrl ?? string.Empty;
                 }
+
                 if (msg.HasMediaReference && msg.ReferencedPostAuthorLabel == "You")
                 {
                     msg.ReferencedPostAuthorAvatarUrl = user.ProfilePictureUrl ?? string.Empty;
@@ -393,6 +400,128 @@ namespace Pocket.Client.PageModels
             if (existing != null)
             {
                 existing.SyncStatus = Shared.Enums.SyncStatus.Delivered;
+            }
+        }
+
+        private void HandleDirectMessageSendFailed(DirectMessage dm)
+        {
+            if (dm.FriendId == FriendId)
+            {
+                var existing = Messages.FirstOrDefault(m => m.Id == dm.Id);
+                if (existing != null)
+                {
+                    existing.SyncStatus = Shared.Enums.SyncStatus.Failed;
+                }
+
+                ShowSendFailedToastAction?.Invoke();
+            }
+        }
+
+        private void HandleDirectMessageDeleted(Guid messageId)
+        {
+            RemoveMessageFromList(messageId);
+        }
+
+        private void RemoveMessageFromList(Guid messageId)
+        {
+            var existing = Messages.FirstOrDefault(m => m.Id == messageId);
+            if (existing != null)
+            {
+                Messages.Remove(existing);
+                RecalculateShowMediaCards();
+            }
+        }
+
+        [RelayCommand]
+        private void OpenMessageActions(DirectMessage? dm)
+        {
+            if (dm == null)
+                return;
+
+            if (IsEmojiPickerOpen)
+            {
+                CloseEmojiPicker();
+            }
+
+            SelectedActionMessage = dm;
+            IsMessageActionsOpen = true;
+            OpenMessageActionsAction?.Invoke();
+        }
+
+        [RelayCommand]
+        private void CloseMessageActions()
+        {
+            if (CloseMessageActionsAction != null)
+            {
+                CloseMessageActionsAction.Invoke();
+            }
+            else
+            {
+                IsMessageActionsOpen = false;
+                SelectedActionMessage = null;
+            }
+        }
+
+        [RelayCommand]
+        private async Task CopySelectedMessageAsync()
+        {
+            var dm = SelectedActionMessage;
+            CloseMessageActions();
+
+            if (dm == null || string.IsNullOrEmpty(dm.DisplayText))
+                return;
+
+            await Microsoft.Maui.ApplicationModel.DataTransfer.Clipboard.Default.SetTextAsync(dm.DisplayText);
+            ShowCopiedToastAction?.Invoke();
+        }
+
+        [RelayCommand]
+        private async Task DeleteSelectedMessageAsync()
+        {
+            var dm = SelectedActionMessage;
+            CloseMessageActions();
+
+            if (dm == null)
+                return;
+
+            RemoveMessageFromList(dm.Id);
+            await _shellModel.DeleteDirectMessageAsync(dm, undoSendForRecipient: !dm.IsIncoming);
+        }
+
+        [RelayCommand]
+        private async Task RetryMessageAsync(DirectMessage? dm)
+        {
+            if (dm == null)
+                return;
+
+            await _shellModel.RetryDirectMessageAsync(dm);
+        }
+
+        [RelayCommand]
+        private async Task DeleteFailedMessageAsync(DirectMessage? dm)
+        {
+            if (dm == null)
+                return;
+
+            RemoveMessageFromList(dm.Id);
+            await _shellModel.DeleteDirectMessageAsync(dm);
+        }
+
+        private void RecalculateShowMediaCards()
+        {
+            Guid? lastShownMediaPostId = null;
+            foreach (var msg in Messages)
+            {
+                if (msg.HasMediaReference && msg.MediaPostId.HasValue)
+                {
+                    msg.ShowMediaCard = lastShownMediaPostId != msg.MediaPostId;
+                    lastShownMediaPostId = msg.MediaPostId;
+                }
+                else
+                {
+                    msg.ShowMediaCard = false;
+                    lastShownMediaPostId = null;
+                }
             }
         }
 

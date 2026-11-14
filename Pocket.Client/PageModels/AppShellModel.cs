@@ -37,6 +37,15 @@ namespace Pocket.Client.PageModels
 
         [ObservableProperty] private bool _isStreakOnWidget = true;
 
+        public const string ReactionsNotificationPreferenceKey = "ReactionsNotificationEnabled";
+        public const string MessagesNotificationPreferenceKey = "MessagesNotificationEnabled";
+
+        [ObservableProperty] private bool _isReactionsNotificationEnabled = Microsoft.Maui.Storage.Preferences.Get(
+            ReactionsNotificationPreferenceKey, true);
+
+        [ObservableProperty] private bool _isMessagesNotificationEnabled = Microsoft.Maui.Storage.Preferences.Get(
+            MessagesNotificationPreferenceKey, true);
+
         /// <summary>
         /// When true, the shutter saves the exact preview frame (WYSIWYG colors).
         /// When false, the camera's native still-capture pipeline is used (may alter tone/colors).
@@ -163,10 +172,14 @@ namespace Pocket.Client.PageModels
         public string FriendsCountText => Friends.Count == 1 ? "1 Friend" : $"{Friends.Count} Friends";
 
         public event Action<MediaPost>? OnMediaPostReceived;
+        public event Action<Guid>? OnMediaPostSent;
         public event Action<Guid>? OnMediaPostDelivered;
         public event Action<Guid>? OnMediaPostDeleted;
+        public event Action<bool>? OnConnectionStateChangedEvent;
         public event Action<DirectMessage>? OnDirectMessageReceived;
         public event Action<Guid>? OnDirectMessageDelivered;
+        public event Action<DirectMessage>? OnDirectMessageSendFailed;
+        public event Action<Guid>? OnDirectMessageDeleted;
         public event Action<Friend>? OnFriendProfileUpdated;
         public event Action<User>? OnUserProfileUpdated;
         public event Action? OnDataImported;
@@ -217,6 +230,28 @@ namespace Pocket.Client.PageModels
         private void ToggleStreakOnWidget()
         {
             IsStreakOnWidget = !IsStreakOnWidget;
+        }
+
+        [RelayCommand]
+        private void ToggleReactionsNotification()
+        {
+            IsReactionsNotificationEnabled = !IsReactionsNotificationEnabled;
+        }
+
+        partial void OnIsReactionsNotificationEnabledChanged(bool value)
+        {
+            Microsoft.Maui.Storage.Preferences.Set(ReactionsNotificationPreferenceKey, value);
+        }
+
+        [RelayCommand]
+        private void ToggleMessagesNotification()
+        {
+            IsMessagesNotificationEnabled = !IsMessagesNotificationEnabled;
+        }
+
+        partial void OnIsMessagesNotificationEnabledChanged(bool value)
+        {
+            Microsoft.Maui.Storage.Preferences.Set(MessagesNotificationPreferenceKey, value);
         }
 
         [RelayCommand]
@@ -396,6 +431,7 @@ namespace Pocket.Client.PageModels
                 _ = UpdateLatestPhotoWidgetAsync();
 
                 // Subscribe to real-time events BEFORE connecting so offline queued payloads aren't missed
+                EnsureConnectivitySubscribed();
                 _relayService.OnConnectionStateChanged -= HandleConnectionStateChanged;
                 _relayService.OnConnectionStateChanged += HandleConnectionStateChanged;
 
@@ -489,58 +525,217 @@ namespace Pocket.Client.PageModels
                 OnDirectMessageReceived?.Invoke(dm);
             });
 
-            var privateKey = await GetPrivateKeyAsync();
-            if (!string.IsNullOrEmpty(privateKey) && _relayService.IsConnected)
+            bool sent = await TryTransmitDirectMessageAsync(dm, friend);
+            if (!sent)
             {
-                try
+                dm.SyncStatus = Pocket.Shared.Enums.SyncStatus.Failed;
+                await _database.SaveDirectMessageAsync(dm);
+                Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
                 {
-                    var sharedSecret = GetOrDeriveSharedSecret(privateKey, friend.PublicKey);
-                    var textBytes = Encoding.UTF8.GetBytes(textContent ?? string.Empty);
-                    var encryptedContent = _cryptoService.EncryptData(textBytes, sharedSecret);
-
-                    byte[]? encryptedReaction = null;
-                    if (!string.IsNullOrEmpty(reactionEmoji))
-                    {
-                        var reactionBytes = Encoding.UTF8.GetBytes(reactionEmoji);
-                        encryptedReaction = _cryptoService.EncryptData(reactionBytes, sharedSecret);
-                    }
-
-                    var payload = new Pocket.Shared.DTOs.EncryptedPayloadDto
-                    {
-                        MessageId = dm.Id,
-                        SenderId = CurrentUser.Id,
-                        RecipientId = friend.Id,
-                        MediaPostId = mediaPostId,
-                        EncryptedContent = encryptedContent,
-                        EncryptedReaction = encryptedReaction,
-                        EncryptedMedia = null,
-                        MediaType = Pocket.Shared.Enums.MediaType.None,
-                        Timestamp = dm.SentAt
-                    };
-
-                    await _relayService.SendPayloadAsync(payload);
-
-                    // Guard against race condition if DeliveryAcknowledged already arrived while SendPayloadAsync was completing
-                    var currentInDb = await _database.GetDirectMessageAsync(dm.Id);
-                    if (currentInDb != null && currentInDb.SyncStatus == Pocket.Shared.Enums.SyncStatus.Delivered)
-                    {
-                        dm.SyncStatus = Pocket.Shared.Enums.SyncStatus.Delivered;
-                    }
-                    else if (dm.SyncStatus != Pocket.Shared.Enums.SyncStatus.Delivered)
-                    {
-                        dm.SyncStatus = Pocket.Shared.Enums.SyncStatus.Sent;
-                        await _database.SaveDirectMessageAsync(dm);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"[E2EE DM Send Error] {ex.Message}");
-                    dm.SyncStatus = Pocket.Shared.Enums.SyncStatus.Failed;
-                    await _database.SaveDirectMessageAsync(dm);
-                }
+                    OnDirectMessageSendFailed?.Invoke(dm);
+                });
             }
 
             return dm;
+        }
+
+        public async Task<bool> RetryDirectMessageAsync(DirectMessage dm)
+        {
+            if (_database == null || _cryptoService == null || _relayService == null || dm == null)
+                return false;
+
+            var friend = await _database.GetFriendAsync(dm.FriendId);
+            if (friend == null || string.IsNullOrEmpty(friend.PublicKey))
+            {
+                dm.SyncStatus = Pocket.Shared.Enums.SyncStatus.Failed;
+                await _database.SaveDirectMessageAsync(dm);
+                Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    OnDirectMessageSendFailed?.Invoke(dm);
+                });
+                return false;
+            }
+
+            bool sent = await TryTransmitDirectMessageAsync(dm, friend);
+            if (!sent)
+            {
+                dm.SyncStatus = Pocket.Shared.Enums.SyncStatus.Failed;
+                await _database.SaveDirectMessageAsync(dm);
+                Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    OnDirectMessageSendFailed?.Invoke(dm);
+                });
+                return false;
+            }
+
+            return true;
+        }
+
+        public async Task DeleteDirectMessageAsync(DirectMessage dm, bool undoSendForRecipient = false)
+        {
+            if (_database == null || dm == null)
+                return;
+
+            bool shouldNotifyRecipient = undoSendForRecipient &&
+                                         !dm.IsIncoming &&
+                                         dm.SyncStatus != Pocket.Shared.Enums.SyncStatus.Failed;
+
+            await _database.DeleteDirectMessageAsync(dm.Id);
+            await RefreshFriendLastMessagePreviewAsync(dm.FriendId);
+
+            Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+            {
+                OnDirectMessageDeleted?.Invoke(dm.Id);
+            });
+
+            if (shouldNotifyRecipient && _cryptoService != null && _relayService != null && _relayService.IsConnected)
+            {
+                var privateKey = await GetPrivateKeyAsync();
+                var friend = await _database.GetFriendAsync(dm.FriendId);
+                if (!string.IsNullOrEmpty(privateKey) && friend != null && !string.IsNullOrEmpty(friend.PublicKey))
+                {
+                    try
+                    {
+                        var sharedSecret = GetOrDeriveSharedSecret(privateKey, friend.PublicKey);
+                        var dmIdBytes = Encoding.UTF8.GetBytes(dm.Id.ToString());
+                        var encryptedContent = _cryptoService.EncryptData(dmIdBytes, sharedSecret);
+
+                        var payload = new Pocket.Shared.DTOs.EncryptedPayloadDto
+                        {
+                            MessageId = Guid.NewGuid(),
+                            SenderId = CurrentUser.Id,
+                            RecipientId = friend.Id,
+                            MediaPostId = dm.Id,
+                            EncryptedContent = encryptedContent,
+                            MediaType = Pocket.Shared.Enums.MediaType.MessageDeleted,
+                            Timestamp = DateTime.UtcNow
+                        };
+
+                        await _relayService.SendPayloadAsync(payload);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[E2EE Undo Send Error] Failed for friend {friend.Username}: {ex.Message}");
+                    }
+                }
+            }
+        }
+
+        private async Task RefreshFriendLastMessagePreviewAsync(string friendId)
+        {
+            if (_database == null || string.IsNullOrEmpty(friendId))
+                return;
+
+            var remainingDms = await _database.GetDirectMessagesForFriendAsync(friendId);
+            var chatDms = remainingDms.Where(d => !d.IsPostReactionOnly).ToList();
+
+            Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+            {
+                var targetFriend = Friends.FirstOrDefault(f => f.Id == friendId);
+                if (targetFriend != null)
+                {
+                    if (chatDms.Count > 0)
+                    {
+                        var lastDm = chatDms[chatDms.Count - 1];
+                        targetFriend.LastMessagePreview = !string.IsNullOrWhiteSpace(lastDm.TextContent)
+                            ? lastDm.TextContent
+                            : "Fotoğrafa yanıt verdi";
+                        targetFriend.LastMessageTimeText = MediaPost.FormatRelativeTime(lastDm.SentAt);
+                    }
+                    else
+                    {
+                        targetFriend.LastMessagePreview = "Sohbeti başlatmak için dokun";
+                        targetFriend.LastMessageTimeText = MediaPost.FormatRelativeTime(targetFriend.AddedAt);
+                    }
+                }
+            });
+        }
+
+        private async Task<bool> TryTransmitDirectMessageAsync(DirectMessage dm, Friend friend)
+        {
+            if (_database == null || _cryptoService == null || _relayService == null || CurrentUser == null)
+                return false;
+
+            var access = Microsoft.Maui.Networking.Connectivity.Current.NetworkAccess;
+            bool hasNetwork = access == Microsoft.Maui.Networking.NetworkAccess.Internet ||
+                              access == Microsoft.Maui.Networking.NetworkAccess.ConstrainedInternet ||
+                              access == Microsoft.Maui.Networking.NetworkAccess.Local;
+
+            if (!hasNetwork)
+                return false;
+
+            if (!_relayService.IsConnected)
+            {
+                if (!string.IsNullOrEmpty(CurrentUser.Id))
+                {
+                    await _relayService.ConnectAsync(CurrentUser.Id, CurrentUser.Username);
+                    if (_relayService.IsConnected)
+                    {
+                        await _relayService.RegisterUserAsync(new Pocket.Shared.DTOs.UserIdentityDto
+                        {
+                            UserId = CurrentUser.Id,
+                            Username = CurrentUser.Username,
+                            PublicKey = CurrentUser.PublicKey
+                        });
+                        HandleConnectionStateChanged(true);
+                    }
+                }
+
+                if (!_relayService.IsConnected)
+                    return false;
+            }
+
+            var privateKey = await GetPrivateKeyAsync();
+            if (string.IsNullOrEmpty(privateKey))
+                return false;
+
+            try
+            {
+                var sharedSecret = GetOrDeriveSharedSecret(privateKey, friend.PublicKey);
+                var textBytes = Encoding.UTF8.GetBytes(dm.TextContent ?? string.Empty);
+                var encryptedContent = _cryptoService.EncryptData(textBytes, sharedSecret);
+
+                byte[]? encryptedReaction = null;
+                if (!string.IsNullOrEmpty(dm.ReactionEmoji))
+                {
+                    var reactionBytes = Encoding.UTF8.GetBytes(dm.ReactionEmoji);
+                    encryptedReaction = _cryptoService.EncryptData(reactionBytes, sharedSecret);
+                }
+
+                var payload = new Pocket.Shared.DTOs.EncryptedPayloadDto
+                {
+                    MessageId = dm.Id,
+                    SenderId = CurrentUser.Id,
+                    RecipientId = friend.Id,
+                    MediaPostId = dm.MediaPostId,
+                    EncryptedContent = encryptedContent,
+                    EncryptedReaction = encryptedReaction,
+                    EncryptedMedia = null,
+                    MediaType = Pocket.Shared.Enums.MediaType.None,
+                    Timestamp = dm.SentAt
+                };
+
+                await _relayService.SendPayloadAsync(payload);
+
+                // Guard against race condition if DeliveryAcknowledged already arrived while SendPayloadAsync was completing
+                var currentInDb = await _database.GetDirectMessageAsync(dm.Id);
+                if (currentInDb != null && currentInDb.SyncStatus == Pocket.Shared.Enums.SyncStatus.Delivered)
+                {
+                    dm.SyncStatus = Pocket.Shared.Enums.SyncStatus.Delivered;
+                }
+                else if (dm.SyncStatus != Pocket.Shared.Enums.SyncStatus.Delivered)
+                {
+                    dm.SyncStatus = Pocket.Shared.Enums.SyncStatus.Sent;
+                    await _database.SaveDirectMessageAsync(dm);
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[E2EE DM Send Error] {ex.Message}");
+                return false;
+            }
         }
 
         private async void HandlePayloadReceived(Pocket.Shared.DTOs.EncryptedPayloadDto payload)
@@ -659,6 +854,33 @@ namespace Pocket.Client.PageModels
                     return;
                 }
 
+                if (payload.MediaType == Pocket.Shared.Enums.MediaType.MessageDeleted)
+                {
+                    if (payload.EncryptedContent is { Length: > 0 })
+                    {
+                        var decryptedBytes = _cryptoService.DecryptData(payload.EncryptedContent, sharedSecret);
+                        var dmIdStr = Encoding.UTF8.GetString(decryptedBytes);
+                        if (Guid.TryParse(dmIdStr, out var targetDmId))
+                        {
+                            var dmToDelete = await _database.GetDirectMessageAsync(targetDmId);
+                            if (dmToDelete != null && dmToDelete.IsIncoming &&
+                                dmToDelete.FriendId == payload.SenderId)
+                            {
+                                await _database.DeleteDirectMessageAsync(targetDmId);
+                                await RefreshFriendLastMessagePreviewAsync(dmToDelete.FriendId);
+
+                                Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+                                {
+                                    OnDirectMessageDeleted?.Invoke(targetDmId);
+                                });
+                            }
+                        }
+                    }
+
+                    await _relayService.ConfirmDeliveryAsync(payload.SenderId, payload.MessageId);
+                    return;
+                }
+
                 if (payload.MediaType == Pocket.Shared.Enums.MediaType.None)
                 {
                     // Direct Message / Photo Reaction (BR-301, BR-302)
@@ -720,11 +942,14 @@ namespace Pocket.Client.PageModels
 
                     if (!string.IsNullOrWhiteSpace(reactionEmoji) && string.IsNullOrWhiteSpace(textContent))
                     {
-                        _notificationService?.ShowReactionNotification(
-                            senderFriend.Id,
-                            senderHeader,
-                            senderFriend.ProfilePictureUrl,
-                            dm.MediaPostId);
+                        if (IsReactionsNotificationEnabled)
+                        {
+                            _notificationService?.ShowReactionNotification(
+                                senderFriend.Id,
+                                senderHeader,
+                                senderFriend.ProfilePictureUrl,
+                                dm.MediaPostId);
+                        }
                     }
                     else if (!string.IsNullOrWhiteSpace(textContent))
                     {
@@ -733,8 +958,10 @@ namespace Pocket.Client.PageModels
                         isForeground = isForeground && MainActivity.IsActivityResumed;
 #endif
                         bool isDmWindowActive = isForeground &&
-                                                (IsInDmWindow || Microsoft.Maui.Controls.Shell.Current?.CurrentPage is Pocket.Client.Pages.DmPage);
-                        if (!isDmWindowActive)
+                                                (IsInDmWindow ||
+                                                 Microsoft.Maui.Controls.Shell.Current?.CurrentPage is Pocket.Client
+                                                     .Pages.DmPage);
+                        if (!isDmWindowActive && IsMessagesNotificationEnabled)
                         {
                             _notificationService?.ShowMessageNotification(
                                 senderFriend.Id,
@@ -983,11 +1210,260 @@ namespace Pocket.Client.PageModels
             }
         }
 
+        private readonly System.Threading.SemaphoreSlim _pendingPostSyncLock = new(1, 1);
+        private bool _isConnectivitySubscribed;
+
+        private void EnsureConnectivitySubscribed()
+        {
+            if (_isConnectivitySubscribed)
+                return;
+            _isConnectivitySubscribed = true;
+
+            try
+            {
+                Microsoft.Maui.Networking.Connectivity.Current.ConnectivityChanged += OnDeviceConnectivityChanged;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Connectivity] Subscription skipped: {ex.Message}");
+            }
+        }
+
+        private async void OnDeviceConnectivityChanged(object? sender,
+            Microsoft.Maui.Networking.ConnectivityChangedEventArgs e)
+        {
+            bool hasInternet = e.NetworkAccess == Microsoft.Maui.Networking.NetworkAccess.Internet ||
+                               e.NetworkAccess == Microsoft.Maui.Networking.NetworkAccess.ConstrainedInternet ||
+                               e.NetworkAccess == Microsoft.Maui.Networking.NetworkAccess.Local;
+
+            if (hasInternet && _relayService != null && !_relayService.IsConnected && CurrentUser != null &&
+                !string.IsNullOrEmpty(CurrentUser.Id))
+            {
+                await _relayService.ConnectAsync(CurrentUser.Id, CurrentUser.Username);
+                if (_relayService.IsConnected)
+                {
+                    await _relayService.RegisterUserAsync(new Pocket.Shared.DTOs.UserIdentityDto
+                    {
+                        UserId = CurrentUser.Id,
+                        Username = CurrentUser.Username,
+                        PublicKey = CurrentUser.PublicKey
+                    });
+                    HandleConnectionStateChanged(true);
+                }
+            }
+            else if (!hasInternet)
+            {
+                HandleConnectionStateChanged(false);
+            }
+        }
+
+        public async Task<bool> TryUploadMediaPostAsync(MediaPost mediaPost,
+            System.Collections.Generic.IReadOnlyList<Friend>? explicitTargetFriends = null)
+        {
+            if (_database == null || _cryptoService == null || _relayService == null || CurrentUser == null)
+                return false;
+
+            if (mediaPost.IsIncoming || mediaPost.SyncStatus == Pocket.Shared.Enums.SyncStatus.Sent ||
+                mediaPost.SyncStatus == Pocket.Shared.Enums.SyncStatus.Delivered)
+            {
+                mediaPost.IsWaitingForServer = false;
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(mediaPost.MediaLocalPath) || !File.Exists(mediaPost.MediaLocalPath))
+                return false;
+
+            var access = Microsoft.Maui.Networking.Connectivity.Current.NetworkAccess;
+            bool hasNetwork = access == Microsoft.Maui.Networking.NetworkAccess.Internet ||
+                              access == Microsoft.Maui.Networking.NetworkAccess.ConstrainedInternet ||
+                              access == Microsoft.Maui.Networking.NetworkAccess.Local;
+
+            if (!hasNetwork)
+            {
+                Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    mediaPost.IsWaitingForServer = true;
+                });
+                return false;
+            }
+
+            if (!_relayService.IsConnected)
+            {
+                Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    mediaPost.IsWaitingForServer = true;
+                });
+
+                if (!string.IsNullOrEmpty(CurrentUser.Id))
+                {
+                    await _relayService.ConnectAsync(CurrentUser.Id, CurrentUser.Username);
+                    if (_relayService.IsConnected)
+                    {
+                        await _relayService.RegisterUserAsync(new Pocket.Shared.DTOs.UserIdentityDto
+                        {
+                            UserId = CurrentUser.Id,
+                            Username = CurrentUser.Username,
+                            PublicKey = CurrentUser.PublicKey
+                        });
+                    }
+                }
+
+                if (!_relayService.IsConnected)
+                {
+                    return false;
+                }
+            }
+
+            Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+            {
+                mediaPost.IsWaitingForServer = false;
+            });
+
+            var privateKey = await GetPrivateKeyAsync();
+            if (string.IsNullOrEmpty(privateKey))
+                return false;
+
+            System.Collections.Generic.IReadOnlyList<Friend> targetFriends;
+            if (explicitTargetFriends != null && explicitTargetFriends.Count > 0)
+            {
+                targetFriends = explicitTargetFriends;
+            }
+            else
+            {
+                var allFriends = await _database.GetFriendsAsync();
+                targetFriends = !string.IsNullOrEmpty(mediaPost.FriendId)
+                    ? allFriends.Where(f => f.Id == mediaPost.FriendId).ToList()
+                    : allFriends;
+            }
+
+            var validFriends = targetFriends.Where(f => !string.IsNullOrEmpty(f.PublicKey)).ToList();
+            if (validFriends.Count == 0)
+            {
+                // No recipients with public keys; mark as Sent once connected to server
+                if (_relayService.IsConnected)
+                {
+                    mediaPost.SyncStatus = Pocket.Shared.Enums.SyncStatus.Sent;
+                    mediaPost.IsWaitingForServer = false;
+                    await _database.SaveMediaPostAsync(mediaPost);
+                    Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        OnMediaPostSent?.Invoke(mediaPost.Id);
+                    });
+                    return true;
+                }
+
+                return false;
+            }
+
+            byte[] photoBytes;
+            try
+            {
+                photoBytes = await File.ReadAllBytesAsync(mediaPost.MediaLocalPath);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[MediaUpload] Could not read photo file: {ex.Message}");
+                return false;
+            }
+
+            var captionBytes = Encoding.UTF8.GetBytes(mediaPost.Caption ?? string.Empty);
+            int sentCount = 0;
+
+            foreach (var friend in validFriends)
+            {
+                if (!_relayService.IsConnected)
+                    break;
+
+                try
+                {
+                    var sharedSecret = GetOrDeriveSharedSecret(privateKey, friend.PublicKey);
+                    var encryptedCaption = _cryptoService.EncryptData(captionBytes, sharedSecret);
+                    var encryptedMedia = _cryptoService.EncryptData(photoBytes, sharedSecret);
+
+                    var payload = new Pocket.Shared.DTOs.EncryptedPayloadDto
+                    {
+                        MessageId = mediaPost.Id,
+                        SenderId = CurrentUser.Id,
+                        RecipientId = friend.Id,
+                        EncryptedContent = encryptedCaption,
+                        EncryptedMedia = encryptedMedia,
+                        MediaType = mediaPost.MediaType,
+                        Timestamp = mediaPost.SentAt
+                    };
+
+                    await _relayService.SendPayloadAsync(payload);
+                    sentCount++;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[E2EE Send Error] Failed for friend {friend.Username}: {ex.Message}");
+                }
+            }
+
+            if (sentCount > 0)
+            {
+                var currentInDb = await _database.GetMediaPostAsync(mediaPost.Id);
+                if (currentInDb != null && currentInDb.SyncStatus == Pocket.Shared.Enums.SyncStatus.Delivered)
+                {
+                    mediaPost.SyncStatus = Pocket.Shared.Enums.SyncStatus.Delivered;
+                }
+                else if (mediaPost.SyncStatus != Pocket.Shared.Enums.SyncStatus.Delivered)
+                {
+                    mediaPost.SyncStatus = Pocket.Shared.Enums.SyncStatus.Sent;
+                    await _database.SaveMediaPostAsync(mediaPost);
+                }
+
+                Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    mediaPost.IsWaitingForServer = false;
+                    OnMediaPostSent?.Invoke(mediaPost.Id);
+                });
+                return true;
+            }
+
+            Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+            {
+                mediaPost.IsWaitingForServer = true;
+            });
+            return false;
+        }
+
+        public async Task FlushPendingOutgoingMediaPostsAsync()
+        {
+            if (_database == null || _relayService == null || !_relayService.IsConnected)
+                return;
+
+            if (!await _pendingPostSyncLock.WaitAsync(0))
+                return;
+
+            try
+            {
+                var pendingPosts = await _database.GetPendingOutgoingMediaPostsAsync();
+                foreach (var pendingPost in pendingPosts)
+                {
+                    if (!_relayService.IsConnected)
+                        break;
+
+                    await TryUploadMediaPostAsync(pendingPost);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[PendingSync] FlushPendingOutgoingMediaPostsAsync error: {ex.Message}");
+            }
+            finally
+            {
+                _pendingPostSyncLock.Release();
+            }
+        }
+
         private void HandleConnectionStateChanged(bool isConnected)
         {
             Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
             {
                 IsConnected = isConnected;
+                OnConnectionStateChangedEvent?.Invoke(isConnected);
+
                 if (isConnected)
                 {
                     ConnectionStatusText = "Sunucuya Bağlandı";
@@ -1000,6 +1476,8 @@ namespace Pocket.Client.PageModels
                         Microsoft.Maui.Storage.Preferences.Default.Set("PendingProfileBroadcast", false);
                         _ = BroadcastProfileUpdateAsync();
                     }
+
+                    _ = FlushPendingOutgoingMediaPostsAsync();
                 }
                 else
                 {
@@ -1057,6 +1535,7 @@ namespace Pocket.Client.PageModels
 
                     // Immediately share our E2EE profile (name + avatar photo) with the new friend
                     _ = BroadcastProfileUpdateAsync(friend);
+                    _ = FlushPendingOutgoingMediaPostsAsync();
                 }
             });
         }
@@ -1095,6 +1574,7 @@ namespace Pocket.Client.PageModels
 
                     // Immediately share our E2EE profile (name + avatar photo) with the new friend
                     _ = BroadcastProfileUpdateAsync(friend);
+                    _ = FlushPendingOutgoingMediaPostsAsync();
                 }
             });
         }

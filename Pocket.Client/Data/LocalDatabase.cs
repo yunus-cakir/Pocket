@@ -162,6 +162,15 @@ namespace Pocket.Client.Data
                 .ToListAsync();
         }
 
+        public async Task<List<MediaPost>> GetPendingOutgoingMediaPostsAsync()
+        {
+            await InitAsync();
+            return await _connection!.Table<MediaPost>()
+                .Where(m => !m.IsIncoming && m.SyncStatus == Pocket.Shared.Enums.SyncStatus.Pending)
+                .OrderBy(m => m.SentAt)
+                .ToListAsync();
+        }
+
         public async Task<MediaPost?> GetLatestIncomingPhotoPostAsync()
         {
             await InitAsync();
@@ -260,6 +269,12 @@ namespace Pocket.Client.Data
                 return await _connection!.UpdateAsync(dm);
             }
             return await _connection!.InsertAsync(dm);
+        }
+
+        public async Task<int> DeleteDirectMessageAsync(Guid id)
+        {
+            await InitAsync();
+            return await _connection!.DeleteAsync<DirectMessage>(id);
         }
 
         public async Task MarkPostReactionsAnimationShownAsync(IEnumerable<Guid> dmIds)

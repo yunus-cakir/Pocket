@@ -106,6 +106,15 @@ namespace Pocket.Server.Hubs
                 _memoryStore.RemovePostFromUserQueue(payload.RecipientId, payload.SenderId, payload.MediaPostId.Value);
             }
 
+            if (payload.MediaType == Pocket.Shared.Enums.MediaType.MessageDeleted && payload.MediaPostId.HasValue)
+            {
+                if (_memoryStore.RemoveMessage(payload.RecipientId, payload.MediaPostId.Value))
+                {
+                    // Original message was still pending in RAM and never delivered; no need to notify recipient.
+                    return;
+                }
+            }
+
             // Store transiently in memory until recipient explicitly confirms delivery (BR-201, BR-202)
             _memoryStore.EnqueuePayload(payload);
 

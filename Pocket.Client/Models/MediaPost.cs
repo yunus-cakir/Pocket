@@ -67,6 +67,7 @@ namespace Pocket.Client.Models
     public partial class MediaPost : ObservableObject
     {
         private SyncStatus _syncStatus = SyncStatus.Pending;
+        private bool _isWaitingForServer;
         private string _senderDisplayName = string.Empty;
         private double _viewportHeight = 820;
         private double _cardSize = 399;
@@ -263,9 +264,34 @@ namespace Pocket.Client.Models
                 if (SetProperty(ref _syncStatus, value))
                 {
                     OnPropertyChanged(nameof(StatusBadgeText));
+                    OnPropertyChanged(nameof(IsPendingUpload));
+                    OnPropertyChanged(nameof(ShowNormalAuthorRow));
+                    OnPropertyChanged(nameof(UploadStatusText));
                 }
             }
         }
+
+        [Ignore]
+        public bool IsWaitingForServer
+        {
+            get => _isWaitingForServer;
+            set
+            {
+                if (SetProperty(ref _isWaitingForServer, value))
+                {
+                    OnPropertyChanged(nameof(UploadStatusText));
+                }
+            }
+        }
+
+        [Ignore]
+        public bool IsPendingUpload => !IsIncoming && SyncStatus == SyncStatus.Pending;
+
+        [Ignore]
+        public bool ShowNormalAuthorRow => !IsPendingUpload;
+
+        [Ignore]
+        public string UploadStatusText => IsWaitingForServer ? "Waiting server..." : "Uploading...";
 
         [Ignore]
         public string SenderDisplayName

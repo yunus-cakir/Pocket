@@ -48,9 +48,21 @@ namespace Pocket.Client.Models
                 if (SetProperty(ref _syncStatus, value))
                 {
                     OnPropertyChanged(nameof(StatusText));
+                    OnPropertyChanged(nameof(IsFailed));
+                    OnPropertyChanged(nameof(OutgoingBubbleStrokeThickness));
+                    OnPropertyChanged(nameof(OutgoingBubbleStrokeColor));
                 }
             }
         }
+
+        [Ignore]
+        public bool IsFailed => !IsIncoming && SyncStatus == SyncStatus.Failed;
+
+        [Ignore]
+        public double OutgoingBubbleStrokeThickness => IsFailed ? 2.0 : 0.0;
+
+        [Ignore]
+        public string OutgoingBubbleStrokeColor => IsFailed ? "#FF453A" : "Transparent";
 
         [Ignore]
         public bool HasMediaReference => MediaPostId.HasValue && !string.IsNullOrEmpty(ReferencedPostPath);

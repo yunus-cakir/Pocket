@@ -360,8 +360,11 @@
                                FontAttributes="Bold"
                                Margin="16,24,16,8" />
 
-                        <!-- Notifications (Unimplemented feature - noted) -->
-                        <Grid ColumnDefinitions="36, *" Padding="16,14">
+                        <!-- Notifications -->
+                        <Grid ColumnDefinitions="36, *" Padding="16,14" BackgroundColor="Transparent">
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding OpenNotificationsSheetCommand}" />
+                            </Grid.GestureRecognizers>
                             <Grid Grid.Column="0" WidthRequest="22" HeightRequest="22" HorizontalOptions="Start" VerticalOptions="Center">
                                 <Path Fill="#9CA3AF"
                                       HorizontalOptions="Center"
@@ -1381,25 +1384,45 @@
                                     </Grid>
                                 </Border>
 
-                                <!-- Row 2: Author & Relative Time ("You  20h") -->
-                                <HorizontalStackLayout Grid.Row="2"
-                                                       IsVisible="{Binding Source={x:Reference thisPage}, Path=BindingContext.IsReplyingToFeedPost, Converter={StaticResource InvertedBoolConverter}}"
-                                                       Spacing="8"
-                                                       HorizontalOptions="Center"
-                                                       Margin="0,16,0,0">
-                                    <Label Text="{Binding AuthorLabel}"
-                                           TextColor="#FFFFFF"
-                                           FontFamily="OpenSansSemibold"
-                                           FontSize="16"
-                                           FontAttributes="Bold"
-                                           VerticalOptions="Center" />
-                                    <Label Text="{Binding RelativeTimeText}"
-                                           TextColor="#8E8E93"
-                                           FontFamily="OpenSansSemibold"
-                                           FontSize="16"
-                                           FontAttributes="Bold"
-                                           VerticalOptions="Center" />
-                                </HorizontalStackLayout>
+                                <!-- Row 2: Author & Relative Time ("You  20h") or Upload / Waiting Status -->
+                                <Grid Grid.Row="2"
+                                      IsVisible="{Binding Source={x:Reference thisPage}, Path=BindingContext.IsReplyingToFeedPost, Converter={StaticResource InvertedBoolConverter}}"
+                                      HorizontalOptions="Center"
+                                      Margin="0,16,0,0">
+                                    <HorizontalStackLayout IsVisible="{Binding ShowNormalAuthorRow}"
+                                                           Spacing="8"
+                                                           HorizontalOptions="Center">
+                                        <Label Text="{Binding AuthorLabel}"
+                                               TextColor="#FFFFFF"
+                                               FontFamily="OpenSansSemibold"
+                                               FontSize="16"
+                                               FontAttributes="Bold"
+                                               VerticalOptions="Center" />
+                                        <Label Text="{Binding RelativeTimeText}"
+                                               TextColor="#8E8E93"
+                                               FontFamily="OpenSansSemibold"
+                                               FontSize="16"
+                                               FontAttributes="Bold"
+                                               VerticalOptions="Center" />
+                                    </HorizontalStackLayout>
+
+                                    <HorizontalStackLayout IsVisible="{Binding IsPendingUpload}"
+                                                           Spacing="8"
+                                                           HorizontalOptions="Center">
+                                        <controls:UploadSpinner WidthRequest="16"
+                                                                HeightRequest="16"
+                                                                IsRunning="{Binding IsPendingUpload}"
+                                                                Color="#FFFFFF"
+                                                                StrokeThickness="2.2"
+                                                                VerticalOptions="Center" />
+                                        <Label Text="{Binding UploadStatusText}"
+                                               TextColor="#FFFFFF"
+                                               FontFamily="OpenSansSemibold"
+                                               FontSize="16"
+                                               FontAttributes="Bold"
+                                               VerticalOptions="Center" />
+                                    </HorizontalStackLayout>
+                                </Grid>
 
                                 <!-- Row 3 & 4: Bottom Spacer for Persistent Activity/Reply Pill & Bottom Bar -->
                                 <BoxView Grid.Row="3" BackgroundColor="Transparent" Color="Transparent" />
@@ -3599,6 +3622,206 @@
                        VerticalOptions="Center" />
             </HorizontalStackLayout>
         </Border>
+
+        <!-- ================================================================== -->
+        <!-- "COULDN'T SEND MESSAGE" BOTTOM TOAST NOTIFICATION                  -->
+        <!-- ================================================================== -->
+        <Border x:Name="SendFailedToastPill"
+                IsVisible="False"
+                Opacity="0"
+                TranslationY="24"
+                InputTransparent="True"
+                HorizontalOptions="Center"
+                VerticalOptions="End"
+                Margin="16,0,16,90"
+                BackgroundColor="#F02C2C2E"
+                Stroke="#FF453A"
+                StrokeThickness="1"
+                StrokeShape="RoundRectangle 22"
+                Padding="18,11">
+            <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                <Border WidthRequest="20"
+                        HeightRequest="20"
+                        StrokeShape="RoundRectangle 10"
+                        StrokeThickness="0"
+                        BackgroundColor="#FF453A"
+                        Padding="0"
+                        VerticalOptions="Center">
+                    <Label Text="!"
+                           TextColor="#FFFFFF"
+                           FontFamily="OpenSansSemibold"
+                           FontSize="13"
+                           FontAttributes="Bold"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center" />
+                </Border>
+                <Label Text="Couldn't send message. Please try again later."
+                       TextColor="#FFFFFF"
+                       FontFamily="OpenSansSemibold"
+                       FontSize="14"
+                       FontAttributes="Bold"
+                       VerticalOptions="Center" />
+            </HorizontalStackLayout>
+        </Border>
+
+        <!-- ============================================================== -->
+        <!-- NOTIFICATIONS FULL-SCREEN PANEL OVERLAY                        -->
+        <!-- ============================================================== -->
+        <Grid x:Name="NotificationsOverlayGrid"
+              IsVisible="False"
+              HorizontalOptions="Fill"
+              VerticalOptions="Fill">
+            <BoxView x:Name="NotificationsBackdrop"
+                     BackgroundColor="#99000000"
+                     Color="#99000000"
+                     Opacity="0"
+                     HorizontalOptions="Fill"
+                     VerticalOptions="Fill">
+                <BoxView.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnNotificationsBackdropTapped" />
+                </BoxView.GestureRecognizers>
+            </BoxView>
+
+            <Border x:Name="NotificationsSheetCard"
+                    VerticalOptions="Fill"
+                    HorizontalOptions="Fill"
+                    Margin="0,24,0,0"
+                    TranslationY="900"
+                    BackgroundColor="#1C1C1E"
+                    StrokeShape="RoundRectangle 32,32,0,0"
+                    StrokeThickness="0"
+                    Padding="16,12,16,32">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer />
+                </Border.GestureRecognizers>
+                <Grid RowDefinitions="Auto, *">
+                    <!-- Drag Header Area: Handle pill + Title -->
+                    <Grid Grid.Row="0"
+                          RowDefinitions="Auto, Auto"
+                          BackgroundColor="Transparent"
+                          Padding="0,4,0,22">
+                        <Grid.GestureRecognizers>
+                            <PanGestureRecognizer PanUpdated="OnNotificationsSheetPanUpdated" />
+                        </Grid.GestureRecognizers>
+
+                        <BoxView Grid.Row="0"
+                                 WidthRequest="38"
+                                 HeightRequest="5"
+                                 CornerRadius="2.5"
+                                 Color="#5A5A5E"
+                                 BackgroundColor="#5A5A5E"
+                                 HorizontalOptions="Center"
+                                 Margin="0,0,0,14">
+                            <BoxView.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnNotificationsBackdropTapped" />
+                            </BoxView.GestureRecognizers>
+                        </BoxView>
+
+                        <Label Grid.Row="1"
+                               Text="Notifications"
+                               TextColor="#FFFFFF"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="20"
+                               FontAttributes="Bold"
+                               HorizontalOptions="Center" />
+                    </Grid>
+
+                    <!-- Notification Toggles Card -->
+                    <VerticalStackLayout Grid.Row="1" Spacing="0">
+                        <Border BackgroundColor="#2C2C2E"
+                                StrokeShape="RoundRectangle 22"
+                                StrokeThickness="0"
+                                Padding="20,6">
+                            <VerticalStackLayout Spacing="0">
+                                <!-- Reactions -->
+                                <Grid ColumnDefinitions="*, Auto" Padding="0,12">
+                                    <Label Grid.Column="0"
+                                           Text="Reactions"
+                                           TextColor="#FFFFFF"
+                                           FontFamily="OpenSansSemibold"
+                                           FontSize="16"
+                                           FontAttributes="Bold"
+                                           VerticalOptions="Center" />
+                                    <Border Grid.Column="1"
+                                            WidthRequest="54"
+                                            HeightRequest="32"
+                                            StrokeShape="RoundRectangle 16"
+                                            StrokeThickness="0"
+                                            BackgroundColor="{DynamicResource AccentColor}"
+                                            Padding="3"
+                                            VerticalOptions="Center">
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding ShellModel.ToggleReactionsNotificationCommand}" />
+                                        </Border.GestureRecognizers>
+                                        <Border WidthRequest="26"
+                                                HeightRequest="26"
+                                                StrokeShape="RoundRectangle 13"
+                                                StrokeThickness="0"
+                                                BackgroundColor="#FFFFFF"
+                                                Padding="0"
+                                                HorizontalOptions="End"
+                                                VerticalOptions="Center">
+                                            <Border.Triggers>
+                                                <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsReactionsNotificationEnabled}" Value="False">
+                                                    <Setter Property="HorizontalOptions" Value="Start" />
+                                                </DataTrigger>
+                                            </Border.Triggers>
+                                        </Border>
+                                        <Border.Triggers>
+                                            <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsReactionsNotificationEnabled}" Value="False">
+                                                <Setter Property="BackgroundColor" Value="#3A3A3C" />
+                                            </DataTrigger>
+                                        </Border.Triggers>
+                                    </Border>
+                                </Grid>
+
+                                <!-- Messages -->
+                                <Grid ColumnDefinitions="*, Auto" Padding="0,12">
+                                    <Label Grid.Column="0"
+                                           Text="Messages"
+                                           TextColor="#FFFFFF"
+                                           FontFamily="OpenSansSemibold"
+                                           FontSize="16"
+                                           FontAttributes="Bold"
+                                           VerticalOptions="Center" />
+                                    <Border Grid.Column="1"
+                                            WidthRequest="54"
+                                            HeightRequest="32"
+                                            StrokeShape="RoundRectangle 16"
+                                            StrokeThickness="0"
+                                            BackgroundColor="{DynamicResource AccentColor}"
+                                            Padding="3"
+                                            VerticalOptions="Center">
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding ShellModel.ToggleMessagesNotificationCommand}" />
+                                        </Border.GestureRecognizers>
+                                        <Border WidthRequest="26"
+                                                HeightRequest="26"
+                                                StrokeShape="RoundRectangle 13"
+                                                StrokeThickness="0"
+                                                BackgroundColor="#FFFFFF"
+                                                Padding="0"
+                                                HorizontalOptions="End"
+                                                VerticalOptions="Center">
+                                            <Border.Triggers>
+                                                <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsMessagesNotificationEnabled}" Value="False">
+                                                    <Setter Property="HorizontalOptions" Value="Start" />
+                                                </DataTrigger>
+                                            </Border.Triggers>
+                                        </Border>
+                                        <Border.Triggers>
+                                            <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsMessagesNotificationEnabled}" Value="False">
+                                                <Setter Property="BackgroundColor" Value="#3A3A3C" />
+                                            </DataTrigger>
+                                        </Border.Triggers>
+                                    </Border>
+                                </Grid>
+                            </VerticalStackLayout>
+                        </Border>
+                    </VerticalStackLayout>
+                </Grid>
+            </Border>
+        </Grid>
 
         <!-- Full-screen white overlay for front-camera / no-hardware-flash "screen flash" -->
         <BoxView x:Name="ScreenFlashOverlay"

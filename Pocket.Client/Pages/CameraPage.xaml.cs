@@ -119,6 +119,26 @@ namespace Pocket.Client.Pages
                 MainThread.BeginInvokeOnMainThread(async () => { await AnimateCloseActivitySheet(); });
             };
 
+            viewModel.OpenNotificationsSheetAction = () =>
+            {
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    NotificationsOverlayGrid.IsVisible = true;
+                    double startY = Math.Max(Height, 800);
+                    NotificationsSheetCard.TranslationY = startY;
+                    NotificationsBackdrop.Opacity = 0;
+                    await Task.WhenAll(
+                        NotificationsSheetCard.TranslateToAsync(0, 0, 260, Easing.CubicOut),
+                        NotificationsBackdrop.FadeToAsync(1, 260, Easing.CubicOut)
+                    );
+                });
+            };
+
+            viewModel.CloseNotificationsSheetAction = () =>
+            {
+                MainThread.BeginInvokeOnMainThread(async () => { await AnimateCloseNotificationsSheetAsync(); });
+            };
+
             viewModel.OpenEmojiPickerAction = () =>
             {
                 MainThread.BeginInvokeOnMainThread(async () =>
@@ -282,6 +302,11 @@ namespace Pocket.Client.Pages
                 MainThread.BeginInvokeOnMainThread(async () => { await ShowSavedToastAsync(); });
             };
 
+            viewModel.ShowSendFailedToastAction = () =>
+            {
+                MainThread.BeginInvokeOnMainThread(async () => { await ShowSendFailedToastAsync(); });
+            };
+
             viewModel.PlayReactionEmojiRainAction = (postId, emojis) =>
             {
                 MainThread.BeginInvokeOnMainThread(() => { PlayReactionEmojiRain(postId, emojis); });
@@ -443,8 +468,9 @@ namespace Pocket.Client.Pages
                 if (_imeAnimationCallback == null)
                 {
                     _imeAnimationCallback = new ImeInsetsAnimationCallback(this);
-                    AndroidX.Core.View.ViewCompat.SetWindowInsetsAnimationCallback(decorView, _imeAnimationCallback);
                 }
+
+                AndroidX.Core.View.ViewCompat.SetWindowInsetsAnimationCallback(decorView, _imeAnimationCallback);
             }
 
             if (_keyboardPollTimer == null)
@@ -886,6 +912,12 @@ namespace Pocket.Client.Pages
                     return true;
                 }
 
+                if (vm.IsNotificationsSheetOpen)
+                {
+                    _ = AnimateCloseNotificationsSheetAsync();
+                    return true;
+                }
+
                 if (vm.IsEmojiPickerOpen)
                 {
                     _ = AnimateCloseEmojiPickerAsync();
@@ -1073,6 +1105,49 @@ namespace Pocket.Client.Pages
             if (!cts.IsCancellationRequested)
             {
                 SavedToastPill.IsVisible = false;
+            }
+        }
+
+        private System.Threading.CancellationTokenSource? _sendFailedToastCts;
+
+        private async Task ShowSendFailedToastAsync()
+        {
+            _sendFailedToastCts?.Cancel();
+            var cts = new System.Threading.CancellationTokenSource();
+            _sendFailedToastCts = cts;
+
+            SendFailedToastPill.AbortAnimation("FadeTo");
+            SendFailedToastPill.AbortAnimation("TranslateTo");
+
+            SendFailedToastPill.Opacity = 0;
+            SendFailedToastPill.TranslationY = 24;
+            SendFailedToastPill.IsVisible = true;
+
+            await Task.WhenAll(
+                SendFailedToastPill.FadeToAsync(1, 180, Easing.CubicOut),
+                SendFailedToastPill.TranslateToAsync(0, 0, 180, Easing.CubicOut)
+            );
+
+            try
+            {
+                await Task.Delay(2500, cts.Token);
+            }
+            catch (TaskCanceledException)
+            {
+                return;
+            }
+
+            if (cts.IsCancellationRequested)
+                return;
+
+            await Task.WhenAll(
+                SendFailedToastPill.FadeToAsync(0, 180, Easing.CubicIn),
+                SendFailedToastPill.TranslateToAsync(0, 20, 180, Easing.CubicIn)
+            );
+
+            if (!cts.IsCancellationRequested)
+            {
+                SendFailedToastPill.IsVisible = false;
             }
         }
 
@@ -1291,6 +1366,67 @@ namespace Pocket.Client.Pages
                         await Task.WhenAll(
                             ActivitySheetCard.TranslateToAsync(0, 0, 160, Easing.CubicOut),
                             ActivityBackdrop.FadeToAsync(1, 160, Easing.Linear)
+                        );
+                    }
+
+                    break;
+            }
+        }
+
+        private double _notificationsSheetPanInitialTranslationY = 0;
+
+        private async void OnNotificationsBackdropTapped(object? sender, TappedEventArgs e)
+        {
+            await AnimateCloseNotificationsSheetAsync();
+        }
+
+        private async Task AnimateCloseNotificationsSheetAsync()
+        {
+            if (!NotificationsOverlayGrid.IsVisible)
+                return;
+
+            double targetY = Math.Max(Height, 800);
+            await Task.WhenAll(
+                NotificationsSheetCard.TranslateToAsync(0, targetY, 220, Easing.CubicIn),
+                NotificationsBackdrop.FadeToAsync(0, 220, Easing.Linear)
+            );
+            NotificationsOverlayGrid.IsVisible = false;
+            if (BindingContext is CameraPageModel vm)
+            {
+                vm.IsNotificationsSheetOpen = false;
+            }
+        }
+
+        private async void OnNotificationsSheetPanUpdated(object? sender, PanUpdatedEventArgs e)
+        {
+            switch (e.StatusType)
+            {
+                case GestureStatus.Started:
+                    _notificationsSheetPanInitialTranslationY = NotificationsSheetCard.TranslationY;
+                    break;
+
+                case GestureStatus.Running:
+                    if (e.TotalY > 0)
+                    {
+                        NotificationsSheetCard.TranslationY = _notificationsSheetPanInitialTranslationY + e.TotalY;
+                        double denominator = Math.Max(Height * 0.5, 300.0);
+                        double progress = Math.Clamp(1.0 - (NotificationsSheetCard.TranslationY / denominator), 0.0, 1.0);
+                        NotificationsBackdrop.Opacity = progress;
+                    }
+
+                    break;
+
+                case GestureStatus.Completed:
+                case GestureStatus.Canceled:
+                    if (NotificationsSheetCard.TranslationY > 90)
+                    {
+                        await AnimateCloseNotificationsSheetAsync();
+                    }
+                    else
+                    {
+                        await Task.WhenAll(
+                            NotificationsSheetCard.TranslateToAsync(0, 0, 160, Easing.CubicOut),
+                            NotificationsBackdrop.FadeToAsync(1, 160, Easing.Linear)
                         );
                     }
 

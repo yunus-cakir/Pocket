@@ -89,7 +89,7 @@ namespace Pocket.Client.PageModels
 
         public bool IsSwipeAllowed => !IsPreviewing && !IsReplyingToFeedPost && !IsActivitySheetOpen &&
                                       !IsFilterMenuOpen && !IsEmojiPickerOpen && !IsPostOptionsMenuOpen &&
-                                      !IsDeleteConfirmOpen;
+                                      !IsDeleteConfirmOpen && !IsNotificationsSheetOpen;
 
         public bool ShowPreviewControls => IsPreviewing && !IsEditingCaption;
         public bool ShowSaveToGalleryButton => ShowPreviewControls && !IsFromGallery;
@@ -170,7 +170,8 @@ namespace Pocket.Client.PageModels
         private bool _isReactionAnimationPlaying;
 
         public bool IsReactionSentPillVisible =>
-            IsReactionAnimationPlaying || (CurrentFeedPost != null && CurrentFeedPost.PendingReactionAnimations.Count > 0);
+            IsReactionAnimationPlaying ||
+            (CurrentFeedPost != null && CurrentFeedPost.PendingReactionAnimations.Count > 0);
 
         public bool IsDefaultActivityPillVisible => !IsReactionSentPillVisible;
 
@@ -237,6 +238,9 @@ namespace Pocket.Client.PageModels
 
         [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsSwipeAllowed))]
         private bool _isActivitySheetOpen;
+
+        [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsSwipeAllowed))]
+        private bool _isNotificationsSheetOpen;
 
         [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsSwipeAllowed))]
         private bool _isPostOptionsMenuOpen;
@@ -309,6 +313,8 @@ namespace Pocket.Client.PageModels
 
         public Action? OpenActivitySheetAction;
         public Action? CloseActivitySheetAction;
+        public Action? OpenNotificationsSheetAction;
+        public Action? CloseNotificationsSheetAction;
         public Action? OpenEmojiPickerAction;
         public Action? CloseEmojiPickerAction;
         public Action<int>? ScrollToEmojiCategoryAction;
@@ -322,6 +328,7 @@ namespace Pocket.Client.PageModels
         public Action? OpenDeleteConfirmAction;
         public Action? CloseDeleteConfirmAction;
         public Action? ShowSavedToastAction;
+        public Action? ShowSendFailedToastAction;
         public Action<Guid, System.Collections.Generic.IReadOnlyList<string>>? PlayReactionEmojiRainAction;
         public Action? StopReactionEmojiRainAction;
 
@@ -774,6 +781,29 @@ namespace Pocket.Client.PageModels
         }
 
         [RelayCommand]
+        private void OpenNotificationsSheet()
+        {
+            if (IsNotificationsSheetOpen)
+                return;
+
+            IsNotificationsSheetOpen = true;
+            OpenNotificationsSheetAction?.Invoke();
+        }
+
+        [RelayCommand]
+        private void CloseNotificationsSheet()
+        {
+            if (CloseNotificationsSheetAction != null)
+            {
+                CloseNotificationsSheetAction.Invoke();
+            }
+            else
+            {
+                IsNotificationsSheetOpen = false;
+            }
+        }
+
+        [RelayCommand]
         private void CloseFeedReply()
         {
             if (CloseFeedReplyAction != null)
@@ -844,6 +874,12 @@ namespace Pocket.Client.PageModels
             }
 
             SchedulePendingReactionsCheck();
+
+            if (_relayService.IsConnected &&
+                _allFeedPosts.Any(p => !p.IsIncoming && p.SyncStatus == Shared.Enums.SyncStatus.Pending))
+            {
+                _ = ShellModel.FlushPendingOutgoingMediaPostsAsync();
+            }
         }
 
         public void SchedulePendingReactionsCheck()
@@ -1177,9 +1213,12 @@ namespace Pocket.Client.PageModels
             _relayService = relayService;
 
             ShellModel.OnMediaPostReceived += HandleMediaPostReceived;
+            ShellModel.OnMediaPostSent += HandleMediaPostSent;
             ShellModel.OnMediaPostDelivered += HandleMediaPostDelivered;
             ShellModel.OnMediaPostDeleted += HandleMediaPostDeleted;
+            ShellModel.OnConnectionStateChangedEvent += HandleConnectionStateChanged;
             ShellModel.OnDirectMessageReceived += HandleDirectMessageReceived;
+            ShellModel.OnDirectMessageSendFailed += HandleDirectMessageSendFailed;
             ShellModel.OnFriendProfileUpdated += HandleFriendProfileUpdated;
             ShellModel.OnUserProfileUpdated += HandleUserProfileUpdated;
             ShellModel.OnDataImported += HandleDataImported;
@@ -1253,6 +1292,14 @@ namespace Pocket.Client.PageModels
 
         public ObservableCollection<MediaPost> FeedPosts { get; } = new();
 
+        private void HandleDirectMessageSendFailed(DirectMessage dm)
+        {
+            if (!ShellModel.IsInDmWindow)
+            {
+                ShowSendFailedToastAction?.Invoke();
+            }
+        }
+
         private void HandleDirectMessageReceived(DirectMessage dm)
         {
             if (dm.IsIncoming && dm.MediaPostId.HasValue && !string.IsNullOrWhiteSpace(dm.ReactionEmoji))
@@ -1318,17 +1365,61 @@ namespace Pocket.Client.PageModels
             ScrollToFeedPostAction?.Invoke(post);
         }
 
+        private void HandleMediaPostSent(Guid messageId)
+        {
+            var existingInAll = _allFeedPosts.FirstOrDefault(p => p.Id == messageId);
+            if (existingInAll != null)
+            {
+                existingInAll.IsWaitingForServer = false;
+                if (existingInAll.SyncStatus == Shared.Enums.SyncStatus.Pending)
+                {
+                    existingInAll.SyncStatus = Shared.Enums.SyncStatus.Sent;
+                }
+            }
+
+            var existing = FeedPosts.FirstOrDefault(p => p.Id == messageId);
+            if (existing != null)
+            {
+                existing.IsWaitingForServer = false;
+                if (existing.SyncStatus == Shared.Enums.SyncStatus.Pending)
+                {
+                    existing.SyncStatus = Shared.Enums.SyncStatus.Sent;
+                }
+            }
+        }
+
+        private void HandleConnectionStateChanged(bool isConnected)
+        {
+            foreach (var post in _allFeedPosts)
+            {
+                if (!post.IsIncoming && post.SyncStatus == Shared.Enums.SyncStatus.Pending)
+                {
+                    post.IsWaitingForServer = !isConnected;
+                }
+            }
+
+            foreach (var post in FeedPosts)
+            {
+                if (!post.IsIncoming && post.SyncStatus == Shared.Enums.SyncStatus.Pending)
+                {
+                    post.IsWaitingForServer = !isConnected;
+                }
+            }
+        }
+
         private void HandleMediaPostDelivered(Guid messageId)
         {
             var existingInAll = _allFeedPosts.FirstOrDefault(p => p.Id == messageId);
             if (existingInAll != null)
             {
+                existingInAll.IsWaitingForServer = false;
                 existingInAll.SyncStatus = Shared.Enums.SyncStatus.Delivered;
             }
 
             var existing = FeedPosts.FirstOrDefault(p => p.Id == messageId);
             if (existing != null)
             {
+                existing.IsWaitingForServer = false;
                 existing.SyncStatus = Shared.Enums.SyncStatus.Delivered;
             }
         }
@@ -1492,6 +1583,10 @@ namespace Pocket.Client.PageModels
                 else if (!post.IsIncoming)
                 {
                     post.SenderDisplayName = ShellModel.CurrentUser.DisplayName;
+                    if (post.SyncStatus == Shared.Enums.SyncStatus.Pending)
+                    {
+                        post.IsWaitingForServer = !_relayService.IsConnected;
+                    }
                 }
 
                 var postDms = await _database.GetDirectMessagesForPostAsync(post.Id);
@@ -1533,6 +1628,8 @@ namespace Pocket.Client.PageModels
                     var existing = _allFeedPosts[i];
                     var updated = preparedPosts[i];
                     existing.SenderDisplayName = updated.SenderDisplayName;
+                    existing.SyncStatus = updated.SyncStatus;
+                    existing.IsWaitingForServer = updated.IsWaitingForServer;
                     existing.ViewportHeight = ViewportHeight;
                     existing.CardSize = CardSize;
                     existing.GridItemSize = GridItemSize;
@@ -1593,6 +1690,12 @@ namespace Pocket.Client.PageModels
             OnPropertyChanged(nameof(ShowFeedReplyBar));
 
             SchedulePendingReactionsCheck();
+
+            if (_relayService.IsConnected &&
+                _allFeedPosts.Any(p => !p.IsIncoming && p.SyncStatus == Shared.Enums.SyncStatus.Pending))
+            {
+                _ = ShellModel.FlushPendingOutgoingMediaPostsAsync();
+            }
         }
 
         public void OnPhotoCaptured(string imagePath, bool isFromGallery = false)
@@ -1837,6 +1940,7 @@ namespace Pocket.Client.PageModels
                 SentAt = DateTime.UtcNow,
                 IsIncludedInRollcall = true,
                 SyncStatus = Shared.Enums.SyncStatus.Pending,
+                IsWaitingForServer = false,
                 SenderDisplayName = ShellModel.CurrentUser.Username,
                 ViewportHeight = ViewportHeight,
                 CardSize = CardSize,
@@ -1867,49 +1971,16 @@ namespace Pocket.Client.PageModels
             PreviewStateChangedAction?.Invoke(false);
 
             // E2EE Encryption & Transmission to Mutual Friends (BR-601, BR-201)
-            var privateKey = await ShellModel.GetPrivateKeyAsync();
-
-            if (targetFriends.Count > 0 && !string.IsNullOrEmpty(privateKey) && _relayService.IsConnected)
+            // Brief initial state so "Uploading..." is visible while attempting connection
+            if (!_relayService.IsConnected)
             {
-                var photoBytes = await System.IO.File.ReadAllBytesAsync(persistentPath);
-                var captionBytes = Encoding.UTF8.GetBytes(sentCaption ?? string.Empty);
-                int sentCount = 0;
+                await Task.Delay(600);
+            }
 
-                foreach (var friend in targetFriends)
-                {
-                    if (string.IsNullOrEmpty(friend.PublicKey)) continue;
-
-                    try
-                    {
-                        var sharedSecret = _cryptoService.DeriveSharedSecret(privateKey, friend.PublicKey);
-                        var encryptedCaption = _cryptoService.EncryptData(captionBytes, sharedSecret);
-                        var encryptedMedia = _cryptoService.EncryptData(photoBytes, sharedSecret);
-
-                        var payload = new Pocket.Shared.DTOs.EncryptedPayloadDto
-                        {
-                            MessageId = mediaPost.Id,
-                            SenderId = ShellModel.CurrentUser.Id,
-                            RecipientId = friend.Id,
-                            EncryptedContent = encryptedCaption,
-                            EncryptedMedia = encryptedMedia,
-                            MediaType = Shared.Enums.MediaType.Photo,
-                            Timestamp = mediaPost.SentAt
-                        };
-
-                        await _relayService.SendPayloadAsync(payload);
-                        sentCount++;
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"[E2EE Send Error] Failed for friend {friend.Username}: {ex.Message}");
-                    }
-                }
-
-                if (sentCount > 0)
-                {
-                    mediaPost.SyncStatus = Shared.Enums.SyncStatus.Sent;
-                    await _database.SaveMediaPostAsync(mediaPost);
-                }
+            bool uploaded = await ShellModel.TryUploadMediaPostAsync(mediaPost, targetFriends);
+            if (uploaded)
+            {
+                HandleMediaPostSent(mediaPost.Id);
             }
         }
     }

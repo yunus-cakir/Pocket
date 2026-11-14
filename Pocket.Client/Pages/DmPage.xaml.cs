@@ -61,11 +61,223 @@ namespace Pocket.Client.Pages
 
             viewModel.FocusEmojiSearchAction = () =>
             {
-                MainThread.BeginInvokeOnMainThread(() =>
+                MainThread.BeginInvokeOnMainThread(() => { FocusEmojiSearchEntry(); });
+            };
+
+            viewModel.ShowSendFailedToastAction = () =>
+            {
+                MainThread.BeginInvokeOnMainThread(async () =>
                 {
-                    FocusEmojiSearchEntry();
+                    await ShowToastPillAsync(SendFailedToastPill, isFailureToast: true, durationMs: 2500);
                 });
             };
+
+            viewModel.ShowCopiedToastAction = () =>
+            {
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    await ShowToastPillAsync(CopiedToastPill, isFailureToast: false, durationMs: 1500);
+                });
+            };
+
+            viewModel.OpenMessageActionsAction = () =>
+            {
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    UnfocusDmMessageEntry();
+
+                    MessageActionsSheetCard.AbortAnimation("TranslateTo");
+                    MessageActionsBackdrop.AbortAnimation("FadeTo");
+
+                    MessageActionsOverlayGrid.IsVisible = true;
+                    MessageActionsSheetCard.TranslationY = 280;
+                    MessageActionsBackdrop.Opacity = 0;
+
+                    await Task.WhenAll(
+                        MessageActionsSheetCard.TranslateToAsync(0, 0, 220, Easing.CubicOut),
+                        MessageActionsBackdrop.FadeToAsync(1, 220, Easing.CubicOut)
+                    );
+                });
+            };
+
+            viewModel.CloseMessageActionsAction = () =>
+            {
+                MainThread.BeginInvokeOnMainThread(async () => { await AnimateCloseMessageActionsAsync(); });
+            };
+        }
+
+        private System.Threading.CancellationTokenSource? _sendFailedToastCts;
+        private System.Threading.CancellationTokenSource? _copiedToastCts;
+        private double _messageActionsPanInitialTranslationY = 0;
+
+#if ANDROID
+        private readonly System.Runtime.CompilerServices.ConditionalWeakTable<global::Android.Views.View, VisualElement>
+            _longPressTargets = new();
+#endif
+
+        private void OnMessageBubbleHandlerChanged(object? sender, EventArgs e)
+        {
+#if ANDROID
+            if (sender is VisualElement ve && ve.Handler?.PlatformView is global::Android.Views.View nativeView)
+            {
+                nativeView.LongClickable = true;
+                bool alreadyHooked = _longPressTargets.TryGetValue(nativeView, out _);
+                _longPressTargets.AddOrUpdate(nativeView, ve);
+
+                if (!alreadyHooked)
+                {
+                    nativeView.LongClick += (s, args) =>
+                    {
+                        if (s is global::Android.Views.View v &&
+                            _longPressTargets.TryGetValue(v, out var targetElement) &&
+                            targetElement.BindingContext is Pocket.Client.Models.DirectMessage dm &&
+                            BindingContext is DmPageModel vm)
+                        {
+                            v.PerformHapticFeedback(global::Android.Views.FeedbackConstants.LongPress);
+                            vm.OpenMessageActionsCommand.Execute(dm);
+                            args.Handled = true;
+                        }
+                    };
+                }
+            }
+#endif
+        }
+
+        private void UnfocusDmMessageEntry()
+        {
+            if (DmMessageEntry.IsFocused)
+            {
+                DmMessageEntry.Unfocus();
+            }
+#if ANDROID
+            if (DmMessageEntry.Handler?.PlatformView is global::Android.Views.View nativeView)
+            {
+                nativeView.ClearFocus();
+                var imm = nativeView.Context?.GetSystemService(global::Android.Content.Context.InputMethodService)
+                    as global::Android.Views.InputMethods.InputMethodManager;
+                imm?.HideSoftInputFromWindow(nativeView.WindowToken,
+                    global::Android.Views.InputMethods.HideSoftInputFlags.None);
+            }
+#endif
+        }
+
+        private async void OnMessageActionsBackdropTapped(object? sender, TappedEventArgs e)
+        {
+            await AnimateCloseMessageActionsAsync();
+        }
+
+        private async Task AnimateCloseMessageActionsAsync()
+        {
+            if (!MessageActionsOverlayGrid.IsVisible)
+            {
+                if (BindingContext is DmPageModel earlyVm)
+                {
+                    earlyVm.IsMessageActionsOpen = false;
+                    earlyVm.SelectedActionMessage = null;
+                }
+
+                return;
+            }
+
+            MessageActionsSheetCard.AbortAnimation("TranslateTo");
+            MessageActionsBackdrop.AbortAnimation("FadeTo");
+
+            await Task.WhenAll(
+                MessageActionsSheetCard.TranslateToAsync(0, 280, 190, Easing.CubicIn),
+                MessageActionsBackdrop.FadeToAsync(0, 190, Easing.Linear)
+            );
+
+            MessageActionsOverlayGrid.IsVisible = false;
+            if (BindingContext is DmPageModel vm)
+            {
+                vm.IsMessageActionsOpen = false;
+                vm.SelectedActionMessage = null;
+            }
+        }
+
+        private async void OnMessageActionsSheetPanUpdated(object? sender, PanUpdatedEventArgs e)
+        {
+            switch (e.StatusType)
+            {
+                case GestureStatus.Started:
+                    _messageActionsPanInitialTranslationY = MessageActionsSheetCard.TranslationY;
+                    break;
+
+                case GestureStatus.Running:
+                    if (e.TotalY > 0)
+                    {
+                        MessageActionsSheetCard.TranslationY = _messageActionsPanInitialTranslationY + e.TotalY;
+                        double progress = Math.Clamp(1.0 - (MessageActionsSheetCard.TranslationY / 240.0), 0.0, 1.0);
+                        MessageActionsBackdrop.Opacity = progress;
+                    }
+
+                    break;
+
+                case GestureStatus.Completed:
+                case GestureStatus.Canceled:
+                    if (MessageActionsSheetCard.TranslationY > 55)
+                    {
+                        await AnimateCloseMessageActionsAsync();
+                    }
+                    else
+                    {
+                        await Task.WhenAll(
+                            MessageActionsSheetCard.TranslateToAsync(0, 0, 150, Easing.CubicOut),
+                            MessageActionsBackdrop.FadeToAsync(1, 150, Easing.Linear)
+                        );
+                    }
+
+                    break;
+            }
+        }
+
+        private async Task ShowToastPillAsync(Border pill, bool isFailureToast, int durationMs)
+        {
+            var cts = new System.Threading.CancellationTokenSource();
+            if (isFailureToast)
+            {
+                _sendFailedToastCts?.Cancel();
+                _sendFailedToastCts = cts;
+            }
+            else
+            {
+                _copiedToastCts?.Cancel();
+                _copiedToastCts = cts;
+            }
+
+            pill.AbortAnimation("FadeTo");
+            pill.AbortAnimation("TranslateTo");
+
+            pill.Opacity = 0;
+            pill.TranslationY = 24;
+            pill.IsVisible = true;
+
+            await Task.WhenAll(
+                pill.FadeToAsync(1, 180, Easing.CubicOut),
+                pill.TranslateToAsync(0, 0, 180, Easing.CubicOut)
+            );
+
+            try
+            {
+                await Task.Delay(durationMs, cts.Token);
+            }
+            catch (TaskCanceledException)
+            {
+                return;
+            }
+
+            if (cts.IsCancellationRequested)
+                return;
+
+            await Task.WhenAll(
+                pill.FadeToAsync(0, 180, Easing.CubicIn),
+                pill.TranslateToAsync(0, 20, 180, Easing.CubicIn)
+            );
+
+            if (!cts.IsCancellationRequested)
+            {
+                pill.IsVisible = false;
+            }
         }
 
         private void ScrollToBottom()
@@ -74,7 +286,8 @@ namespace Pocket.Client.Pages
             {
                 if (BindingContext is DmPageModel vm && vm.Messages.Count > 0)
                 {
-                    MessagesCollectionView.ScrollTo(vm.Messages.Count - 1, position: ScrollToPosition.End, animate: false);
+                    MessagesCollectionView.ScrollTo(vm.Messages.Count - 1, position: ScrollToPosition.End,
+                        animate: false);
                 }
             });
         }
@@ -94,6 +307,7 @@ namespace Pocket.Client.Pages
                 {
                     earlyVm.IsEmojiPickerOpen = false;
                 }
+
                 return;
             }
 
@@ -131,6 +345,7 @@ namespace Pocket.Client.Pages
                         double progress = Math.Clamp(1.0 - (EmojiPickerSheetCard.TranslationY / 460.0), 0.0, 1.0);
                         EmojiPickerBackdrop.Opacity = progress;
                     }
+
                     break;
 
                 case GestureStatus.Completed:
@@ -146,6 +361,7 @@ namespace Pocket.Client.Pages
                             EmojiPickerBackdrop.FadeToAsync(1, 160, Easing.Linear)
                         );
                     }
+
                     break;
             }
         }
@@ -165,6 +381,7 @@ namespace Pocket.Client.Pages
                     llm.ScrollToPositionWithOffset(rowIndex, 0);
                     return;
                 }
+
                 rv.ScrollToPosition(rowIndex);
                 return;
             }
@@ -237,9 +454,23 @@ namespace Pocket.Client.Pages
 #endif
         }
 
+        private void OnDmMessageEntryFocused(object? sender, FocusEventArgs e)
+        {
+#if ANDROID
+            RegisterKeyboardVisibilityWatcher(startPollTimer: true);
+#endif
+        }
+
+        private void OnDmMessageEntryUnfocused(object? sender, FocusEventArgs e)
+        {
+        }
+
         private void OnEmojiSearchEntryFocused(object? sender, FocusEventArgs e)
         {
             EmojiCategoryBarBorder.IsVisible = false;
+#if ANDROID
+            RegisterKeyboardVisibilityWatcher(startPollTimer: true);
+#endif
         }
 
         private void OnEmojiSearchEntryUnfocused(object? sender, FocusEventArgs e)
@@ -254,10 +485,19 @@ namespace Pocket.Client.Pages
 
         protected override bool OnBackButtonPressed()
         {
-            if (BindingContext is DmPageModel vm && vm.IsEmojiPickerOpen)
+            if (BindingContext is DmPageModel vm)
             {
-                _ = AnimateCloseEmojiPickerAsync();
-                return true;
+                if (vm.IsMessageActionsOpen)
+                {
+                    _ = AnimateCloseMessageActionsAsync();
+                    return true;
+                }
+
+                if (vm.IsEmojiPickerOpen)
+                {
+                    _ = AnimateCloseEmojiPickerAsync();
+                    return true;
+                }
             }
 
             return base.OnBackButtonPressed();
@@ -267,7 +507,7 @@ namespace Pocket.Client.Pages
         {
             base.OnAppearing();
 #if ANDROID
-            Platform.CurrentActivity?.Window?.SetSoftInputMode(global::Android.Views.SoftInput.AdjustResize);
+            RegisterKeyboardVisibilityWatcher(startPollTimer: false);
 #endif
             if (BindingContext is DmPageModel vm)
             {
@@ -285,8 +525,300 @@ namespace Pocket.Client.Pages
 
             base.OnDisappearing();
 #if ANDROID
-            Platform.CurrentActivity?.Window?.SetSoftInputMode(global::Android.Views.SoftInput.AdjustNothing);
+            UnregisterKeyboardVisibilityWatcher();
 #endif
         }
+
+#if ANDROID
+        private KeyboardGlobalLayoutListener? _keyboardListener;
+        private ImeInsetsAnimationCallback? _imeAnimationCallback;
+        private Microsoft.Maui.Dispatching.IDispatcherTimer? _keyboardPollTimer;
+        private bool _wasKeyboardOpen;
+        private bool _isImeCallbackDriving;
+        private long _keyboardWatcherStartTick;
+        private int _imeUpperBoundPx;
+
+        private void RegisterKeyboardVisibilityWatcher(bool startPollTimer)
+        {
+            _keyboardWatcherStartTick = Environment.TickCount64;
+
+            var activity = Platform.CurrentActivity;
+            var decorView = activity?.Window?.DecorView;
+            if (decorView != null)
+            {
+                if (decorView.ViewTreeObserver != null && _keyboardListener == null)
+                {
+                    _keyboardListener = new KeyboardGlobalLayoutListener(this);
+                    decorView.ViewTreeObserver.AddOnGlobalLayoutListener(_keyboardListener);
+                }
+
+                if (_imeAnimationCallback == null)
+                {
+                    _imeAnimationCallback = new ImeInsetsAnimationCallback(this);
+                }
+
+                AndroidX.Core.View.ViewCompat.SetWindowInsetsAnimationCallback(decorView, _imeAnimationCallback);
+            }
+
+            if (startPollTimer)
+            {
+                if (_keyboardPollTimer == null)
+                {
+                    _keyboardPollTimer = Dispatcher.CreateTimer();
+                    _keyboardPollTimer.Interval = TimeSpan.FromMilliseconds(16);
+                    _keyboardPollTimer.Tick += (_, _) => CheckKeyboardState();
+                }
+
+                if (!_keyboardPollTimer.IsRunning)
+                {
+                    _keyboardPollTimer.Start();
+                }
+            }
+        }
+
+        private void UnregisterKeyboardVisibilityWatcher()
+        {
+            _keyboardPollTimer?.Stop();
+            _isImeCallbackDriving = false;
+            _wasKeyboardOpen = false;
+
+            var activity = Platform.CurrentActivity;
+            var decorView = activity?.Window?.DecorView;
+            if (decorView != null)
+            {
+                if (decorView.ViewTreeObserver != null && _keyboardListener != null)
+                {
+                    decorView.ViewTreeObserver.RemoveOnGlobalLayoutListener(_keyboardListener);
+                }
+
+                AndroidX.Core.View.ViewCompat.SetWindowInsetsAnimationCallback(decorView, null);
+            }
+
+            _keyboardListener = null;
+            _imeAnimationCallback = null;
+
+            KeyboardSpacerBox.HeightRequest = 0;
+            BottomInputBar.TranslationY = 0;
+            PhotoReplyBanner.TranslationY = 0;
+        }
+
+        private void OnImeAnimationStart(AndroidX.Core.View.WindowInsetsAnimationCompat.BoundsCompat bounds)
+        {
+            _imeUpperBoundPx = bounds.UpperBound.Bottom;
+            _isImeCallbackDriving = true;
+
+            if (!EmojiPickerOverlayGrid.IsVisible && KeyboardSpacerBox.HeightRequest > 0)
+            {
+                double currentSpacer = KeyboardSpacerBox.HeightRequest;
+                KeyboardSpacerBox.HeightRequest = 0;
+                BottomInputBar.TranslationY = -currentSpacer;
+                PhotoReplyBanner.TranslationY = -currentSpacer;
+            }
+        }
+
+        private void OnImeAnimationProgress(
+            AndroidX.Core.View.WindowInsetsCompat insets,
+            AndroidX.Core.View.WindowInsetsAnimationCompat imeAnim)
+        {
+            var activity = Platform.CurrentActivity;
+            var decorView = activity?.Window?.DecorView;
+            float density = decorView?.Resources?.DisplayMetrics?.Density ?? 2.75f;
+
+            int imeBottomPx = insets.GetInsets(AndroidX.Core.View.WindowInsetsCompat.Type.Ime())?.Bottom ?? 0;
+            int navBottomPx = insets.GetInsets(AndroidX.Core.View.WindowInsetsCompat.Type.SystemBars())?.Bottom ?? 0;
+
+            float fraction = Math.Clamp(imeAnim.InterpolatedFraction, 0f, 1f);
+            if (imeBottomPx <= 0 && _imeUpperBoundPx > 0 && !_wasKeyboardOpen)
+            {
+                imeBottomPx = (int)Math.Round(_imeUpperBoundPx * fraction);
+            }
+
+            int overlapPx = Math.Max(0, imeBottomPx - navBottomPx);
+            double overlapDp = overlapPx / density;
+
+            _isImeCallbackDriving = true;
+
+            if (EmojiPickerOverlayGrid.IsVisible)
+            {
+                if (overlapDp > 0)
+                {
+                    double maxHeight = DmRootGrid.Height > 300 ? DmRootGrid.Height - 72 : 580;
+                    EmojiPickerSheetCard.HeightRequest = Math.Min(maxHeight, 476 + overlapDp * 0.48);
+                    EmojiPickerSheetCard.Padding = new Thickness(0, 0, 0, overlapDp);
+                    EmojiCategoryBarBorder.IsVisible = false;
+                }
+                return;
+            }
+
+            if (KeyboardSpacerBox.HeightRequest > 0)
+            {
+                KeyboardSpacerBox.HeightRequest = 0;
+            }
+
+            double targetTranslationY = -overlapDp;
+            BottomInputBar.TranslationY = targetTranslationY;
+            PhotoReplyBanner.TranslationY = targetTranslationY;
+        }
+
+        private void OnImeAnimationEnd()
+        {
+            _isImeCallbackDriving = false;
+            CheckKeyboardState(enforceCloseGracePeriod: false);
+        }
+
+        private void CheckKeyboardState(bool enforceCloseGracePeriod = true)
+        {
+            if (_isImeCallbackDriving)
+                return;
+
+            var activity = Platform.CurrentActivity;
+            var decorView = activity?.Window?.DecorView;
+            if (decorView == null)
+                return;
+
+            var rootInsets = AndroidX.Core.View.ViewCompat.GetRootWindowInsets(decorView);
+            int imeBottomPx = rootInsets?.GetInsets(AndroidX.Core.View.WindowInsetsCompat.Type.Ime())?.Bottom ?? 0;
+            int navBottomPx = rootInsets?.GetInsets(AndroidX.Core.View.WindowInsetsCompat.Type.SystemBars())?.Bottom ?? 0;
+
+            var rect = new global::Android.Graphics.Rect();
+            decorView.GetWindowVisibleDisplayFrame(rect);
+            int screenHeight = decorView.RootView?.Height ?? 0;
+            int frameKeypadPx = screenHeight > 0 ? Math.Max(0, screenHeight - rect.Bottom) : 0;
+
+            int rawKeyboardPx = Math.Max(imeBottomPx, frameKeypadPx);
+            bool isKeyboardOpen = (rootInsets?.IsVisible(AndroidX.Core.View.WindowInsetsCompat.Type.Ime()) ?? false)
+                                  || (screenHeight > 0 && rawKeyboardPx > screenHeight * 0.15);
+
+            if (isKeyboardOpen && rawKeyboardPx > navBottomPx)
+            {
+                float density = decorView.Resources?.DisplayMetrics?.Density ?? 2.75f;
+                int overlapPx = Math.Max(0, rawKeyboardPx - navBottomPx);
+                double overlapDp = overlapPx / density;
+                if (overlapDp > 120)
+                {
+                    bool newlyOpened = !_wasKeyboardOpen;
+                    _wasKeyboardOpen = true;
+
+                    if (EmojiPickerOverlayGrid.IsVisible)
+                    {
+                        double maxHeight = DmRootGrid.Height > 300 ? DmRootGrid.Height - 72 : 580;
+                        EmojiPickerSheetCard.HeightRequest = Math.Min(maxHeight, 476 + overlapDp * 0.48);
+                        EmojiPickerSheetCard.Padding = new Thickness(0, 0, 0, overlapDp);
+                        EmojiCategoryBarBorder.IsVisible = false;
+                    }
+                    else
+                    {
+                        BottomInputBar.TranslationY = 0;
+                        PhotoReplyBanner.TranslationY = 0;
+                        if (Math.Abs(KeyboardSpacerBox.HeightRequest - overlapDp) > 1.0)
+                        {
+                            KeyboardSpacerBox.HeightRequest = overlapDp;
+                        }
+
+                        if (newlyOpened)
+                        {
+                            ScrollToBottom();
+                        }
+                    }
+                }
+            }
+            else if (_wasKeyboardOpen &&
+                     !isKeyboardOpen &&
+                     (!enforceCloseGracePeriod || (Environment.TickCount64 - _keyboardWatcherStartTick) > 250))
+            {
+                _wasKeyboardOpen = false;
+                _keyboardPollTimer?.Stop();
+
+                BottomInputBar.TranslationY = 0;
+                PhotoReplyBanner.TranslationY = 0;
+                KeyboardSpacerBox.HeightRequest = 0;
+
+                if (EmojiPickerOverlayGrid.IsVisible)
+                {
+                    EmojiPickerSheetCard.HeightRequest = 476;
+                    EmojiPickerSheetCard.Padding = new Thickness(0);
+                    EmojiCategoryBarBorder.IsVisible = true;
+                    if (EmojiSearchEntry.IsFocused)
+                    {
+                        EmojiSearchEntry.Unfocus();
+                    }
+                }
+                else if (DmMessageEntry.IsFocused)
+                {
+                    DmMessageEntry.Unfocus();
+                }
+            }
+        }
+
+        private sealed class ImeInsetsAnimationCallback : AndroidX.Core.View.WindowInsetsAnimationCompat.Callback
+        {
+            private readonly DmPage _page;
+
+            public ImeInsetsAnimationCallback(DmPage page)
+                : base(AndroidX.Core.View.WindowInsetsAnimationCompat.Callback.DispatchModeContinueOnSubtree)
+            {
+                _page = page;
+            }
+
+            public override AndroidX.Core.View.WindowInsetsAnimationCompat.BoundsCompat? OnStart(
+                AndroidX.Core.View.WindowInsetsAnimationCompat? animation,
+                AndroidX.Core.View.WindowInsetsAnimationCompat.BoundsCompat? bounds)
+            {
+                if (animation != null && bounds != null &&
+                    (animation.TypeMask & AndroidX.Core.View.WindowInsetsCompat.Type.Ime()) != 0)
+                {
+                    _page.OnImeAnimationStart(bounds);
+                }
+
+                return base.OnStart(animation, bounds);
+            }
+
+            public override AndroidX.Core.View.WindowInsetsCompat? OnProgress(
+                AndroidX.Core.View.WindowInsetsCompat? insets,
+                System.Collections.Generic.IList<AndroidX.Core.View.WindowInsetsAnimationCompat>? runningAnimations)
+            {
+                if (insets != null && runningAnimations != null)
+                {
+                    for (int i = 0; i < runningAnimations.Count; i++)
+                    {
+                        var anim = runningAnimations[i];
+                        if ((anim.TypeMask & AndroidX.Core.View.WindowInsetsCompat.Type.Ime()) != 0)
+                        {
+                            _page.OnImeAnimationProgress(insets, anim);
+                            break;
+                        }
+                    }
+                }
+
+                return insets;
+            }
+
+            public override void OnEnd(AndroidX.Core.View.WindowInsetsAnimationCompat? animation)
+            {
+                base.OnEnd(animation);
+                if (animation != null &&
+                    (animation.TypeMask & AndroidX.Core.View.WindowInsetsCompat.Type.Ime()) != 0)
+                {
+                    _page.OnImeAnimationEnd();
+                }
+            }
+        }
+
+        private sealed class KeyboardGlobalLayoutListener : Java.Lang.Object,
+            global::Android.Views.ViewTreeObserver.IOnGlobalLayoutListener
+        {
+            private readonly DmPage _page;
+
+            public KeyboardGlobalLayoutListener(DmPage page)
+            {
+                _page = page;
+            }
+
+            public void OnGlobalLayout()
+            {
+                _page.CheckKeyboardState();
+            }
+        }
+#endif
     }
 }
