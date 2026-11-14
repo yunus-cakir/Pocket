@@ -537,6 +537,8 @@ namespace Pocket.Client.Pages
         private bool _isImeCallbackDriving;
         private long _keyboardWatcherStartTick;
         private int _imeUpperBoundPx;
+        private AndroidX.RecyclerView.Widget.RecyclerView? _messagesAnchorRv;
+        private MessagesLayoutAnchorListener? _messagesAnchorListener;
 
         private void RegisterKeyboardVisibilityWatcher(bool startPollTimer)
         {
@@ -558,6 +560,19 @@ namespace Pocket.Client.Pages
                 }
 
                 AndroidX.Core.View.ViewCompat.SetWindowInsetsAnimationCallback(decorView, _imeAnimationCallback);
+            }
+
+            if (MessagesCollectionView.Handler?.PlatformView is AndroidX.RecyclerView.Widget.RecyclerView messagesRv &&
+                !ReferenceEquals(_messagesAnchorRv, messagesRv))
+            {
+                if (_messagesAnchorRv != null && _messagesAnchorListener != null)
+                {
+                    _messagesAnchorRv.RemoveOnLayoutChangeListener(_messagesAnchorListener);
+                }
+
+                _messagesAnchorListener ??= new MessagesLayoutAnchorListener(this);
+                messagesRv.AddOnLayoutChangeListener(_messagesAnchorListener);
+                _messagesAnchorRv = messagesRv;
             }
 
             if (startPollTimer)
@@ -597,6 +612,13 @@ namespace Pocket.Client.Pages
             _keyboardListener = null;
             _imeAnimationCallback = null;
 
+            if (_messagesAnchorRv != null && _messagesAnchorListener != null)
+            {
+                _messagesAnchorRv.RemoveOnLayoutChangeListener(_messagesAnchorListener);
+            }
+
+            _messagesAnchorRv = null;
+
             KeyboardSpacerBox.HeightRequest = 0;
             BottomInputBar.TranslationY = 0;
             PhotoReplyBanner.TranslationY = 0;
@@ -607,12 +629,67 @@ namespace Pocket.Client.Pages
             _imeUpperBoundPx = bounds.UpperBound.Bottom;
             _isImeCallbackDriving = true;
 
-            if (!EmojiPickerOverlayGrid.IsVisible && KeyboardSpacerBox.HeightRequest > 0)
+            // Opening while scrolled up: jump to the latest message first; the layout anchor
+            // listener then keeps it pinned above the input bar as the list shrinks.
+            if (!_wasKeyboardOpen && !EmojiPickerOverlayGrid.IsVisible && DmMessageEntry.IsFocused &&
+                MessagesCollectionView.Handler?.PlatformView is AndroidX.RecyclerView.Widget.RecyclerView rv &&
+                rv.CanScrollVertically(1))
             {
-                double currentSpacer = KeyboardSpacerBox.HeightRequest;
-                KeyboardSpacerBox.HeightRequest = 0;
-                BottomInputBar.TranslationY = -currentSpacer;
-                PhotoReplyBanner.TranslationY = -currentSpacer;
+                ScrollToBottom();
+            }
+        }
+
+        /// <summary>
+        /// Resizes the message list by the keyboard overlap (via the bottom spacer row) so the
+        /// list really shrinks instead of the input bar just floating over it.
+        /// </summary>
+        private void ApplyDmKeyboardOverlap(double overlapDp)
+        {
+            overlapDp = Math.Max(0, overlapDp);
+
+            if (BottomInputBar.TranslationY != 0)
+                BottomInputBar.TranslationY = 0;
+            if (PhotoReplyBanner.TranslationY != 0)
+                PhotoReplyBanner.TranslationY = 0;
+
+            if (Math.Abs(KeyboardSpacerBox.HeightRequest - overlapDp) > 0.5 ||
+                (overlapDp == 0 && KeyboardSpacerBox.HeightRequest != 0))
+            {
+                KeyboardSpacerBox.HeightRequest = overlapDp;
+            }
+        }
+
+        private void ApplyEmojiSheetKeyboardOverlap(double overlapDp)
+        {
+            if (overlapDp > 0)
+            {
+                double maxHeight = DmRootGrid.Height > 300 ? DmRootGrid.Height - 72 : 580;
+                EmojiPickerSheetCard.HeightRequest = Math.Min(maxHeight, 476 + overlapDp * 0.48);
+                EmojiPickerSheetCard.Padding = new Thickness(0, 0, 0, overlapDp);
+                EmojiCategoryBarBorder.IsVisible = false;
+            }
+        }
+
+        /// <summary>
+        /// Keeps the bottom edge of the message list anchored when its height changes
+        /// (keyboard open/close, reply banner), like a native chat view.
+        /// </summary>
+        private void OnMessagesListLayoutChanged(AndroidX.RecyclerView.Widget.RecyclerView rv, int oldHeight, int newHeight)
+        {
+            if (oldHeight <= 0 || newHeight <= 0 || oldHeight == newHeight)
+                return;
+
+            int delta = oldHeight - newHeight;
+            if (delta > 0)
+            {
+                // Shrinking: scroll content up by the lost height so the latest messages stay visible.
+                rv.ScrollBy(0, delta);
+            }
+            else if (rv.CanScrollVertically(1))
+            {
+                // Growing while not at the end: keep the same messages at the bottom edge.
+                // (At the end, LinearLayoutManager already closes the gap itself.)
+                rv.ScrollBy(0, delta);
             }
         }
 
@@ -640,35 +717,28 @@ namespace Pocket.Client.Pages
 
             if (EmojiPickerOverlayGrid.IsVisible)
             {
-                if (overlapDp > 0)
-                {
-                    double maxHeight = DmRootGrid.Height > 300 ? DmRootGrid.Height - 72 : 580;
-                    EmojiPickerSheetCard.HeightRequest = Math.Min(maxHeight, 476 + overlapDp * 0.48);
-                    EmojiPickerSheetCard.Padding = new Thickness(0, 0, 0, overlapDp);
-                    EmojiCategoryBarBorder.IsVisible = false;
-                }
+                ApplyEmojiSheetKeyboardOverlap(overlapDp);
                 return;
             }
 
-            if (KeyboardSpacerBox.HeightRequest > 0)
-            {
-                KeyboardSpacerBox.HeightRequest = 0;
-            }
-
-            double targetTranslationY = -overlapDp;
-            BottomInputBar.TranslationY = targetTranslationY;
-            PhotoReplyBanner.TranslationY = targetTranslationY;
+            ApplyDmKeyboardOverlap(overlapDp);
         }
 
         private void OnImeAnimationEnd()
         {
             _isImeCallbackDriving = false;
             CheckKeyboardState(enforceCloseGracePeriod: false);
+
+            // Insets / visible frame can lag a frame behind the animation end on some devices;
+            // re-check once things settle so the bar never stays stuck mid-screen.
+            var decorView = Platform.CurrentActivity?.Window?.DecorView;
+            decorView?.PostDelayed(() => CheckKeyboardState(enforceCloseGracePeriod: false), 120);
+            decorView?.PostDelayed(() => CheckKeyboardState(enforceCloseGracePeriod: false), 350);
         }
 
         private void CheckKeyboardState(bool enforceCloseGracePeriod = true)
         {
-            if (_isImeCallbackDriving)
+            if (_isImeCallbackDriving || _keyboardListener == null)
                 return;
 
             var activity = Platform.CurrentActivity;
@@ -689,49 +759,45 @@ namespace Pocket.Client.Pages
             bool isKeyboardOpen = (rootInsets?.IsVisible(AndroidX.Core.View.WindowInsetsCompat.Type.Ime()) ?? false)
                                   || (screenHeight > 0 && rawKeyboardPx > screenHeight * 0.15);
 
-            if (isKeyboardOpen && rawKeyboardPx > navBottomPx)
+            float density = decorView.Resources?.DisplayMetrics?.Density ?? 2.75f;
+            double overlapDp = Math.Max(0, rawKeyboardPx - navBottomPx) / density;
+
+            if (isKeyboardOpen && overlapDp > 120)
             {
-                float density = decorView.Resources?.DisplayMetrics?.Density ?? 2.75f;
-                int overlapPx = Math.Max(0, rawKeyboardPx - navBottomPx);
-                double overlapDp = overlapPx / density;
-                if (overlapDp > 120)
+                _wasKeyboardOpen = true;
+
+                if (EmojiPickerOverlayGrid.IsVisible)
                 {
-                    bool newlyOpened = !_wasKeyboardOpen;
-                    _wasKeyboardOpen = true;
-
-                    if (EmojiPickerOverlayGrid.IsVisible)
-                    {
-                        double maxHeight = DmRootGrid.Height > 300 ? DmRootGrid.Height - 72 : 580;
-                        EmojiPickerSheetCard.HeightRequest = Math.Min(maxHeight, 476 + overlapDp * 0.48);
-                        EmojiPickerSheetCard.Padding = new Thickness(0, 0, 0, overlapDp);
-                        EmojiCategoryBarBorder.IsVisible = false;
-                    }
-                    else
-                    {
-                        BottomInputBar.TranslationY = 0;
-                        PhotoReplyBanner.TranslationY = 0;
-                        if (Math.Abs(KeyboardSpacerBox.HeightRequest - overlapDp) > 1.0)
-                        {
-                            KeyboardSpacerBox.HeightRequest = overlapDp;
-                        }
-
-                        if (newlyOpened)
-                        {
-                            ScrollToBottom();
-                        }
-                    }
+                    ApplyEmojiSheetKeyboardOverlap(overlapDp);
                 }
+                else
+                {
+                    ApplyDmKeyboardOverlap(overlapDp);
+                }
+
+                return;
             }
-            else if (_wasKeyboardOpen &&
-                     !isKeyboardOpen &&
-                     (!enforceCloseGracePeriod || (Environment.TickCount64 - _keyboardWatcherStartTick) > 250))
+
+            if (isKeyboardOpen)
+            {
+                // Keyboard still partially visible (mid-transition) — leave current layout alone.
+                return;
+            }
+
+            // Keyboard is closed: the input bar must always return to the bottom,
+            // regardless of how we got here.
+            if (!EmojiPickerOverlayGrid.IsVisible)
+            {
+                ApplyDmKeyboardOverlap(0);
+            }
+
+            if (_wasKeyboardOpen &&
+                (!enforceCloseGracePeriod || (Environment.TickCount64 - _keyboardWatcherStartTick) > 250))
             {
                 _wasKeyboardOpen = false;
                 _keyboardPollTimer?.Stop();
 
-                BottomInputBar.TranslationY = 0;
-                PhotoReplyBanner.TranslationY = 0;
-                KeyboardSpacerBox.HeightRequest = 0;
+                ApplyDmKeyboardOverlap(0);
 
                 if (EmojiPickerOverlayGrid.IsVisible)
                 {
@@ -800,6 +866,26 @@ namespace Pocket.Client.Pages
                     (animation.TypeMask & AndroidX.Core.View.WindowInsetsCompat.Type.Ime()) != 0)
                 {
                     _page.OnImeAnimationEnd();
+                }
+            }
+        }
+
+        private sealed class MessagesLayoutAnchorListener : Java.Lang.Object,
+            global::Android.Views.View.IOnLayoutChangeListener
+        {
+            private readonly DmPage _page;
+
+            public MessagesLayoutAnchorListener(DmPage page)
+            {
+                _page = page;
+            }
+
+            public void OnLayoutChange(global::Android.Views.View? v, int left, int top, int right, int bottom,
+                int oldLeft, int oldTop, int oldRight, int oldBottom)
+            {
+                if (v is AndroidX.RecyclerView.Widget.RecyclerView rv)
+                {
+                    _page.OnMessagesListLayoutChanged(rv, oldBottom - oldTop, bottom - top);
                 }
             }
         }
