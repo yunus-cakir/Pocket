@@ -294,6 +294,28 @@ namespace Pocket.Client.PageModels
                 value);
         }
 
+        /// <summary>
+        /// Android camera engine: true = CameraX (Camera2), false = legacy Camera1. The handler is chosen when
+        /// the app starts, so a change applies after restarting the app.
+        /// Persisted via <see cref="Pocket.Client.Controls.CameraView.CameraEnginePreferenceKey"/>.
+        /// </summary>
+        [ObservableProperty] private bool _isCameraXEngine = Pocket.Client.Controls.CameraView.UseCameraXEngine;
+
+        [RelayCommand]
+        private void ToggleCameraXEngine()
+        {
+            IsCameraXEngine = !IsCameraXEngine;
+        }
+
+        partial void OnIsCameraXEngineChanged(bool value)
+        {
+            if (value)
+                Microsoft.Maui.Storage.Preferences.Set(Pocket.Client.Controls.CameraView.CameraEnginePreferenceKey,
+                    Pocket.Client.Controls.CameraView.CameraEngineCameraX);
+            else
+                Microsoft.Maui.Storage.Preferences.Remove(Pocket.Client.Controls.CameraView.CameraEnginePreferenceKey);
+        }
+
         [RelayCommand]
         private void ToggleZoomSlider()
         {

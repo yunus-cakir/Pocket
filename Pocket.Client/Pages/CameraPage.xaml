@@ -454,6 +454,58 @@
                             </Border>
                         </Grid>
 
+                        <!-- Camera engine (Android only - CameraX/Camera2 when ON, legacy Camera1 when OFF; applies after restart) -->
+                        <Grid ColumnDefinitions="36, *, Auto" Padding="16,12" IsVisible="{OnPlatform Default=False, Android=True}">
+                            <Grid Grid.Column="0" WidthRequest="22" HeightRequest="22" HorizontalOptions="Start" VerticalOptions="Center">
+                                <Path Fill="#9CA3AF"
+                                      HorizontalOptions="Center"
+                                      VerticalOptions="Center"
+                                      Data="M2,1 L16,1 C17.1,1 18,1.9 18,3 L18,15 C18,16.1 17.1,17 16,17 L2,17 C0.9,17 0,16.1 0,15 L0,3 C0,1.9 0.9,1 2,1 Z M2,3 L2,15 L16,15 L16,3 Z M4,5 L8,5 L8,7 L4,7 Z M4,9 L14,9 L14,11 L4,11 Z M10,5 L14,5 L14,7 L10,7 Z M4,12 L11,12 L11,13.5 L4,13.5 Z" />
+                            </Grid>
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2" Margin="6,0,10,0">
+                                <Label Text="New camera (beta)"
+                                       TextColor="#FFFFFF"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="16"
+                                       FontAttributes="Bold" />
+                                <Label Text="Smoother zoom and brightness. Restart to apply"
+                                       TextColor="#8E8E93"
+                                       FontFamily="OpenSansRegular"
+                                       FontSize="14" />
+                            </VerticalStackLayout>
+                            <Border Grid.Column="2"
+                                    WidthRequest="54"
+                                    HeightRequest="32"
+                                    StrokeShape="RoundRectangle 16"
+                                    StrokeThickness="0"
+                                    BackgroundColor="{DynamicResource AccentColor}"
+                                    Padding="3"
+                                    VerticalOptions="Center">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding ShellModel.ToggleCameraXEngineCommand}" />
+                                </Border.GestureRecognizers>
+                                <Border WidthRequest="26"
+                                        HeightRequest="26"
+                                        StrokeShape="RoundRectangle 13"
+                                        StrokeThickness="0"
+                                        BackgroundColor="#FFFFFF"
+                                        Padding="0"
+                                        HorizontalOptions="End"
+                                        VerticalOptions="Center">
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsCameraXEngine}" Value="False">
+                                            <Setter Property="HorizontalOptions" Value="Start" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                </Border>
+                                <Border.Triggers>
+                                    <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsCameraXEngine}" Value="False">
+                                        <Setter Property="BackgroundColor" Value="#3A3A3C" />
+                                    </DataTrigger>
+                                </Border.Triggers>
+                            </Border>
+                        </Grid>
+
                         <!-- Zoom slider (Active - vertical zoom slider on the right of the viewfinder after tap-to-focus) -->
                         <Grid ColumnDefinitions="36, *, Auto" Padding="16,12">
                             <Grid Grid.Column="0" WidthRequest="22" HeightRequest="22" HorizontalOptions="Start" VerticalOptions="Center">
