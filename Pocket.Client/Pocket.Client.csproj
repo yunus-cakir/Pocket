@@ -36,7 +36,13 @@
 
 	<ItemGroup>
 		<!-- App Icon -->
-		<MauiIcon Include="Resources\AppIcon\appicon.png" Color="#000000" />
+		<!-- Android adaptive icons show only the center 72dp of the 108dp layer, so Android uses a
+		     pre-padded copy with the artwork at 0.68 scale (same ratio Locket uses). ForegroundScale
+		     is ignored by Resizetizer for raster foregrounds, hence the separate file. -->
+		<MauiIcon Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'"
+		          Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appicon_fg_android.png" Color="#6085AD" />
+		<MauiIcon Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'android'"
+		          Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appicon_fg.png" Color="#6085AD" />
 
 		<!-- Splash Screen -->
 		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#000000" BaseSize="128,128" />
