@@ -308,6 +308,9 @@ namespace Pocket.Client.Platforms.Android.Handlers
         internal void StartCamera(SurfaceTexture? surface)
         {
             if (surface == null || _camera != null || _isStarting) return;
+            // On a fresh install the surface appears before the user answers the permission prompt: opening
+            // would fail, so wait until the page calls ResumeCamera after the permission is granted.
+            if (!HasCameraPermission()) return;
 
             _isStarting = true;
             int generation = ++_startGeneration;
@@ -325,6 +328,11 @@ namespace Pocket.Client.Platforms.Android.Handlers
                 Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() => OnCameraOpened(cam, generation));
             });
         }
+
+        private static bool HasCameraPermission() =>
+            AndroidX.Core.Content.ContextCompat.CheckSelfPermission(
+                global::Android.App.Application.Context, global::Android.Manifest.Permission.Camera)
+            == global::Android.Content.PM.Permission.Granted;
 
         private void OnCameraOpened(global::Android.Hardware.Camera? cam, int generation)
         {
@@ -604,7 +612,8 @@ namespace Pocket.Client.Platforms.Android.Handlers
 
         public static void MapResumeCamera(CameraViewHandler handler, CameraView view, object? arg)
         {
-            if (!handler._isSuspended) return;
+            // Not only after a suspend: also starts a camera that couldn't open earlier (e.g. permission was
+            // granted after the surface appeared). StartCamera is a no-op if it's already open or opening.
             handler._isSuspended = false;
             // If the surface isn't available yet, OnSurfaceAvailable starts the camera when it is
             handler.StartCamera(handler.CurrentSurface);

@@ -2254,6 +2254,10 @@ namespace Pocket.Client.Pages
             if (status != PermissionStatus.Granted)
             {
                 status = await Permissions.RequestAsync<Permissions.Camera>();
+                // The preview surface was created before permission was granted, so the camera couldn't open:
+                // start it now (only if the camera panel is still the one on screen).
+                if (status == PermissionStatus.Granted)
+                    UpdateCameraActivity();
             }
         }
 
