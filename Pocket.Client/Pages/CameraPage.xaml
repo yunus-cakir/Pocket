@@ -89,7 +89,7 @@
                                HorizontalOptions="Center"
                                Margin="0,12,0,2">
                             <Label.GestureRecognizers>
-                                <TapGestureRecognizer Command="{Binding ShellModel.EditProfileCommand}" />
+                                <TapGestureRecognizer Command="{Binding ShellModel.EditDisplayNameCommand}" />
                             </Label.GestureRecognizers>
                         </Label>
 
@@ -297,19 +297,19 @@
                         </Grid>
 
                         <!-- ========================================== -->
-                        <!-- Section: Profile                      -->
+                        <!-- Section: User                              -->
                         <!-- ========================================== -->
-                        <Label Text="Profile"
+                        <Label Text="User"
                                TextColor="#FFFFFF"
                                FontFamily="OpenSansSemibold"
                                FontSize="19"
                                FontAttributes="Bold"
                                Margin="16,24,16,8" />
 
-                        <!-- Edit name (Active - bound to EditProfileCommand) -->
+                        <!-- Display name (Active - bound to EditDisplayNameCommand) -->
                         <Grid ColumnDefinitions="36, *" Padding="16,12">
                             <Grid.GestureRecognizers>
-                                <TapGestureRecognizer Command="{Binding ShellModel.EditProfileCommand}" />
+                                <TapGestureRecognizer Command="{Binding ShellModel.EditDisplayNameCommand}" />
                             </Grid.GestureRecognizers>
                             <Border Grid.Column="0"
                                     WidthRequest="22"
@@ -326,12 +326,44 @@
                                       Data="M8,8 C9.66,8 11,6.66 11,5 C11,3.34 9.66,2 8,2 C6.34,2 5,3.34 5,5 C5,6.66 6.34,8 8,8 Z M8,9.5 C5.67,9.5 1,10.67 1,13 L1,14.5 L15,14.5 L15,13 C15,10.67 10.33,9.5 8,9.5 Z" />
                             </Border>
                             <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2" Margin="6,0,0,0">
-                                <Label Text="Edit name"
+                                <Label Text="Display name"
                                        TextColor="#FFFFFF"
                                        FontFamily="OpenSansSemibold"
                                        FontSize="16"
                                        FontAttributes="Bold" />
                                 <Label Text="{Binding ShellModel.CurrentUser.DisplayName}"
+                                       TextColor="#8E8E93"
+                                       FontFamily="OpenSansRegular"
+                                       FontSize="14" />
+                            </VerticalStackLayout>
+                        </Grid>
+
+                        <!-- Username (Active - bound to EditUsernameCommand) -->
+                        <Grid ColumnDefinitions="36, *" Padding="16,12">
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding ShellModel.EditUsernameCommand}" />
+                            </Grid.GestureRecognizers>
+                            <Border Grid.Column="0"
+                                    WidthRequest="22"
+                                    HeightRequest="22"
+                                    StrokeShape="RoundRectangle 5"
+                                    StrokeThickness="0"
+                                    BackgroundColor="#9CA3AF"
+                                    Padding="0"
+                                    HorizontalOptions="Start"
+                                    VerticalOptions="Center">
+                                <Path Fill="#000000"
+                                      HorizontalOptions="Center"
+                                      VerticalOptions="Center"
+                                      Data="M8,1.5 C4.41,1.5 1.5,4.41 1.5,8 C1.5,11.59 4.41,14.5 8,14.5 L11,14.5 L11,13 L8,13 C5.24,13 3,10.76 3,8 C3,5.24 5.24,3 8,3 C10.76,3 13,5.24 13,8 L13,8.9 C13,9.5 12.55,10 12,10 C11.45,10 11,9.5 11,8.9 L11,8 C11,6.34 9.66,5 8,5 C6.34,5 5,6.34 5,8 C5,9.66 6.34,11 8,11 C8.85,11 9.62,10.65 10.17,10.08 C10.6,10.92 11.25,11.5 12,11.5 C13.38,11.5 14.5,10.33 14.5,8.9 L14.5,8 C14.5,4.41 11.59,1.5 8,1.5 Z M8,6.5 C8.83,6.5 9.5,7.17 9.5,8 C9.5,8.83 8.83,9.5 8,9.5 C7.17,9.5 6.5,8.83 6.5,8 C6.5,7.17 7.17,6.5 8,6.5 Z" />
+                            </Border>
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2" Margin="6,0,0,0">
+                                <Label Text="Username"
+                                       TextColor="#FFFFFF"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="16"
+                                       FontAttributes="Bold" />
+                                <Label Text="{Binding ShellModel.CurrentUser.Username, StringFormat='@{0}'}"
                                        TextColor="#8E8E93"
                                        FontFamily="OpenSansRegular"
                                        FontSize="14" />

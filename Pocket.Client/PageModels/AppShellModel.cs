@@ -1640,8 +1640,11 @@ namespace Pocket.Client.PageModels
             }
         }
 
-        private IAsyncRelayCommand? _editProfileCommand;
-        public IAsyncRelayCommand EditProfileCommand => _editProfileCommand ??= new AsyncRelayCommand(EditProfileAsync);
+        private IAsyncRelayCommand? _editDisplayNameCommand;
+        public IAsyncRelayCommand EditDisplayNameCommand => _editDisplayNameCommand ??= new AsyncRelayCommand(EditDisplayNameAsync);
+
+        private IAsyncRelayCommand? _editUsernameCommand;
+        public IAsyncRelayCommand EditUsernameCommand => _editUsernameCommand ??= new AsyncRelayCommand(EditUsernameAsync);
 
         private IAsyncRelayCommand? _editProfilePhotoCommand;
 
@@ -1940,13 +1943,45 @@ namespace Pocket.Client.PageModels
             }
         }
 
-        public async Task EditProfileAsync()
+        public async Task EditDisplayNameAsync()
         {
             if (CurrentUser == null || Microsoft.Maui.Controls.Shell.Current == null) return;
 
-            string initialValue = CurrentUser.Username ?? string.Empty;
+            string? result = await Microsoft.Maui.Controls.Shell.Current.DisplayPromptAsync(
+                title: "Görünen Adı Değiştir",
+                message: "Arkadaşlarınızın göreceği adı girin:",
+                accept: "Kaydet",
+                cancel: "İptal",
+                placeholder: "görünen ad",
+                maxLength: 40,
+                keyboard: Keyboard.Text,
+                initialValue: CurrentUser.DisplayName ?? string.Empty);
 
-            string result = await Microsoft.Maui.Controls.Shell.Current.DisplayPromptAsync(
+            if (result == null)
+                return;
+
+            string cleanDisplayName = result.Trim();
+            if (string.IsNullOrWhiteSpace(cleanDisplayName) ||
+                string.Equals(cleanDisplayName, CurrentUser.DisplayName, StringComparison.Ordinal))
+                return;
+
+            CurrentUser.DisplayName = cleanDisplayName;
+
+            OnPropertyChanged(nameof(CurrentUser));
+            OnUserProfileUpdated?.Invoke(CurrentUser);
+
+            if (_database != null)
+                await _database.SaveUserAsync(CurrentUser);
+
+            // Sync the new display name over E2EE to all mutual friends
+            await BroadcastProfileUpdateAsync();
+        }
+
+        public async Task EditUsernameAsync()
+        {
+            if (CurrentUser == null || Microsoft.Maui.Controls.Shell.Current == null) return;
+
+            string? result = await Microsoft.Maui.Controls.Shell.Current.DisplayPromptAsync(
                 title: "Kullanıcı Adını Değiştir",
                 message: "Lütfen yeni kullanıcı adınızı girin (şifreli iletişim anahtarlarınız korunur):",
                 accept: "Kaydet",
@@ -1954,53 +1989,55 @@ namespace Pocket.Client.PageModels
                 placeholder: "kullanıcı adı",
                 maxLength: 30,
                 keyboard: Keyboard.Text,
-                initialValue: initialValue);
+                initialValue: CurrentUser.Username ?? string.Empty);
 
-            if (result != null)
+            if (result == null)
+                return;
+
+            string cleanUsername = result.Trim().TrimStart('@').Trim();
+            if (string.IsNullOrWhiteSpace(cleanUsername) ||
+                string.Equals(cleanUsername, CurrentUser.Username, StringComparison.Ordinal))
+                return;
+
+            if (_relayService != null && _relayService.IsConnected &&
+                !string.Equals(cleanUsername, CurrentUser.Username, StringComparison.OrdinalIgnoreCase))
             {
-                string cleanUsername = result.Trim().TrimStart('@').Trim();
-                if (!string.IsNullOrWhiteSpace(cleanUsername))
+                var existingActive = await _relayService.LookupUserAsync(cleanUsername);
+                if (existingActive != null && existingActive.UserId != CurrentUser.Id)
                 {
-                    if (_relayService != null && _relayService.IsConnected &&
-                        !string.Equals(cleanUsername, CurrentUser.Username, StringComparison.OrdinalIgnoreCase))
-                    {
-                        var existingActive = await _relayService.LookupUserAsync(cleanUsername);
-                        if (existingActive != null && existingActive.UserId != CurrentUser.Id)
-                        {
-                            await Microsoft.Maui.Controls.Shell.Current.DisplayAlert(
-                                "Kullanıcı Adı Kullanımda",
-                                $"{cleanUsername} şu anda başka bir kullanıcı tarafından kullanılıyor. Lütfen farklı bir isim seçin.",
-                                "Tamam");
-                            return;
-                        }
-                    }
-
-                    CurrentUser.Username = cleanUsername;
-                    CurrentUser.DisplayName = cleanUsername;
-
-                    OnPropertyChanged(nameof(CurrentUser));
-                    OnUserProfileUpdated?.Invoke(CurrentUser);
-
-                    if (_database != null && _relayService != null)
-                    {
-                        await _database.SaveUserAsync(CurrentUser);
-
-                        // Reconnect to generate a new JWT with the updated username while preserving UserId & ECDH PublicKey
-                        await _relayService.ConnectAsync(CurrentUser.Id, CurrentUser.Username);
-                        if (_relayService.IsConnected)
-                        {
-                            await _relayService.RegisterUserAsync(new Pocket.Shared.DTOs.UserIdentityDto
-                            {
-                                UserId = CurrentUser.Id,
-                                Username = CurrentUser.Username,
-                                PublicKey = CurrentUser.PublicKey
-                            });
-                        }
-
-                        // Sync updated username/display name over E2EE to all mutual friends
-                        await BroadcastProfileUpdateAsync();
-                    }
+                    await Microsoft.Maui.Controls.Shell.Current.DisplayAlert(
+                        "Kullanıcı Adı Kullanımda",
+                        $"{cleanUsername} şu anda başka bir kullanıcı tarafından kullanılıyor. Lütfen farklı bir isim seçin.",
+                        "Tamam");
+                    return;
                 }
+            }
+
+            CurrentUser.Username = cleanUsername;
+            if (string.IsNullOrWhiteSpace(CurrentUser.DisplayName))
+                CurrentUser.DisplayName = cleanUsername;
+
+            OnPropertyChanged(nameof(CurrentUser));
+            OnUserProfileUpdated?.Invoke(CurrentUser);
+
+            if (_database != null && _relayService != null)
+            {
+                await _database.SaveUserAsync(CurrentUser);
+
+                // Reconnect to generate a new JWT with the updated username while preserving UserId & ECDH PublicKey
+                await _relayService.ConnectAsync(CurrentUser.Id, CurrentUser.Username);
+                if (_relayService.IsConnected)
+                {
+                    await _relayService.RegisterUserAsync(new Pocket.Shared.DTOs.UserIdentityDto
+                    {
+                        UserId = CurrentUser.Id,
+                        Username = CurrentUser.Username,
+                        PublicKey = CurrentUser.PublicKey
+                    });
+                }
+
+                // Sync updated username over E2EE to all mutual friends
+                await BroadcastProfileUpdateAsync();
             }
         }
 
