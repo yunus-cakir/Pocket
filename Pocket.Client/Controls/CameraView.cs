@@ -163,6 +163,21 @@ namespace Pocket.Client.Controls
             Handler?.Invoke(nameof(SwitchCamera));
         }
 
+        /// <summary>
+        /// Releases the camera device (and the system "camera in use" indicator) while the page is covered,
+        /// e.g. when a DM page is pushed on top. The preview surface is kept so <see cref="ResumeCamera"/> can reopen quickly.
+        /// </summary>
+        public void SuspendCamera()
+        {
+            Handler?.Invoke(nameof(SuspendCamera));
+        }
+
+        /// <summary>Reopens the camera after <see cref="SuspendCamera"/>, once the page is visible again.</summary>
+        public void ResumeCamera()
+        {
+            Handler?.Invoke(nameof(ResumeCamera));
+        }
+
         public void OnPhotoCaptured(string filePath)
         {
             PhotoCaptured?.Invoke(this, filePath);

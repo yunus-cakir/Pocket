@@ -1984,6 +1984,8 @@ namespace Pocket.Client.Pages
 
             // Show camera while animating
             cameraView.IsVisible = true;
+            if (_currentIndex == 1)
+                WakeCamera();
             await PanContainer.TranslateTo(targetX, 0, duration, Easing.SinOut);
 
             // Hide camera if off-screen to save resources
@@ -1992,6 +1994,46 @@ namespace Pocket.Client.Pages
                 HideCameraSliders(animated: false);
                 cameraView.IsVisible = false;
             }
+            UpdateCameraActivity();
+        }
+
+        // ---- Camera device lifetime ----
+        // The camera device (and Android's green "camera in use" indicator) is released whenever the camera
+        // panel isn't on screen: Profile/Settings panel, Messages panel, or a pushed page (DM list / DM).
+        // Leaving the camera panel releases it after a short grace period so quick back-and-forth swipes don't
+        // pay the reopen cost; starting a swipe reopens it immediately so it's ready by the time the panel lands.
+        private const int OffPanelCameraReleaseDelayMs = 300;
+        private bool _isPageVisible;
+        private int _cameraReleaseToken;
+
+        private void WakeCamera()
+        {
+            _cameraReleaseToken++; // cancel a pending release
+            if (_isPageVisible)
+                cameraView.ResumeCamera();
+        }
+
+        private void UpdateCameraActivity()
+        {
+            if (!_isPageVisible)
+            {
+                _cameraReleaseToken++;
+                cameraView.SuspendCamera();
+                return;
+            }
+
+            if (_currentIndex == 1)
+            {
+                WakeCamera();
+                return;
+            }
+
+            int token = ++_cameraReleaseToken;
+            Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(OffPanelCameraReleaseDelayMs), () =>
+            {
+                if (token == _cameraReleaseToken && _currentIndex != 1)
+                    cameraView.SuspendCamera();
+            });
         }
 
         /// <summary>
@@ -2012,6 +2054,7 @@ namespace Pocket.Client.Pages
                     _lastPanX = 0;
                     _velocity = 0;
                     cameraView.IsVisible = true;
+                    WakeCamera();
                     break;
 
                 case GestureStatus.Running:
@@ -2075,6 +2118,9 @@ namespace Pocket.Client.Pages
         {
             base.OnAppearing();
             cameraView.PhotoCaptured += OnPhotoCaptured;
+            // Reopen the camera released when another page (e.g. DM) covered this one (only on the camera panel)
+            _isPageVisible = true;
+            UpdateCameraActivity();
 
             if (this.Width > 0 && this.Height > 0)
             {
@@ -2100,6 +2146,9 @@ namespace Pocket.Client.Pages
         {
             base.OnDisappearing();
             cameraView.PhotoCaptured -= OnPhotoCaptured;
+            // Release the camera while covered (DM list / DM page) so the system camera indicator goes away
+            _isPageVisible = false;
+            UpdateCameraActivity();
         }
 
         private async Task CheckAndRequestCameraPermission()

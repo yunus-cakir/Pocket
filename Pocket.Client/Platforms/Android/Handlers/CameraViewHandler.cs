@@ -65,6 +65,8 @@ namespace Pocket.Client.Platforms.Android.Handlers
             [nameof(CameraView.SetZoom)] = MapSetZoom,
             [nameof(CameraView.SetExposure)] = MapSetExposure,
             [nameof(CameraView.SwitchCamera)] = MapSwitchCamera,
+            [nameof(CameraView.SuspendCamera)] = MapSuspendCamera,
+            [nameof(CameraView.ResumeCamera)] = MapResumeCamera,
         };
 
         public CameraViewHandler() : base(PropertyMapper, CommandMapper)
@@ -240,6 +242,9 @@ namespace Pocket.Client.Platforms.Android.Handlers
         {
             _releaseToken++; // keep the camera: a pending deferred release is no longer needed
             HidePreviewUntilFirstFrames();
+
+            if (_isSuspended)
+                return; // page is covered (e.g. DM page on top): ResumeCamera opens the device later
 
             if (_camera != null)
                 BindSurface(_camera, surface);
@@ -585,6 +590,24 @@ namespace Pocket.Client.Platforms.Android.Handlers
             _camera = null;
             if (cam != null)
                 EnqueueCameraWork(() => ReleaseCamera(cam));
+        }
+
+        // True while the hosting page is covered by another page: the camera device is released so the
+        // system privacy indicator disappears, and surface callbacks must not reopen it.
+        private bool _isSuspended;
+
+        public static void MapSuspendCamera(CameraViewHandler handler, CameraView view, object? arg)
+        {
+            handler._isSuspended = true;
+            handler.StopCamera();
+        }
+
+        public static void MapResumeCamera(CameraViewHandler handler, CameraView view, object? arg)
+        {
+            if (!handler._isSuspended) return;
+            handler._isSuspended = false;
+            // If the surface isn't available yet, OnSurfaceAvailable starts the camera when it is
+            handler.StartCamera(handler.CurrentSurface);
         }
 
         public static void MapCapturePhoto(CameraViewHandler handler, CameraView view, object? arg)
