@@ -235,14 +235,35 @@
                         </Border>
 
                         <!-- ========================================== -->
-                        <!-- Section: Widget Setup                      -->
+                        <!-- Section: General                           -->
                         <!-- ========================================== -->
-                        <Label Text="Widget Setup"
+                        <Label Text="General"
                                TextColor="#FFFFFF"
                                FontFamily="OpenSansSemibold"
                                FontSize="19"
                                FontAttributes="Bold"
                                Margin="16,28,16,8" />
+
+                        <!-- Notifications -->
+                        <Grid ColumnDefinitions="36, *" Padding="16,14" BackgroundColor="Transparent">
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding OpenNotificationsSheetCommand}" />
+                            </Grid.GestureRecognizers>
+                            <Grid Grid.Column="0" WidthRequest="22" HeightRequest="22" HorizontalOptions="Start" VerticalOptions="Center">
+                                <Path Fill="#9CA3AF"
+                                      HorizontalOptions="Center"
+                                      VerticalOptions="Center"
+                                      Data="M8,0 C8.83,0 9.5,0.67 9.5,1.5 L9.5,2.2 C12.1,2.85 14,5.2 14,8 L14,12.5 L16,14.5 L16,15.5 L0,15.5 L0,14.5 L2,12.5 L2,8 C2,5.2 3.9,2.85 6.5,2.2 L6.5,1.5 C6.5,0.67 7.17,0 8,0 Z M6,16.5 L10,16.5 C10,17.6 9.1,18.5 8,18.5 C6.9,18.5 6,17.6 6,16.5 Z" />
+                            </Grid>
+                            <Label Grid.Column="1"
+                                   Text="Notifications"
+                                   TextColor="#FFFFFF"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="16"
+                                   FontAttributes="Bold"
+                                   VerticalOptions="Center"
+                                   Margin="6,0,0,0" />
+                        </Grid>
 
                         <!-- Add the widget: opens the system "add to home screen" pin dialog -->
                         <Grid ColumnDefinitions="36, *" Padding="16,14" BackgroundColor="Transparent">
@@ -275,114 +296,15 @@
                                    Margin="6,0,0,0" />
                         </Grid>
 
-                        <!-- How to add the widget (Unimplemented feature - noted) -->
-                        <Grid IsVisible="False" ColumnDefinitions="36, *" Padding="16,14">
-                            <Border Grid.Column="0"
-                                    WidthRequest="22"
-                                    HeightRequest="22"
-                                    StrokeShape="RoundRectangle 11"
-                                    StrokeThickness="0"
-                                    BackgroundColor="#9CA3AF"
-                                    Padding="0"
-                                    HorizontalOptions="Start"
-                                    VerticalOptions="Center">
-                                <Label Text="?"
-                                       TextColor="#000000"
-                                       FontSize="14"
-                                       FontAttributes="Bold"
-                                       HorizontalOptions="Center"
-                                       VerticalOptions="Center" />
-                            </Border>
-                            <Label Grid.Column="1"
-                                   Text="How to add the widget"
-                                   TextColor="#FFFFFF"
-                                   FontFamily="OpenSansSemibold"
-                                   FontSize="16"
-                                   FontAttributes="Bold"
-                                   VerticalOptions="Center"
-                                   Margin="6,0,0,0" />
-                        </Grid>
-
-                        <!-- Streak on widget (Toggle switch - UI state only, noted) -->
-                        <Grid IsVisible="False" ColumnDefinitions="36, *, Auto" Padding="16,12">
-                            <Grid Grid.Column="0" WidthRequest="22" HeightRequest="22" HorizontalOptions="Start" VerticalOptions="Center">
-                                <Path Fill="#9CA3AF"
-                                      HorizontalOptions="Center"
-                                      VerticalOptions="Center"
-                                      Data="M9.5,0 C9.5,0 15,4.2 15,9.5 C15,13.64 11.86,17 8,17 C4.14,17 1,13.64 1,9.5 C1,6.8 2.6,4.2 4.5,2.5 C4.5,2.5 4.2,5.2 6,6.5 C6,4 7.5,1.5 9.5,0 Z M8,14.5 C9.65,14.5 11,13.15 11,11.5 C11,9.8 9.2,8 8,6.8 C6.8,8 5,9.8 5,11.5 C5,13.15 6.35,14.5 8,14.5 Z" />
-                            </Grid>
-                            <Label Grid.Column="1"
-                                   Text="Streak on widget"
-                                   TextColor="#FFFFFF"
-                                   FontFamily="OpenSansSemibold"
-                                   FontSize="16"
-                                   FontAttributes="Bold"
-                                   VerticalOptions="Center"
-                                   Margin="6,0,0,0" />
-                            <!-- Custom Locket Gold Toggle Pill -->
-                            <Border Grid.Column="2"
-                                    WidthRequest="54"
-                                    HeightRequest="32"
-                                    StrokeShape="RoundRectangle 16"
-                                    StrokeThickness="0"
-                                    BackgroundColor="{DynamicResource AccentColor}"
-                                    Padding="3"
-                                    VerticalOptions="Center">
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Command="{Binding ShellModel.ToggleStreakOnWidgetCommand}" />
-                                </Border.GestureRecognizers>
-                                <Border WidthRequest="26"
-                                        HeightRequest="26"
-                                        StrokeShape="RoundRectangle 13"
-                                        StrokeThickness="0"
-                                        BackgroundColor="#FFFFFF"
-                                        Padding="0"
-                                        HorizontalOptions="End"
-                                        VerticalOptions="Center">
-                                    <Border.Triggers>
-                                        <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsStreakOnWidget}" Value="False">
-                                            <Setter Property="HorizontalOptions" Value="Start" />
-                                        </DataTrigger>
-                                    </Border.Triggers>
-                                </Border>
-                                <Border.Triggers>
-                                    <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsStreakOnWidget}" Value="False">
-                                        <Setter Property="BackgroundColor" Value="#3A3A3C" />
-                                    </DataTrigger>
-                                </Border.Triggers>
-                            </Border>
-                        </Grid>
-
                         <!-- ========================================== -->
-                        <!-- Section: General                           -->
+                        <!-- Section: Profile                      -->
                         <!-- ========================================== -->
-                        <Label Text="General"
+                        <Label Text="Profile"
                                TextColor="#FFFFFF"
                                FontFamily="OpenSansSemibold"
                                FontSize="19"
                                FontAttributes="Bold"
                                Margin="16,24,16,8" />
-
-                        <!-- Notifications -->
-                        <Grid ColumnDefinitions="36, *" Padding="16,14" BackgroundColor="Transparent">
-                            <Grid.GestureRecognizers>
-                                <TapGestureRecognizer Command="{Binding OpenNotificationsSheetCommand}" />
-                            </Grid.GestureRecognizers>
-                            <Grid Grid.Column="0" WidthRequest="22" HeightRequest="22" HorizontalOptions="Start" VerticalOptions="Center">
-                                <Path Fill="#9CA3AF"
-                                      HorizontalOptions="Center"
-                                      VerticalOptions="Center"
-                                      Data="M8,0 C8.83,0 9.5,0.67 9.5,1.5 L9.5,2.2 C12.1,2.85 14,5.2 14,8 L14,12.5 L16,14.5 L16,15.5 L0,15.5 L0,14.5 L2,12.5 L2,8 C2,5.2 3.9,2.85 6.5,2.2 L6.5,1.5 C6.5,0.67 7.17,0 8,0 Z M6,16.5 L10,16.5 C10,17.6 9.1,18.5 8,18.5 C6.9,18.5 6,17.6 6,16.5 Z" />
-                            </Grid>
-                            <Label Grid.Column="1"
-                                   Text="Notifications"
-                                   TextColor="#FFFFFF"
-                                   FontFamily="OpenSansSemibold"
-                                   FontSize="16"
-                                   FontAttributes="Bold"
-                                   VerticalOptions="Center"
-                                   Margin="6,0,0,0" />
-                        </Grid>
 
                         <!-- Edit name (Active - bound to EditProfileCommand) -->
                         <Grid ColumnDefinitions="36, *" Padding="16,12">
@@ -436,6 +358,16 @@
                                        FontSize="14" />
                             </VerticalStackLayout>
                         </Grid>
+
+                        <!-- ========================================== -->
+                        <!-- Section: Camera                       -->
+                        <!-- ========================================== -->
+                        <Label Text="Camera"
+                               TextColor="#FFFFFF"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="19"
+                               FontAttributes="Bold"
+                               Margin="16,24,16,8" />
 
                         <!-- True-color capture (Active - shutter saves the exact preview frame when ON, native still capture when OFF) -->
                         <Grid ColumnDefinitions="36, *, Auto" Padding="16,12">
@@ -697,6 +629,16 @@
                                 </Border.Triggers>
                             </Border>
                         </Grid>
+
+                        <!-- ========================================== -->
+                        <!-- Section: Appearance                   -->
+                        <!-- ========================================== -->
+                        <Label Text="Appearance"
+                               TextColor="#FFFFFF"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="19"
+                               FontAttributes="Bold"
+                               Margin="16,24,16,8" />
 
                         <!-- Theme Color / Accent Color Selector -->
                         <Grid ColumnDefinitions="36, *, Auto" Padding="16,12">
