@@ -871,36 +871,60 @@
                                   Data="M1,1 L7,7 L1,13" />
                         </Grid>
 
-                        <!-- Relay Server Settings Card (Preserves existing network configuration functionality) -->
-                        <Border Margin="16,24,16,10"
-                                Padding="16"
-                                StrokeShape="RoundRectangle 22"
-                                StrokeThickness="0"
-                                BackgroundColor="#1C1C1E">
-                            <VerticalStackLayout Spacing="10">
-                                <Grid ColumnDefinitions="Auto, *, Auto">
-                                    <HorizontalStackLayout Grid.Column="0" Spacing="8" VerticalOptions="Center">
-                                        <Border WidthRequest="10" HeightRequest="10" StrokeShape="RoundRectangle 5" StrokeThickness="0" BackgroundColor="{Binding ShellModel.ConnectionStatusColor}" Padding="0" VerticalOptions="Center" />
-                                        <Label Text="{Binding ShellModel.ConnectionStatusText}" TextColor="{Binding ShellModel.ConnectionStatusColor}" FontFamily="OpenSansSemibold" FontSize="13" FontAttributes="Bold" VerticalOptions="Center" />
-                                    </HorizontalStackLayout>
-                                    <Label Grid.Column="2" Text="{Binding ShellModel.ConnectedAtText}" TextColor="#8E8E93" FontSize="11" VerticalOptions="Center" />
-                                </Grid>
+                        <!-- ========================================== -->
+                        <!-- Section: Connection                        -->
+                        <!-- ========================================== -->
+                        <Label Text="Connection"
+                               TextColor="#FFFFFF"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="19"
+                               FontAttributes="Bold"
+                               Margin="16,24,16,8" />
 
-                                <Label Text="{Binding ShellModel.ConnectedUrlText, StringFormat='Server: {0}'}" TextColor="#8E8E93" FontSize="12" LineBreakMode="TailTruncation" />
-
-                                <Grid ColumnDefinitions="*, Auto" ColumnSpacing="10" Margin="0,4,0,0">
-                                    <Border Grid.Column="0" StrokeThickness="0" StrokeShape="RoundRectangle 14" BackgroundColor="#2C2C2E" Padding="12,0" HeightRequest="42">
-                                        <Entry Text="{Binding ShellModel.ServerIp}" Placeholder="IP or URL (e.g. https://yunuscakir.tail4d1102.ts.net)" Keyboard="Url" PlaceholderColor="#8E8E93" TextColor="White" FontSize="13" VerticalOptions="Center" />
-                                    </Border>
-                                    <Border Grid.Column="1" StrokeShape="RoundRectangle 14" StrokeThickness="0" BackgroundColor="{DynamicResource AccentColor}" Padding="16,0" HeightRequest="42" VerticalOptions="Center">
-                                        <Border.GestureRecognizers>
-                                            <TapGestureRecognizer Command="{Binding ShellModel.SaveServerIpCommand}" />
-                                        </Border.GestureRecognizers>
-                                        <Label Text="Save" TextColor="#000000" FontFamily="OpenSansSemibold" FontSize="13" FontAttributes="Bold" VerticalOptions="Center" HorizontalOptions="Center" />
-                                    </Border>
-                                </Grid>
+                        <!-- Active relay: Primary / Secondary + its IP; opens the Connection sheet -->
+                        <Grid ColumnDefinitions="36, *, Auto" Padding="16,12" BackgroundColor="Transparent">
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding OpenConnectionSheetCommand}" />
+                            </Grid.GestureRecognizers>
+                            <Grid Grid.Column="0" WidthRequest="22" HeightRequest="22" HorizontalOptions="Start" VerticalOptions="Center">
+                                <Path Fill="#9CA3AF"
+                                      HorizontalOptions="Center"
+                                      VerticalOptions="Center"
+                                      Data="M2,1 L16,1 C16.55,1 17,1.45 17,2 L17,7 C17,7.55 16.55,8 16,8 L2,8 C1.45,8 1,7.55 1,7 L1,2 C1,1.45 1.45,1 2,1 Z M2,10 L16,10 C16.55,10 17,10.45 17,11 L17,16 C17,16.55 16.55,17 16,17 L2,17 C1.45,17 1,16.55 1,16 L1,11 C1,10.45 1.45,10 2,10 Z M4,3.5 C3.45,3.5 3,3.95 3,4.5 C3,5.05 3.45,5.5 4,5.5 C4.55,5.5 5,5.05 5,4.5 C5,3.95 4.55,3.5 4,3.5 Z M4,12.5 C3.45,12.5 3,12.95 3,13.5 C3,14.05 3.45,14.5 4,14.5 C4.55,14.5 5,14.05 5,13.5 C5,12.95 4.55,12.5 4,12.5 Z" />
+                                <!-- Connection status dot -->
+                                <Border WidthRequest="9"
+                                        HeightRequest="9"
+                                        StrokeShape="RoundRectangle 4.5"
+                                        Stroke="#000000"
+                                        StrokeThickness="1.5"
+                                        BackgroundColor="{Binding ShellModel.ConnectionStatusColor}"
+                                        Padding="0"
+                                        HorizontalOptions="End"
+                                        VerticalOptions="End"
+                                        Margin="0,0,-3,-3" />
+                            </Grid>
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2" Margin="6,0,10,0">
+                                <Label Text="{Binding ShellModel.ConnectionServerTitle}"
+                                       TextColor="#FFFFFF"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="16"
+                                       FontAttributes="Bold" />
+                                <Label Text="{Binding ShellModel.ConnectionServerAddress}"
+                                       TextColor="#8E8E93"
+                                       FontFamily="OpenSansRegular"
+                                       FontSize="14"
+                                       LineBreakMode="TailTruncation" />
                             </VerticalStackLayout>
-                        </Border>
+                            <Path Grid.Column="2"
+                                  WidthRequest="8"
+                                  HeightRequest="14"
+                                  Stroke="#636366"
+                                  StrokeThickness="2.2"
+                                  StrokeLineCap="Round"
+                                  StrokeLineJoin="Round"
+                                  VerticalOptions="Center"
+                                  Data="M1,1 L7,7 L1,13" />
+                        </Grid>
 
                         <BoxView HeightRequest="{Binding ChatBottomSpacerHeight}" BackgroundColor="Transparent" Color="Transparent" />
 
@@ -3817,6 +3841,170 @@
                             </VerticalStackLayout>
                         </Border>
                     </VerticalStackLayout>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ============================================================== -->
+        <!-- CONNECTION FULL-SCREEN PANEL OVERLAY                           -->
+        <!-- ============================================================== -->
+        <Grid x:Name="ConnectionOverlayGrid"
+              IsVisible="False"
+              HorizontalOptions="Fill"
+              VerticalOptions="Fill">
+            <BoxView x:Name="ConnectionBackdrop"
+                     BackgroundColor="#99000000"
+                     Color="#99000000"
+                     Opacity="0"
+                     HorizontalOptions="Fill"
+                     VerticalOptions="Fill">
+                <BoxView.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnConnectionBackdropTapped" />
+                </BoxView.GestureRecognizers>
+            </BoxView>
+
+            <Border x:Name="ConnectionSheetCard"
+                    VerticalOptions="Fill"
+                    HorizontalOptions="Fill"
+                    Margin="0,24,0,0"
+                    TranslationY="900"
+                    BackgroundColor="#1C1C1E"
+                    StrokeShape="RoundRectangle 32,32,0,0"
+                    StrokeThickness="0"
+                    Padding="16,12,16,32">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer />
+                </Border.GestureRecognizers>
+                <Grid RowDefinitions="Auto, *, Auto">
+                    <!-- Drag Header Area: Handle pill + Title -->
+                    <Grid Grid.Row="0"
+                          RowDefinitions="Auto, Auto"
+                          BackgroundColor="Transparent"
+                          Padding="0,4,0,22">
+                        <Grid.GestureRecognizers>
+                            <PanGestureRecognizer PanUpdated="OnConnectionSheetPanUpdated" />
+                        </Grid.GestureRecognizers>
+
+                        <BoxView Grid.Row="0"
+                                 WidthRequest="38"
+                                 HeightRequest="5"
+                                 CornerRadius="2.5"
+                                 Color="#5A5A5E"
+                                 BackgroundColor="#5A5A5E"
+                                 HorizontalOptions="Center"
+                                 Margin="0,0,0,14">
+                            <BoxView.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnConnectionBackdropTapped" />
+                            </BoxView.GestureRecognizers>
+                        </BoxView>
+
+                        <Label Grid.Row="1"
+                               Text="Connection"
+                               TextColor="#FFFFFF"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="20"
+                               FontAttributes="Bold"
+                               HorizontalOptions="Center" />
+                    </Grid>
+
+                    <ScrollView Grid.Row="1">
+                        <VerticalStackLayout Spacing="14">
+                            <!-- Current status -->
+                            <Border BackgroundColor="#2C2C2E"
+                                    StrokeShape="RoundRectangle 22"
+                                    StrokeThickness="0"
+                                    Padding="20,14">
+                                <Grid ColumnDefinitions="Auto, *, Auto" ColumnSpacing="10">
+                                    <Border Grid.Column="0" WidthRequest="10" HeightRequest="10" StrokeShape="RoundRectangle 5" StrokeThickness="0" BackgroundColor="{Binding ShellModel.ConnectionStatusColor}" Padding="0" VerticalOptions="Center" />
+                                    <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                        <Label Text="{Binding ShellModel.ConnectionStatusText}" TextColor="{Binding ShellModel.ConnectionStatusColor}" FontFamily="OpenSansSemibold" FontSize="14" FontAttributes="Bold" />
+                                        <Label TextColor="#8E8E93" FontFamily="OpenSansRegular" FontSize="13" LineBreakMode="TailTruncation">
+                                            <Label.FormattedText>
+                                                <FormattedString>
+                                                    <Span Text="{Binding ShellModel.ConnectionServerTitle}" />
+                                                    <Span Text=" · " />
+                                                    <Span Text="{Binding ShellModel.ConnectionServerAddress}" />
+                                                </FormattedString>
+                                            </Label.FormattedText>
+                                        </Label>
+                                    </VerticalStackLayout>
+                                    <Label Grid.Column="2" Text="{Binding ShellModel.ConnectedAtText}" TextColor="#8E8E93" FontSize="12" VerticalOptions="Center" />
+                                </Grid>
+                            </Border>
+
+                            <!-- Primary server -->
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="Primary"
+                                       TextColor="#FFFFFF"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="15"
+                                       FontAttributes="Bold"
+                                       Margin="4,0,0,0" />
+                                <Border BackgroundColor="#2C2C2E"
+                                        StrokeShape="RoundRectangle 16"
+                                        StrokeThickness="0"
+                                        Padding="14,0"
+                                        HeightRequest="50">
+                                    <Entry x:Name="PrimaryServerEntry"
+                                           Text="{Binding ShellModel.ServerIp}"
+                                           Placeholder="IP or URL (e.g. https://pc.example.ts.net)"
+                                           Keyboard="Url"
+                                           PlaceholderColor="#8E8E93"
+                                           TextColor="White"
+                                           FontSize="15"
+                                           VerticalOptions="Center" />
+                                </Border>
+                            </VerticalStackLayout>
+
+                            <!-- Secondary server -->
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="Secondary"
+                                       TextColor="#FFFFFF"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="15"
+                                       FontAttributes="Bold"
+                                       Margin="4,0,0,0" />
+                                <Border BackgroundColor="#2C2C2E"
+                                        StrokeShape="RoundRectangle 16"
+                                        StrokeThickness="0"
+                                        Padding="14,0"
+                                        HeightRequest="50">
+                                    <Entry x:Name="SecondaryServerEntry"
+                                           Text="{Binding ShellModel.SecondaryServerIp}"
+                                           Placeholder="IP or URL (leave empty to disable)"
+                                           Keyboard="Url"
+                                           PlaceholderColor="#8E8E93"
+                                           TextColor="White"
+                                           FontSize="15"
+                                           VerticalOptions="Center" />
+                                </Border>
+                                <Label Text="Used automatically when the primary server is unreachable."
+                                       TextColor="#8E8E93"
+                                       FontFamily="OpenSansRegular"
+                                       FontSize="13"
+                                       Margin="4,0,0,0" />
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
+                    </ScrollView>
+
+                    <!-- Save button -->
+                    <Border Grid.Row="2"
+                            Margin="0,16,0,0"
+                            HeightRequest="54"
+                            StrokeShape="RoundRectangle 27"
+                            StrokeThickness="0"
+                            BackgroundColor="{DynamicResource AccentColor}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding SaveConnectionSettingsCommand}" />
+                        </Border.GestureRecognizers>
+                        <Label Text="Save"
+                               TextColor="#000000"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="17"
+                               FontAttributes="Bold"
+                               HorizontalOptions="Center"
+                               VerticalOptions="Center" />
+                    </Border>
                 </Grid>
             </Border>
         </Grid>

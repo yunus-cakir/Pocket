@@ -1281,6 +1281,7 @@ namespace Pocket.Client.Services
             return new Dictionary<string, string?>
             {
                 ["ServerIp"] = RelayService.GetSavedServer(),
+                ["SecondaryServerIp"] = RelayService.GetSavedSecondaryServer(),
                 ["RecentEmojis"] = Preferences.Default.Get("RecentEmojis", "💗,🙃,😋"),
                 [CameraView.CaptureFromPreviewPreferenceKey] = Preferences.Default.Get(CameraView.CaptureFromPreviewPreferenceKey, CameraView.CaptureFromPreviewDefault).ToString(),
                 [CameraView.ZoomSliderPreferenceKey] = Preferences.Default.Get(CameraView.ZoomSliderPreferenceKey, CameraView.ZoomSliderDefault).ToString(),
@@ -1296,6 +1297,12 @@ namespace Pocket.Client.Services
             if (prefs.TryGetValue("ServerIp", out var serverIp) && !string.IsNullOrWhiteSpace(serverIp))
             {
                 Preferences.Default.Set("ServerIp", serverIp);
+            }
+
+            // Empty is meaningful here (failover disabled), so only a missing key is skipped.
+            if (prefs.TryGetValue("SecondaryServerIp", out var secondaryServerIp) && secondaryServerIp != null)
+            {
+                Preferences.Default.Set("SecondaryServerIp", secondaryServerIp);
             }
 
             if (prefs.TryGetValue("RecentEmojis", out var recentEmojis) && !string.IsNullOrWhiteSpace(recentEmojis))

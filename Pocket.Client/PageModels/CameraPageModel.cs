@@ -89,7 +89,7 @@ namespace Pocket.Client.PageModels
 
         public bool IsSwipeAllowed => !IsPreviewing && !IsReplyingToFeedPost && !IsActivitySheetOpen &&
                                       !IsFilterMenuOpen && !IsEmojiPickerOpen && !IsPostOptionsMenuOpen &&
-                                      !IsDeleteConfirmOpen && !IsNotificationsSheetOpen;
+                                      !IsDeleteConfirmOpen && !IsNotificationsSheetOpen && !IsConnectionSheetOpen;
 
         public bool ShowPreviewControls => IsPreviewing && !IsEditingCaption;
         public bool ShowSaveToGalleryButton => ShowPreviewControls && !IsFromGallery;
@@ -243,6 +243,9 @@ namespace Pocket.Client.PageModels
         private bool _isNotificationsSheetOpen;
 
         [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsSwipeAllowed))]
+        private bool _isConnectionSheetOpen;
+
+        [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsSwipeAllowed))]
         private bool _isPostOptionsMenuOpen;
 
         [ObservableProperty]
@@ -315,6 +318,8 @@ namespace Pocket.Client.PageModels
         public Action? CloseActivitySheetAction;
         public Action? OpenNotificationsSheetAction;
         public Action? CloseNotificationsSheetAction;
+        public Action? OpenConnectionSheetAction;
+        public Action? CloseConnectionSheetAction;
         public Action? OpenEmojiPickerAction;
         public Action? CloseEmojiPickerAction;
         public Action<int>? ScrollToEmojiCategoryAction;
@@ -841,6 +846,38 @@ namespace Pocket.Client.PageModels
             {
                 IsNotificationsSheetOpen = false;
             }
+        }
+
+        [RelayCommand]
+        private void OpenConnectionSheet()
+        {
+            if (IsConnectionSheetOpen)
+                return;
+
+            // Start from the saved addresses, discarding edits from an unsaved earlier visit.
+            ShellModel.ReloadServerSettings();
+            IsConnectionSheetOpen = true;
+            OpenConnectionSheetAction?.Invoke();
+        }
+
+        [RelayCommand]
+        private void CloseConnectionSheet()
+        {
+            if (CloseConnectionSheetAction != null)
+            {
+                CloseConnectionSheetAction.Invoke();
+            }
+            else
+            {
+                IsConnectionSheetOpen = false;
+            }
+        }
+
+        [RelayCommand]
+        private async Task SaveConnectionSettingsAsync()
+        {
+            CloseConnectionSheet();
+            await ShellModel.SaveServersAsync();
         }
 
         [RelayCommand]

@@ -140,6 +140,26 @@ namespace Pocket.Client.Pages
                 MainThread.BeginInvokeOnMainThread(async () => { await AnimateCloseNotificationsSheetAsync(); });
             };
 
+            viewModel.OpenConnectionSheetAction = () =>
+            {
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    ConnectionOverlayGrid.IsVisible = true;
+                    double startY = Math.Max(Height, 800);
+                    ConnectionSheetCard.TranslationY = startY;
+                    ConnectionBackdrop.Opacity = 0;
+                    await Task.WhenAll(
+                        ConnectionSheetCard.TranslateToAsync(0, 0, 260, Easing.CubicOut),
+                        ConnectionBackdrop.FadeToAsync(1, 260, Easing.CubicOut)
+                    );
+                });
+            };
+
+            viewModel.CloseConnectionSheetAction = () =>
+            {
+                MainThread.BeginInvokeOnMainThread(async () => { await AnimateCloseConnectionSheetAsync(); });
+            };
+
             viewModel.OpenEmojiPickerAction = () =>
             {
                 MainThread.BeginInvokeOnMainThread(async () =>
@@ -926,6 +946,12 @@ namespace Pocket.Client.Pages
                     return true;
                 }
 
+                if (vm.IsConnectionSheetOpen)
+                {
+                    _ = AnimateCloseConnectionSheetAsync();
+                    return true;
+                }
+
                 if (vm.IsEmojiPickerOpen)
                 {
                     _ = AnimateCloseEmojiPickerAsync();
@@ -1435,6 +1461,70 @@ namespace Pocket.Client.Pages
                         await Task.WhenAll(
                             NotificationsSheetCard.TranslateToAsync(0, 0, 160, Easing.CubicOut),
                             NotificationsBackdrop.FadeToAsync(1, 160, Easing.Linear)
+                        );
+                    }
+
+                    break;
+            }
+        }
+
+        private double _connectionSheetPanInitialTranslationY = 0;
+
+        private async void OnConnectionBackdropTapped(object? sender, TappedEventArgs e)
+        {
+            await AnimateCloseConnectionSheetAsync();
+        }
+
+        private async Task AnimateCloseConnectionSheetAsync()
+        {
+            if (!ConnectionOverlayGrid.IsVisible)
+                return;
+
+            PrimaryServerEntry.Unfocus();
+            SecondaryServerEntry.Unfocus();
+
+            double targetY = Math.Max(Height, 800);
+            await Task.WhenAll(
+                ConnectionSheetCard.TranslateToAsync(0, targetY, 220, Easing.CubicIn),
+                ConnectionBackdrop.FadeToAsync(0, 220, Easing.Linear)
+            );
+            ConnectionOverlayGrid.IsVisible = false;
+            if (BindingContext is CameraPageModel vm)
+            {
+                vm.IsConnectionSheetOpen = false;
+            }
+        }
+
+        private async void OnConnectionSheetPanUpdated(object? sender, PanUpdatedEventArgs e)
+        {
+            switch (e.StatusType)
+            {
+                case GestureStatus.Started:
+                    _connectionSheetPanInitialTranslationY = ConnectionSheetCard.TranslationY;
+                    break;
+
+                case GestureStatus.Running:
+                    if (e.TotalY > 0)
+                    {
+                        ConnectionSheetCard.TranslationY = _connectionSheetPanInitialTranslationY + e.TotalY;
+                        double denominator = Math.Max(Height * 0.5, 300.0);
+                        double progress = Math.Clamp(1.0 - (ConnectionSheetCard.TranslationY / denominator), 0.0, 1.0);
+                        ConnectionBackdrop.Opacity = progress;
+                    }
+
+                    break;
+
+                case GestureStatus.Completed:
+                case GestureStatus.Canceled:
+                    if (ConnectionSheetCard.TranslationY > 90)
+                    {
+                        await AnimateCloseConnectionSheetAsync();
+                    }
+                    else
+                    {
+                        await Task.WhenAll(
+                            ConnectionSheetCard.TranslateToAsync(0, 0, 160, Easing.CubicOut),
+                            ConnectionBackdrop.FadeToAsync(1, 160, Easing.Linear)
                         );
                     }
 

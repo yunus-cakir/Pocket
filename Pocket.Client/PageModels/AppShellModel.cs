@@ -27,13 +27,23 @@ namespace Pocket.Client.PageModels
 
         [ObservableProperty] private bool _isConnected;
 
-        [ObservableProperty] private string _connectionStatusText = "Bağlı Değil";
+        [ObservableProperty] private string _connectionStatusText = "Not connected";
 
         [ObservableProperty] private string _connectionStatusColor = "#EF4444";
 
         [ObservableProperty] private string _connectedUrlText = "-";
 
         [ObservableProperty] private string _connectedAtText = "-";
+
+        [ObservableProperty] private string _secondaryServerIp = string.Empty;
+
+        /// <summary>"Primary" or "Secondary", depending on which relay is in use.</summary>
+        [ObservableProperty] private string _connectionServerTitle = "Primary";
+
+        /// <summary>IP address of the relay in use (host name until it resolves).</summary>
+        [ObservableProperty] private string _connectionServerAddress = "-";
+
+        private int _connectionAddressVersion;
 
         [ObservableProperty] private bool _isStreakOnWidget = true;
 
@@ -416,8 +426,8 @@ namespace Pocket.Client.PageModels
 
                 CurrentUser = user;
 
-                // Load Server IP from Preferences
-                ServerIp = RelayService.GetSavedServer();
+                // Load Server IPs from Preferences
+                ReloadServerSettings();
 
                 // Load real friends from database
                 var friends = await _database.GetFriendsAsync();
@@ -1484,8 +1494,8 @@ namespace Pocket.Client.PageModels
                 if (isConnected)
                 {
                     ConnectionStatusText = _relayService?.IsOnFallback == true
-                        ? "Sunucuya Bağlandı (yedek: Mac)"
-                        : "Sunucuya Bağlandı";
+                        ? "Connected to secondary server"
+                        : "Connected to primary server";
                     ConnectionStatusColor = "#10B981"; // Emerald Green
                     ConnectedUrlText = _relayService?.CurrentHubUrl ?? "-";
                     ConnectedAtText = _relayService?.ConnectedAt?.ToString("HH:mm:ss") ?? "-";
@@ -1500,10 +1510,66 @@ namespace Pocket.Client.PageModels
                 }
                 else
                 {
-                    ConnectionStatusText = "Bağlantı Kesildi";
+                    ConnectionStatusText = "Disconnected";
                     ConnectionStatusColor = "#EF4444"; // Red
                     ConnectedUrlText = _relayService?.CurrentHubUrl ?? "-";
-                    ConnectedAtText = "Yeniden Bağlanılıyor...";
+                    ConnectedAtText = "Reconnecting...";
+                }
+
+                UpdateConnectionServerInfo();
+            });
+        }
+
+        /// <summary>Resets the editable server fields to the saved values.</summary>
+        public void ReloadServerSettings()
+        {
+            ServerIp = RelayService.GetSavedServer();
+            SecondaryServerIp = RelayService.GetSavedSecondaryServer();
+        }
+
+        private void UpdateConnectionServerInfo()
+        {
+            bool onSecondary = IsConnected && _relayService?.IsOnFallback == true;
+            ConnectionServerTitle = onSecondary ? "Secondary" : "Primary";
+
+            string hubUrl = _relayService?.CurrentHubUrl ?? string.Empty;
+            if (string.IsNullOrEmpty(hubUrl))
+                hubUrl = RelayService.BuildHubUrl(onSecondary ? RelayService.GetSavedSecondaryServer() : RelayService.GetSavedServer());
+
+            if (!Uri.TryCreate(hubUrl, UriKind.Absolute, out var uri))
+            {
+                ConnectionServerAddress = "-";
+                return;
+            }
+
+            string host = uri.Host;
+            int version = ++_connectionAddressVersion;
+            if (System.Net.IPAddress.TryParse(host, out _))
+            {
+                ConnectionServerAddress = host;
+                return;
+            }
+
+            // Show the host name while DNS resolves, then the IP address.
+            ConnectionServerAddress = host;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var addresses = await System.Net.Dns.GetHostAddressesAsync(host);
+                    var ip = addresses.FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                             ?? addresses.FirstOrDefault();
+                    if (ip == null) return;
+
+                    Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        if (version == _connectionAddressVersion)
+                            ConnectionServerAddress = ip.ToString();
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[Connection] Could not resolve {host}: {ex.Message}");
                 }
             });
         }
@@ -1598,17 +1664,13 @@ namespace Pocket.Client.PageModels
             });
         }
 
-        [RelayCommand]
-        private async Task SaveServerIpAsync()
+        /// <summary>Saves the primary and secondary relay addresses and reconnects.</summary>
+        public async Task SaveServersAsync()
         {
-            if (string.IsNullOrWhiteSpace(ServerIp))
-            {
-                ServerIp = RelayService.GetDefaultServerIp();
-            }
-
-            string cleanIp = ServerIp.Trim();
-            Microsoft.Maui.Storage.Preferences.Set("ServerIp", cleanIp);
-            ServerIp = cleanIp;
+            RelayService.SaveServers(ServerIp, SecondaryServerIp);
+            ReloadServerSettings();
+            string cleanIp = ServerIp;
+            UpdateConnectionServerInfo();
 
             if (_relayService != null && CurrentUser != null && !string.IsNullOrEmpty(CurrentUser.Id))
             {
@@ -1627,14 +1689,18 @@ namespace Pocket.Client.PageModels
                 {
                     if (_relayService.IsConnected)
                     {
-                        await Microsoft.Maui.Controls.Shell.Current.DisplayAlert("Bağlantı Başarılı",
-                            $"Sunucuya '{cleanIp}' adresi üzerinden erişildi!", "Tamam");
+                        string which = _relayService.IsOnFallback
+                            ? $"The primary server is unreachable, connected to the secondary server ('{SecondaryServerIp}')."
+                            : $"Connected to the primary server ('{cleanIp}').";
+                        await Microsoft.Maui.Controls.Shell.Current.DisplayAlert("Connected", which, "OK");
                     }
                     else
                     {
-                        await Microsoft.Maui.Controls.Shell.Current.DisplayAlert("Bağlantı Başarısız",
-                            $"'{RelayService.BuildHubUrl(cleanIp)}' adresindeki sunucuya ulaşılamadı. Sunucunun açık olduğundan emin olun.",
-                            "Tamam");
+                        await Microsoft.Maui.Controls.Shell.Current.DisplayAlert("Connection Failed",
+                            string.IsNullOrWhiteSpace(SecondaryServerIp)
+                                ? $"Could not reach the server at '{RelayService.BuildHubUrl(cleanIp)}'. Make sure the server is running."
+                                : "Could not reach the primary or the secondary server. Check the addresses and make sure the servers are running.",
+                            "OK");
                     }
                 }
             }

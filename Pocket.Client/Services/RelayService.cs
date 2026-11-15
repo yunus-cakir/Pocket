@@ -52,15 +52,32 @@ namespace Pocket.Client.Services
         /// <summary>Standby relay (Mac). Only live while the primary is down — see deploy/README.md.</summary>
         public const string FallbackServerUrl = "https://yunuscakir-mac.tail4d1102.ts.net";
 
+        private const string SecondaryServerPreferenceKey = "SecondaryServerIp";
+
         /// <summary>
-        /// Servers to try, in order. With the default server saved ("automatic" mode) this is
-        /// primary → standby; a custom server is used on its own.
+        /// Saved secondary (standby) server, or the built-in Mac standby when never set.
+        /// An empty string means the user cleared it: no failover.
         /// </summary>
+        public static string GetSavedSecondaryServer() =>
+            (Microsoft.Maui.Storage.Preferences.Default.Get(SecondaryServerPreferenceKey, FallbackServerUrl) ?? string.Empty).Trim();
+
+        /// <summary>Stores both relay addresses; an empty primary falls back to the default.</summary>
+        public static void SaveServers(string? primary, string? secondary)
+        {
+            var prefs = Microsoft.Maui.Storage.Preferences.Default;
+            string cleanPrimary = string.IsNullOrWhiteSpace(primary) ? DefaultServerUrl : primary.Trim();
+            prefs.Set(ServerPreferenceKey, cleanPrimary);
+            prefs.Set(SecondaryServerPreferenceKey, secondary?.Trim() ?? string.Empty);
+        }
+
+        /// <summary>Servers to try, in order: primary, then the secondary (if set and different).</summary>
         public static IReadOnlyList<string> GetServerCandidates()
         {
-            string saved = GetSavedServer();
-            bool isDefault = string.Equals(BuildHubUrl(saved), BuildHubUrl(DefaultServerUrl), StringComparison.OrdinalIgnoreCase);
-            return isDefault ? new[] { DefaultServerUrl, FallbackServerUrl } : new[] { saved };
+            string primary = GetSavedServer();
+            string secondary = GetSavedSecondaryServer();
+            bool hasSecondary = !string.IsNullOrWhiteSpace(secondary) &&
+                                !string.Equals(BuildHubUrl(primary), BuildHubUrl(secondary), StringComparison.OrdinalIgnoreCase);
+            return hasSecondary ? new[] { primary, secondary } : new[] { primary };
         }
 
         /// <summary>
