@@ -432,4 +432,15 @@
         <Setter Property="SelectedTabColor" Value="{AppThemeBinding Light={StaticResource Gray950}, Dark={StaticResource Gray200}}" />
     </Style>
 
+    <!-- Scrollbars are never shown anywhere in the app. -->
+    <Style TargetType="ScrollView" ApplyToDerivedTypes="True">
+        <Setter Property="VerticalScrollBarVisibility" Value="Never" />
+        <Setter Property="HorizontalScrollBarVisibility" Value="Never" />
+    </Style>
+
+    <Style TargetType="ItemsView" ApplyToDerivedTypes="True">
+        <Setter Property="VerticalScrollBarVisibility" Value="Never" />
+        <Setter Property="HorizontalScrollBarVisibility" Value="Never" />
+    </Style>
+
 </ResourceDictionary>

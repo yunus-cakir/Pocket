@@ -2385,7 +2385,7 @@
                                                 ItemsSource="{Binding EmojiPickerRows}"
                                                 BackgroundColor="Transparent"
                                                 SelectionMode="None"
-                                                VerticalScrollBarVisibility="Default"
+                                                VerticalScrollBarVisibility="Never"
                                                 Scrolled="OnEmojiPickerScrolled">
                                     <CollectionView.ItemsLayout>
                                         <LinearItemsLayout Orientation="Vertical" ItemSpacing="0" />
