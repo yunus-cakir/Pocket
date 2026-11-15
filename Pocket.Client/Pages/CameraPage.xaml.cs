@@ -3122,13 +3122,22 @@ namespace Pocket.Client.Pages
                 ScheduleSliderAutoHide();
         }
 
-        private static void SetPanelVisible(VisualElement panel, bool visible)
+        // Slider panels only accept touches while fully shown: during the fade-in and from the start of the
+        // fade-out they are (nearly) invisible, so a tap there must not change zoom / exposure.
+        private static async void SetPanelVisible(VisualElement panel, bool visible)
         {
+            if (visible && panel.IsVisible && panel.Opacity >= 0.99 && !panel.InputTransparent)
+                return; // already fully shown
+
             panel.AbortAnimation("FadeTo");
+            panel.InputTransparent = true;
             if (visible)
             {
                 panel.IsVisible = true;
-                _ = panel.FadeToAsync(1, 150);
+                // FadeToAsync returns true when the animation was CANCELLED, false when it completed
+                bool cancelled = await panel.FadeToAsync(1, 150);
+                if (!cancelled)
+                    panel.InputTransparent = false;
             }
             else
             {
@@ -3145,6 +3154,7 @@ namespace Pocket.Client.Pages
             foreach (var panel in new VisualElement[] { ZoomSliderPanel, ExposureSliderPanel })
             {
                 if (!panel.IsVisible) continue;
+                panel.InputTransparent = true;
                 if (animated)
                 {
                     _ = FadeOutAsync(panel);
@@ -3160,8 +3170,9 @@ namespace Pocket.Client.Pages
 
         private static async Task FadeOutAsync(VisualElement panel)
         {
-            bool finished = await panel.FadeToAsync(0, 200);
-            if (finished) panel.IsVisible = false;
+            // FadeToAsync returns true when the animation was CANCELLED (e.g. the panel was shown again)
+            bool cancelled = await panel.FadeToAsync(0, 200);
+            if (!cancelled) panel.IsVisible = false;
         }
 
         private async void ScheduleSliderAutoHide()

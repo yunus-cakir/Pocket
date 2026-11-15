@@ -991,6 +991,7 @@
 
                                     <!-- Vertical zoom slider (right) - shown after tap-to-focus when enabled in Settings > General -->
                                     <VerticalStackLayout x:Name="ZoomSliderPanel"
+                                                         InputTransparent="True"
                                                          IsVisible="False"
                                                          Opacity="0"
                                                          Spacing="4"
@@ -1045,6 +1046,7 @@
 
                                     <!-- Horizontal exposure slider (bottom) - shown after tap-to-focus when enabled in Settings > General -->
                                     <Grid x:Name="ExposureSliderPanel"
+                                          InputTransparent="True"
                                           IsVisible="False"
                                           Opacity="0"
                                           ColumnDefinitions="Auto, *"
