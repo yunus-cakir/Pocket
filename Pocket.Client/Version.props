@@ -8,7 +8,7 @@
 	-->
 	<PropertyGroup>
 		<PocketVersion>1.0.0</PocketVersion>
-		<PocketBuildNumber>1</PocketBuildNumber>
-		<PocketSourceFingerprint>582fa0584e040a985a0d19ed137fed6e5e8ed546</PocketSourceFingerprint>
+		<PocketBuildNumber>2</PocketBuildNumber>
+		<PocketSourceFingerprint>4ae1eb9c63c36144b9445e34a28f2e881ca43fd1</PocketSourceFingerprint>
 	</PropertyGroup>
 </Project>
