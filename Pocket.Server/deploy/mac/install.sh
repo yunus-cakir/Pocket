@@ -2,6 +2,7 @@
 # Installs the Pocket standby relay on macOS.
 #
 #   ./install.sh --secret "<Cluster secret printed by install-service.ps1 on the PC>"
+#   ./install.sh            (update: keeps the secret of the existing install)
 #
 # - Publishes Pocket.Server into ~/PocketServer/app (needs the .NET 10 SDK)
 # - Writes its config: loopback 127.0.0.1:5200, role=standby, hand off to the PC
@@ -25,6 +26,12 @@ while [ $# -gt 0 ]; do
         *) echo "Unknown argument: $1"; exit 1 ;;
     esac
 done
+
+# Updating an existing install: keep its secret unless a new one is given.
+EXISTING_CONFIG="$HOME/PocketServer/app/appsettings.Production.json"
+if [ -z "$SECRET" ] && [ -f "$EXISTING_CONFIG" ]; then
+    SECRET="$(sed -n 's/.*"Secret"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$EXISTING_CONFIG" | head -n 1)"
+fi
 
 if [ -z "$SECRET" ]; then
     echo "Usage: $0 --secret \"<secret from the PC's install-service.ps1 output>\""
