@@ -8,6 +8,16 @@ namespace Pocket.Client.Controls
         public const string CaptureFromPreviewPreferenceKey = "CaptureFromPreview";
         public const bool CaptureFromPreviewDefault = false;
 
+        /// <summary>
+        /// Hidden preferences key selecting the Android camera engine, read once at startup:
+        /// "camerax" = CameraX (Camera2) handler (work in progress), anything else = legacy Camera1 handler.
+        /// </summary>
+        public const string CameraEnginePreferenceKey = "CameraEngine";
+        public const string CameraEngineCameraX = "camerax";
+
+        public static bool UseCameraXEngine =>
+            Microsoft.Maui.Storage.Preferences.Get(CameraEnginePreferenceKey, string.Empty) == CameraEngineCameraX;
+
         /// <summary>Preferences key for showing the vertical zoom slider after tap-to-focus (General settings).</summary>
         public const string ZoomSliderPreferenceKey = "ZoomSliderEnabled";
         public const bool ZoomSliderDefault = true;
