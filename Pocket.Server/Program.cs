@@ -42,6 +42,7 @@ builder.Services.AddSingleton<TransientMemoryStore>();
 builder.Services.Configure<ClusterOptions>(builder.Configuration.GetSection("Cluster"));
 builder.Services.AddSingleton<ClusterState>();
 builder.Services.AddHttpClient("handoff", c => c.Timeout = TimeSpan.FromSeconds(60));
+builder.Services.AddSingleton<IdentitySync>();
 builder.Services.AddHostedService<HandoffService>();
 builder.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromMinutes(2));
 
@@ -135,18 +136,35 @@ app.MapGet("/health", (IOptions<ClusterOptions> options, ClusterState state) =>
             connections = state.ConnectionCount
         }));
 
+// Peer node ⇄ this node: both sides merge the other's identity registry (public keys and
+// usernames only). Users whose entry changed are reconnected so they log in/register again.
+app.MapPost("/internal/identities/sync", (HttpContext http, Dictionary<string, IdentityRegistry.Entry> incoming,
+        IOptions<ClusterOptions> options, IdentityRegistry registry, ClusterState state) =>
+    {
+        if (!IsPeer(http, options.Value)) return Results.Unauthorized();
+
+        var result = registry.Merge(incoming);
+        var affected = result.KeyReplaced.Concat(result.UsernameChanged).Distinct().ToArray();
+        if (affected.Length > 0)
+        {
+            RelayHub.ForgetUsernames(affected);
+            foreach (var userId in affected) state.AbortUser(userId);
+        }
+        if (result.Changed)
+        {
+            app.Logger.LogInformation("Identity sync from peer: {Added} added, {Updated} updated, {Total} total.",
+                result.Added, result.Updated, registry.Count);
+        }
+        return Results.Ok(registry.Snapshot());
+    })
+    .WithMetadata(new RequestSizeLimitAttribute(8 * 1024 * 1024));
+
 // Receives a peer's undelivered payloads on its shutdown (memory to memory, BR-201).
 app.MapPost("/internal/handoff", async (HttpContext http, EncryptedPayloadDto payload,
         IOptions<ClusterOptions> options, TransientMemoryStore store,
         IHubContext<RelayHub, IRelayClient> hub) =>
     {
-        var secret = options.Value.Secret;
-        var provided = http.Request.Headers[HandoffService.SecretHeader].ToString();
-        if (string.IsNullOrEmpty(secret) ||
-            !CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(provided), Encoding.UTF8.GetBytes(secret)))
-        {
-            return Results.Unauthorized();
-        }
+        if (!IsPeer(http, options.Value)) return Results.Unauthorized();
 
         store.EnqueuePayload(payload); // keyed by MessageId, so retries are idempotent
         foreach (var connectionId in RelayHub.GetConnectionIds(payload.RecipientId))
@@ -157,7 +175,19 @@ app.MapPost("/internal/handoff", async (HttpContext http, EncryptedPayloadDto pa
     })
     .WithMetadata(new RequestSizeLimitAttribute(64 * 1024 * 1024));
 
+// Catch up with the peer's registry before accepting logins, so a UserId the peer already
+// bound can't be claimed here first. The peer is usually down; that only costs the timeout.
+await app.Services.GetRequiredService<IdentitySync>().SyncWithPeerAsync(TimeSpan.FromSeconds(5));
+
 app.Run();
+
+static bool IsPeer(HttpContext http, ClusterOptions options)
+{
+    var secret = options.Secret;
+    var provided = http.Request.Headers[HandoffService.SecretHeader].ToString();
+    return !string.IsNullOrEmpty(secret) &&
+           CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(provided), Encoding.UTF8.GetBytes(secret));
+}
 
 /// <summary>Body of POST /auth/token.</summary>
 record TokenRequest(string UserId, string Username, string PublicKey, string Nonce, string Signature);

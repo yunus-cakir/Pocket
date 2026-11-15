@@ -7,6 +7,7 @@ namespace Pocket.Server.Services
     /// On graceful shutdown of a node with Cluster:HandoffUrl set (the standby), refuses new
     /// connections, disconnects clients so they fail over, then pushes every still-undelivered
     /// payload to the peer's /internal/handoff — memory to memory, nothing touches disk (BR-201).
+    /// The identity registry is synced with the peer first.
     /// </summary>
     public class HandoffService : IHostedService
     {
@@ -16,15 +17,17 @@ namespace Pocket.Server.Services
         private readonly ClusterState _state;
         private readonly TransientMemoryStore _store;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IdentitySync _identitySync;
         private readonly ILogger<HandoffService> _logger;
 
         public HandoffService(IOptions<ClusterOptions> options, ClusterState state, TransientMemoryStore store,
-            IHttpClientFactory httpClientFactory, ILogger<HandoffService> logger)
+            IHttpClientFactory httpClientFactory, IdentitySync identitySync, ILogger<HandoffService> logger)
         {
             _options = options.Value;
             _state = state;
             _store = store;
             _httpClientFactory = httpClientFactory;
+            _identitySync = identitySync;
             _logger = logger;
         }
 
@@ -35,6 +38,10 @@ namespace Pocket.Server.Services
         {
             if (string.IsNullOrWhiteSpace(_options.HandoffUrl) || string.IsNullOrWhiteSpace(_options.Secret))
                 return;
+
+            // Users who signed up here while the primary was down must be known there before
+            // the clients we are about to disconnect log in to it.
+            await _identitySync.SyncWithPeerAsync(TimeSpan.FromSeconds(10), cancellationToken);
 
             _state.Draining = true;
             _state.AbortAll();

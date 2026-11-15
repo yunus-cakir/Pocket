@@ -11,6 +11,8 @@ param(
     [string]$InstallDir  = "C:\Services\PocketServer",
     [string]$Urls        = "http://127.0.0.1:5200",
     [string]$ServiceName = "PocketServer",
+    # Standby node; the identity registry is synced with it when this service starts.
+    [string]$PeerUrl     = "https://yunuscakir-mac.tail4d1102.ts.net",
     # Update the build/config but leave the service stopped (e.g. while the Mac standby is serving).
     [switch]$NoStart
 )
@@ -51,7 +53,7 @@ if ([string]::IsNullOrWhiteSpace($secret)) {
 }
 @{
     Urls    = $Urls
-    Cluster = @{ NodeName = 'pc'; Role = 'primary'; Secret = $secret }
+    Cluster = @{ NodeName = 'pc'; Role = 'primary'; Secret = $secret; PeerUrl = $PeerUrl }
 } | ConvertTo-Json -Depth 3 | Out-File -FilePath $prodSettings -Encoding utf8
 
 $exe = Join-Path $InstallDir 'Pocket.Server.exe'

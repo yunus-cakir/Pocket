@@ -78,6 +78,19 @@ namespace Pocket.Server.Hubs
             await base.OnConnectedAsync();
         }
 
+        /// <summary>Drops users' username lookups (after an identity sync changed their entry).</summary>
+        public static void ForgetUsernames(IEnumerable<string> userIds)
+        {
+            var set = userIds.ToHashSet();
+            foreach (var kvp in ActiveUsernames)
+            {
+                if (set.Contains(kvp.Value.UserId))
+                {
+                    ActiveUsernames.TryRemove(kvp.Key, out _);
+                }
+            }
+        }
+
         public override Task OnDisconnectedAsync(Exception? exception)
         {
             _cluster.Untrack(Context.ConnectionId);

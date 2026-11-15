@@ -49,6 +49,7 @@ Mac kurulumu:
    ./install.sh --secret "<gizli anahtar>"
    ```
 6. Logları izlemek için: `tail -f ~/PocketServer/logs/watchdog.log`
+7. Güncellemek için repoyu çek (`git pull`) ve `./install.sh` komutunu çalıştır. `--secret` vermezsen mevcut gizli anahtar korunur.
 
 Dikkat edilmesi gerekenler:
 - Mac'te sunucuyu **elle başlatma** (`dotnet run` vb.). Her zaman bekçi script'i üzerinden çalışsın, yoksa iki sunucu aynı anda açık kalabilir.
@@ -127,4 +128,16 @@ Token'ı sunucu verir; uygulamada hiçbir gizli anahtar bulunmaz.
 - Başkasının kullanıcı adı kendi anahtarınla kaydedilemez, yani arkadaş eklerken araya girme saldırısı engellenir.
 - Arkadaşlık isteklerinde gönderen bilgisi sunucu tarafından doldurulur.
 
-Dosyada yalnızca public key ve kullanıcı adı bulunur, mesaj ya da medya yoktur (BR-201). PC ve Mac kendi kayıtlarını ayrı tutar. Bir kullanıcının anahtarı gerçekten değiştiyse (örneğin yedekten dönmeden yeniden kurulum), o kullanıcının kaydını iki sunucudaki dosyadan da silmek gerekir.
+Dosyada yalnızca public key ve kullanıcı adı bulunur, mesaj ya da medya yoktur (BR-201).
+
+**PC ⇄ Mac eşitleme:** İki sunucu kayıtlarını `POST /internal/identities/sync` ucuyla eşitler. Bu uç `Cluster:Secret` ile korunur ve iki taraf da karşı tarafın kaydını kendi kaydıyla birleştirir.
+- PC servisi açılırken, giriş kabul etmeye başlamadan önce Mac'le eşitlenir (`Cluster:PeerUrl`). Mac kapalıysa 5 sn bekleyip devam eder.
+- Mac sunucusu kapanırken, istemcileri koparmadan önce PC'yle eşitlenir.
+- Mac sunucusu kapalıyken bekçi script'i kayıt dosyasını yaklaşık dakikada bir PC'yle eşitler.
+
+Çakışma kuralları (iki sunucuda da aynı sonucu verir):
+- Aynı kullanıcı ID'si iki sunucuda farklı anahtarlara bağlandıysa, **ilk bağlanan** anahtar kazanır.
+- Aynı kullanıcı adı farklı kullanıcılarca alındıysa, **önce alan** adı korur. Diğerinin adı boşaltılır ve uygulamada yeni bir ad seçmesi gerekir.
+- Kaydı değişen ve o an bağlı olan kullanıcı bağlantıdan düşürülür; uygulama yeniden giriş yapar.
+
+Bir kullanıcının anahtarı gerçekten değiştiyse (örneğin yedekten dönmeden yeniden kurulum), o kullanıcının kaydını önce iki sunucuda da durdurup sonra iki dosyadan birden silmek gerekir. Yoksa eşitleme eski kaydı geri getirir.
