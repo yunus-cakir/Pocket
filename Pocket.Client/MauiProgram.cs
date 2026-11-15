@@ -42,6 +42,7 @@ namespace Pocket.Client
             builder.Services.AddSingleton<LocalDatabase>();
             builder.Services.AddSingleton<Pocket.Client.Services.ICryptoService, Pocket.Client.Services.CryptoService>();
             builder.Services.AddSingleton<Pocket.Client.Services.IRelayService, Pocket.Client.Services.RelayService>();
+            builder.Services.AddSingleton<Pocket.Client.Services.ConnectionHistoryService>();
             builder.Services.AddSingleton<Pocket.Client.Services.IBackupService, Pocket.Client.Services.BackupService>();
             builder.Services.AddSingleton<Pocket.Client.Services.INotificationService, Pocket.Client.Services.NotificationService>();
             // Page Models

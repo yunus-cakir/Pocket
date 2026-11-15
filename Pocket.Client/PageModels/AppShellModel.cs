@@ -199,9 +199,11 @@ namespace Pocket.Client.PageModels
             ICryptoService cryptoService,
             IRelayService relayService,
             IBackupService backupService,
-            INotificationService notificationService)
+            INotificationService notificationService,
+            ConnectionHistoryService connectionHistory)
         {
             _database = database;
+            ConnectionHistory = connectionHistory?.RecentEvents ?? new();
             _cryptoService = cryptoService;
             _relayService = relayService;
             _backupService = backupService;
@@ -352,7 +354,7 @@ namespace Pocket.Client.PageModels
             }
         }
 
-        public AppShellModel() : this(null!, null!, null!, null!, null!)
+        public AppShellModel() : this(null!, null!, null!, null!, null!, null!)
         {
         }
 
@@ -1519,6 +1521,9 @@ namespace Pocket.Client.PageModels
                 UpdateConnectionServerInfo();
             });
         }
+
+        /// <summary>Relay connection timeline shown in the Connection sheet (most recent first).</summary>
+        public System.Collections.ObjectModel.ObservableCollection<ConnectionEvent> ConnectionHistory { get; }
 
         /// <summary>Resets the editable server fields to the saved values.</summary>
         public void ReloadServerSettings()

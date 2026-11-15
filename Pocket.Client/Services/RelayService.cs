@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.SignalR.Client;
+using Pocket.Client.Models;
 using Pocket.Shared.DTOs;
 
 namespace Pocket.Client.Services
@@ -112,8 +113,94 @@ namespace Pocket.Client.Services
         public event Action<FriendRequestDto>? OnFriendRequestReceived;
         public event Action<FriendAcceptDto>? OnFriendAcceptReceived;
 
+        /// <summary>Connection history: drops, failovers, returns to the primary (raised on any thread).</summary>
+        public event Action<ConnectionEvent>? OnConnectionEvent;
+
         /// <summary>True while connected to a non-first candidate (the standby).</summary>
         public bool IsOnFallback { get; private set; }
+
+        // History tracking: the server we were last connected to, and when the current outage began.
+        private readonly object _historyLock = new();
+        private string? _lastRole;
+        private string? _lastHubUrl;
+        private DateTime? _outageStartedUtc;
+        private bool _unreachableRecorded;
+
+        private void RecordEvent(ConnectionEventKind kind, string role, string hubUrl, string? detail = null, double? downtimeSeconds = null)
+        {
+            var evt = new ConnectionEvent
+            {
+                TimestampUtc = DateTime.UtcNow,
+                Kind = kind,
+                ServerRole = role,
+                HubUrl = hubUrl,
+                Detail = detail ?? string.Empty,
+                DowntimeSeconds = downtimeSeconds
+            };
+            System.Diagnostics.Debug.WriteLine($"[RelayService] History: {evt.Title} ({role} {hubUrl}) {detail}");
+            try { OnConnectionEvent?.Invoke(evt); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[RelayService] History handler failed: {ex.Message}"); }
+        }
+
+        /// <summary>An established connection dropped (or reconnecting began): starts an outage once.</summary>
+        private void RecordConnectionLost(string hubUrl, Exception? error)
+        {
+            lock (_historyLock)
+            {
+                if (_outageStartedUtc != null) return;
+                _outageStartedUtc = DateTime.UtcNow;
+                RecordEvent(ConnectionEventKind.Disconnected, _lastRole ?? string.Empty, hubUrl, error?.Message);
+            }
+        }
+
+        private void RecordConnected(int candidateIndex, string hubUrl)
+        {
+            lock (_historyLock)
+            {
+                string role = candidateIndex == 0 ? ConnectionEvent.PrimaryRole : ConnectionEvent.SecondaryRole;
+                double? downtime = _outageStartedUtc is DateTime start ? (DateTime.UtcNow - start).TotalSeconds : null;
+                bool sameServer = string.Equals(_lastHubUrl, hubUrl, StringComparison.OrdinalIgnoreCase);
+
+                ConnectionEventKind? kind;
+                string? detail = null;
+                if (role == ConnectionEvent.SecondaryRole)
+                {
+                    if (_lastRole == ConnectionEvent.SecondaryRole && sameServer)
+                        kind = downtime != null ? ConnectionEventKind.Reconnected : null;
+                    else
+                    {
+                        kind = ConnectionEventKind.SwitchedToSecondary;
+                        detail = "Primary server unreachable";
+                    }
+                }
+                else if (_lastRole == ConnectionEvent.SecondaryRole)
+                    kind = ConnectionEventKind.BackOnPrimary;
+                else if (downtime != null)
+                    kind = sameServer ? ConnectionEventKind.Reconnected : ConnectionEventKind.Connected;
+                else if (_lastRole == null || !sameServer)
+                    kind = ConnectionEventKind.Connected;
+                else
+                    kind = null; // routine reconnect to the same healthy server
+
+                if (kind != null) RecordEvent(kind.Value, role, hubUrl, detail, downtime);
+
+                _lastRole = role;
+                _lastHubUrl = hubUrl;
+                _outageStartedUtc = null;
+                _unreachableRecorded = false;
+            }
+        }
+
+        private void RecordUnreachable(string primaryHubUrl)
+        {
+            lock (_historyLock)
+            {
+                _outageStartedUtc ??= DateTime.UtcNow;
+                if (_unreachableRecorded) return; // once per outage, not on every retry
+                _unreachableRecorded = true;
+                RecordEvent(ConnectionEventKind.Unreachable, string.Empty, primaryHubUrl,
+                    GetServerCandidates().Count > 1 ? "Primary and secondary servers unreachable" : "Server unreachable");
+            }
+        }
 
         private static readonly HttpClient HealthClient = new() { Timeout = TimeSpan.FromSeconds(5) };
         private static readonly TimeSpan StartTimeout = TimeSpan.FromSeconds(10);
@@ -160,6 +247,7 @@ namespace Pocket.Client.Services
                 if (await TryStartAsync(BuildHubUrl(candidates[i])))
                 {
                     IsOnFallback = i > 0;
+                    RecordConnected(i, CurrentHubUrl);
                     UpdatePrimaryProbe();
                     OnConnectionStateChanged?.Invoke(true);
                     return true;
@@ -171,6 +259,7 @@ namespace Pocket.Client.Services
             IsOnFallback = false;
             UpdatePrimaryProbe();
             ConnectedAt = null;
+            RecordUnreachable(CurrentHubUrl);
             OnConnectionStateChanged?.Invoke(false);
             return false;
         }
@@ -195,6 +284,7 @@ namespace Pocket.Client.Services
             connection.Closed += exception =>
             {
                 if (!ReferenceEquals(connection, _hubConnection) || _stopped) return Task.CompletedTask;
+                RecordConnectionLost(hubUrl, exception);
                 OnConnectionStateChanged?.Invoke(false);
                 StartFailoverLoop(); // automatic reconnect gave up: try the other server(s)
                 return Task.CompletedTask;
@@ -202,7 +292,11 @@ namespace Pocket.Client.Services
 
             connection.Reconnecting += exception =>
             {
-                if (ReferenceEquals(connection, _hubConnection)) OnConnectionStateChanged?.Invoke(false);
+                if (ReferenceEquals(connection, _hubConnection))
+                {
+                    RecordConnectionLost(hubUrl, exception);
+                    OnConnectionStateChanged?.Invoke(false);
+                }
                 return Task.CompletedTask;
             };
 
@@ -210,6 +304,7 @@ namespace Pocket.Client.Services
             {
                 if (!ReferenceEquals(connection, _hubConnection)) return;
                 ConnectedAt = DateTime.Now;
+                RecordConnected(IsOnFallback ? 1 : 0, hubUrl);
                 if (_lastRegisteredIdentity != null && IsConnected)
                 {
                     await RegisterUserAsync(_lastRegisteredIdentity);

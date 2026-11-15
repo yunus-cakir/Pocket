@@ -3984,6 +3984,81 @@
                                        FontSize="13"
                                        Margin="4,0,0,0" />
                             </VerticalStackLayout>
+
+                            <!-- Connection history: timeline of drops, failovers and returns (most recent first) -->
+                            <VerticalStackLayout Spacing="8" Margin="0,6,0,0">
+                                <Label Text="History"
+                                       TextColor="#FFFFFF"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="15"
+                                       FontAttributes="Bold"
+                                       Margin="4,0,0,0" />
+                                <Border BackgroundColor="#2C2C2E"
+                                        StrokeShape="RoundRectangle 22"
+                                        StrokeThickness="0"
+                                        Padding="16,14">
+                                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding ShellModel.ConnectionHistory}">
+                                        <BindableLayout.EmptyView>
+                                            <Label Text="No connection events yet."
+                                                   TextColor="#8E8E93"
+                                                   FontFamily="OpenSansRegular"
+                                                   FontSize="13"
+                                                   HorizontalOptions="Center" />
+                                        </BindableLayout.EmptyView>
+                                        <BindableLayout.ItemTemplate>
+                                            <DataTemplate x:DataType="models:ConnectionEvent">
+                                                <Grid ColumnDefinitions="18, *, Auto" ColumnSpacing="10">
+                                                    <!-- Timeline rail + dot -->
+                                                    <BoxView Grid.Column="0"
+                                                             WidthRequest="2"
+                                                             Color="#3A3A3C"
+                                                             BackgroundColor="#3A3A3C"
+                                                             HorizontalOptions="Center"
+                                                             VerticalOptions="Fill" />
+                                                    <Border Grid.Column="0"
+                                                            WidthRequest="12"
+                                                            HeightRequest="12"
+                                                            Margin="0,4,0,0"
+                                                            StrokeShape="RoundRectangle 6"
+                                                            Stroke="#2C2C2E"
+                                                            StrokeThickness="2"
+                                                            BackgroundColor="{Binding ColorHex}"
+                                                            HorizontalOptions="Center"
+                                                            VerticalOptions="Start" />
+
+                                                    <VerticalStackLayout Grid.Column="1" Spacing="2" Padding="0,0,0,14">
+                                                        <Label Text="{Binding Title}"
+                                                               TextColor="{Binding ColorHex}"
+                                                               FontFamily="OpenSansSemibold"
+                                                               FontSize="14"
+                                                               FontAttributes="Bold" />
+                                                        <Label Text="{Binding Subtitle}"
+                                                               TextColor="#8E8E93"
+                                                               FontFamily="OpenSansRegular"
+                                                               FontSize="12"
+                                                               LineBreakMode="TailTruncation" />
+                                                        <Label Text="{Binding Detail}"
+                                                               IsVisible="{Binding HasDetail}"
+                                                               TextColor="#6E6E73"
+                                                               FontFamily="OpenSansRegular"
+                                                               FontSize="12"
+                                                               MaxLines="2"
+                                                               LineBreakMode="TailTruncation" />
+                                                    </VerticalStackLayout>
+
+                                                    <Label Grid.Column="2"
+                                                           Text="{Binding TimeText}"
+                                                           TextColor="#8E8E93"
+                                                           FontFamily="OpenSansRegular"
+                                                           FontSize="12"
+                                                           VerticalOptions="Start"
+                                                           Margin="0,2,0,0" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </BindableLayout.ItemTemplate>
+                                    </VerticalStackLayout>
+                                </Border>
+                            </VerticalStackLayout>
                         </VerticalStackLayout>
                     </ScrollView>
 

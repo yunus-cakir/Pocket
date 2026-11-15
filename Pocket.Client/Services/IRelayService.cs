@@ -1,3 +1,4 @@
+using Pocket.Client.Models;
 using Pocket.Shared.DTOs;
 
 namespace Pocket.Client.Services
@@ -27,5 +28,8 @@ namespace Pocket.Client.Services
         event Action<Guid>? OnDeliveryAcknowledged;
         event Action<FriendRequestDto>? OnFriendRequestReceived;
         event Action<FriendAcceptDto>? OnFriendAcceptReceived;
+
+        /// <summary>Connection history events (drops, failovers, returns to the primary).</summary>
+        event Action<ConnectionEvent>? OnConnectionEvent;
     }
 }

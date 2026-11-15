@@ -33,6 +33,7 @@ namespace Pocket.Client.Data
                 await _connection.CreateTableAsync<Friend>();
                 await _connection.CreateTableAsync<MediaPost>();
                 await _connection.CreateTableAsync<DirectMessage>();
+                await _connection.CreateTableAsync<ConnectionEvent>();
 
                 _isInitialized = true;
             }
@@ -299,6 +300,40 @@ namespace Pocket.Client.Data
                     await _connection.UpdateAsync(dm);
                 }
             }
+        }
+        #endregion
+
+        #region Connection History
+        public async Task<int> SaveConnectionEventAsync(ConnectionEvent evt)
+        {
+            await InitAsync();
+            return await _connection!.InsertAsync(evt);
+        }
+
+        /// <summary>Most recent events first.</summary>
+        public async Task<List<ConnectionEvent>> GetRecentConnectionEventsAsync(int limit)
+        {
+            await InitAsync();
+            return await _connection!.Table<ConnectionEvent>()
+                .OrderByDescending(e => e.TimestampUtc)
+                .Take(limit)
+                .ToListAsync();
+        }
+
+        /// <summary>Events in [fromUtc, toUtc], oldest first (for outage / data-loss analysis).</summary>
+        public async Task<List<ConnectionEvent>> GetConnectionEventsAsync(DateTime fromUtc, DateTime toUtc)
+        {
+            await InitAsync();
+            return await _connection!.Table<ConnectionEvent>()
+                .Where(e => e.TimestampUtc >= fromUtc && e.TimestampUtc <= toUtc)
+                .OrderBy(e => e.TimestampUtc)
+                .ToListAsync();
+        }
+
+        public async Task<int> DeleteConnectionEventsBeforeAsync(DateTime cutoffUtc)
+        {
+            await InitAsync();
+            return await _connection!.Table<ConnectionEvent>().DeleteAsync(e => e.TimestampUtc < cutoffUtc);
         }
         #endregion
     }
