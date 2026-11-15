@@ -32,11 +32,13 @@ namespace Pocket.Client.Platforms.Android.Handlers
         private bool _useSoftwareZoomFallback;
         private float _softwareZoomFactor = 1f;
 
-        // Software exposure fallback (TextureView brightness adjustment) so EV changes are visible even when the virtual camera ignores ExposureCompensation.
-        // Stored as a fractional index so the preview brightness follows the slider smoothly between hardware steps.
+        // Software exposure fallback (TextureView brightness adjustment), used ONLY when the camera has no hardware
+        // exposure compensation or runs on an emulator (whose virtual camera ignores ExposureCompensation).
+        // On real devices EV is handled purely by the sensor/AE, so the effect is never applied twice.
         private double _exposureIndex;
         private float _exposureStep = 1f / 6f;
-        private bool HasExposureAdjustment => System.Math.Abs(_exposureIndex) > 0.001;
+        private bool _useSoftwareExposure;
+        private bool HasExposureAdjustment => _useSoftwareExposure && System.Math.Abs(_exposureIndex) > 0.001;
 
         // Active camera (back / front) and its geometry
         private int _cameraId = -1;
@@ -665,12 +667,16 @@ namespace Pocket.Client.Platforms.Android.Handlers
                 int minExp = p.MinExposureCompensation;
                 int maxExp = p.MaxExposureCompensation;
                 float expStep = p.ExposureCompensationStep > 0 ? p.ExposureCompensationStep : (1f / 6f);
-                if (maxExp <= minExp)
+                bool hwExposure = maxExp > minExp;
+                if (!hwExposure)
                 {
                     minExp = -12;
                     maxExp = 12;
                 }
                 _exposureStep = expStep;
+                _useSoftwareExposure = !hwExposure ||
+                    Microsoft.Maui.Devices.DeviceInfo.Current.DeviceType == Microsoft.Maui.Devices.DeviceType.Virtual;
+                UpdatePreviewBrightnessFilter();
 
                 var flashModes = p.SupportedFlashModes;
                 _hasFlash = flashModes != null &&
@@ -763,17 +769,49 @@ namespace Pocket.Client.Platforms.Android.Handlers
         private void SetExposure(double index)
         {
             if (_camera == null) return;
+            _exposureIndex = index;
+            UpdatePreviewBrightnessFilter();
+            ScheduleExposureRamp();
+        }
+
+        // Hardware EV is not written on every slider move: Get/SetParameters on each move stalls the UI thread
+        // and big jumps in the AE target make the preview lurch. Instead the hardware value walks towards the
+        // slider target one fine step (~1/6 EV) per preview frame, so auto-exposure glides instead of jumping.
+        private const int ExposureRampIntervalMs = 33;
+        private const double ExposureRampEvPerTick = 1.0 / 6.0;
+        private bool _exposureRampScheduled;
+        private long _lastExposureApplyMs;
+
+        private void ScheduleExposureRamp()
+        {
+            if (_exposureRampScheduled || PlatformView == null) return;
+            _exposureRampScheduled = true;
+            long elapsed = global::Android.OS.SystemClock.UptimeMillis() - _lastExposureApplyMs;
+            long delay = System.Math.Max(0, ExposureRampIntervalMs - elapsed);
+            PlatformView.PostDelayed(ExposureRampTick, delay);
+        }
+
+        private void ExposureRampTick()
+        {
+            _exposureRampScheduled = false;
+            if (_camera == null) return;
             try
             {
-                _exposureIndex = index;
-                UpdatePreviewBrightnessFilter();
-
                 var p = _camera.GetParameters();
                 if (p == null || p.MaxExposureCompensation <= p.MinExposureCompensation) return;
-                int clamped = System.Math.Clamp((int)System.Math.Round(index), p.MinExposureCompensation, p.MaxExposureCompensation);
-                if (p.ExposureCompensation == clamped) return;
-                p.ExposureCompensation = clamped;
+
+                int target = System.Math.Clamp((int)System.Math.Round(_exposureIndex), p.MinExposureCompensation, p.MaxExposureCompensation);
+                int current = p.ExposureCompensation;
+                if (current == target) return;
+
+                int maxSteps = System.Math.Max(1, (int)System.Math.Round(ExposureRampEvPerTick / _exposureStep));
+                int next = current + System.Math.Clamp(target - current, -maxSteps, maxSteps);
+                p.ExposureCompensation = next;
                 _camera.SetParameters(p);
+                _lastExposureApplyMs = global::Android.OS.SystemClock.UptimeMillis();
+
+                if (next != target)
+                    ScheduleExposureRamp();
             }
             catch (System.Exception ex)
             {
