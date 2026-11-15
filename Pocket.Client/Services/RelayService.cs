@@ -10,24 +10,67 @@ namespace Pocket.Client.Services
     {
         private HubConnection? _hubConnection;
 
-        public static string GetDefaultServerIp()
-        {
-#if ANDROID
-            return "10.0.2.2";
-#else
-            return "localhost";
-#endif
-        }
+        /// <summary>Public relay (PocketServer service behind Tailscale Funnel).</summary>
+        public const string DefaultServerUrl = "https://yunuscakir.tail4d1102.ts.net";
 
-        public static string GetHubUrl()
+        private const string ServerPreferenceKey = "ServerIp";
+        // Bump the suffix whenever DefaultServerUrl changes, and add the previous default below.
+        private const string ServerDefaultMigratedKey = "ServerIpDefaultMigrated_v3";
+        private static readonly string[] LegacyDefaultServers =
         {
-            string ip = Microsoft.Maui.Storage.Preferences.Get("ServerIp", GetDefaultServerIp());
-            if (string.IsNullOrWhiteSpace(ip))
+            "10.0.2.2",
+            "localhost",
+            "https://pc-1.tail4d1102.ts.net",
+        };
+
+        public static string GetDefaultServerIp() => DefaultServerUrl;
+
+        /// <summary>
+        /// Saved server address, or the default. Once per install (per migration version), a value
+        /// pointing at a previous built-in default is moved to the current default; after that an
+        /// explicitly chosen address is kept.
+        /// </summary>
+        public static string GetSavedServer()
+        {
+            var prefs = Microsoft.Maui.Storage.Preferences.Default;
+            string saved = prefs.Get(ServerPreferenceKey, DefaultServerUrl);
+
+            if (!prefs.Get(ServerDefaultMigratedKey, false))
             {
-                ip = GetDefaultServerIp();
+                prefs.Set(ServerDefaultMigratedKey, true);
+                string savedHub = BuildHubUrl(saved);
+                if (LegacyDefaultServers.Any(l => string.Equals(BuildHubUrl(l), savedHub, StringComparison.OrdinalIgnoreCase)))
+                {
+                    saved = DefaultServerUrl;
+                    prefs.Set(ServerPreferenceKey, saved);
+                }
             }
 
-            return $"http://{ip.Trim()}:5200/hubs/relay";
+            return string.IsNullOrWhiteSpace(saved) ? DefaultServerUrl : saved;
+        }
+
+        public static string GetHubUrl() => BuildHubUrl(GetSavedServer());
+
+        /// <summary>
+        /// Accepts a bare host/IP ("192.168.1.35" → http://host:5200), host:port
+        /// ("192.168.1.35:6000"), or a full URL ("https://pocket.example.com", e.g. a
+        /// Cloudflare Tunnel hostname). "/hubs/relay" is appended when missing.
+        /// </summary>
+        public static string BuildHubUrl(string? server)
+        {
+            const string hubPath = "/hubs/relay";
+            string value = string.IsNullOrWhiteSpace(server) ? GetDefaultServerIp() : server.Trim();
+
+            if (value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                value.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                value = value.TrimEnd('/');
+                return value.EndsWith(hubPath, StringComparison.OrdinalIgnoreCase) ? value : value + hubPath;
+            }
+
+            value = value.TrimEnd('/');
+            bool hasPort = value.LastIndexOf(':') > 0 && !value.Contains("::");
+            return hasPort ? $"http://{value}{hubPath}" : $"http://{value}:5200{hubPath}";
         }
 
         public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected;

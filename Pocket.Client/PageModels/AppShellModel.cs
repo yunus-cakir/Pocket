@@ -417,7 +417,7 @@ namespace Pocket.Client.PageModels
                 CurrentUser = user;
 
                 // Load Server IP from Preferences
-                ServerIp = Microsoft.Maui.Storage.Preferences.Get("ServerIp", RelayService.GetDefaultServerIp());
+                ServerIp = RelayService.GetSavedServer();
 
                 // Load real friends from database
                 var friends = await _database.GetFriendsAsync();
@@ -1630,7 +1630,7 @@ namespace Pocket.Client.PageModels
                     else
                     {
                         await Microsoft.Maui.Controls.Shell.Current.DisplayAlert("Bağlantı Başarısız",
-                            $"'{cleanIp}:5200' adresindeki sunucuya ulaşılamadı. Sunucunun açık olduğundan emin olun.",
+                            $"'{RelayService.BuildHubUrl(cleanIp)}' adresindeki sunucuya ulaşılamadı. Sunucunun açık olduğundan emin olun.",
                             "Tamam");
                     }
                 }

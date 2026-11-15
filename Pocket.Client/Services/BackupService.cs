@@ -1280,7 +1280,7 @@ namespace Pocket.Client.Services
         {
             return new Dictionary<string, string?>
             {
-                ["ServerIp"] = Preferences.Default.Get("ServerIp", RelayService.GetDefaultServerIp()),
+                ["ServerIp"] = RelayService.GetSavedServer(),
                 ["RecentEmojis"] = Preferences.Default.Get("RecentEmojis", "💗,🙃,😋"),
                 [CameraView.CaptureFromPreviewPreferenceKey] = Preferences.Default.Get(CameraView.CaptureFromPreviewPreferenceKey, CameraView.CaptureFromPreviewDefault).ToString(),
                 [CameraView.ZoomSliderPreferenceKey] = Preferences.Default.Get(CameraView.ZoomSliderPreferenceKey, CameraView.ZoomSliderDefault).ToString(),

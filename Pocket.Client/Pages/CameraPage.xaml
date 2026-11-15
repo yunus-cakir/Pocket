@@ -916,7 +916,7 @@
 
                                 <Grid ColumnDefinitions="*, Auto" ColumnSpacing="10" Margin="0,4,0,0">
                                     <Border Grid.Column="0" StrokeThickness="0" StrokeShape="RoundRectangle 14" BackgroundColor="#2C2C2E" Padding="12,0" HeightRequest="42">
-                                        <Entry Text="{Binding ShellModel.ServerIp}" Placeholder="Server IP (e.g. 192.168.1.35)" PlaceholderColor="#8E8E93" TextColor="White" FontSize="13" VerticalOptions="Center" />
+                                        <Entry Text="{Binding ShellModel.ServerIp}" Placeholder="IP or URL (e.g. https://yunuscakir.tail4d1102.ts.net)" Keyboard="Url" PlaceholderColor="#8E8E93" TextColor="White" FontSize="13" VerticalOptions="Center" />
                                     </Border>
                                     <Border Grid.Column="1" StrokeShape="RoundRectangle 14" StrokeThickness="0" BackgroundColor="{DynamicResource AccentColor}" Padding="16,0" HeightRequest="42" VerticalOptions="Center">
                                         <Border.GestureRecognizers>
