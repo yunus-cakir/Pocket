@@ -11,7 +11,7 @@ Pocket, **Local-First** mimari prensibiyle çalışır. Tüm kullanıcı bilgile
 * **Veritabanı Motoru:** SQLite (`sqlite-net-pcl`)
 * **Veritabanı Dosya Adı:** `PocketLocal.db3`
 * **Android Cihaz İçi Konumu:**
-  `/data/user/0/com.companyname.pocket.client.debug/files/PocketLocal.db3`
+  `/data/user/0/com.yunuscakir.pocket.client.debug/files/PocketLocal.db3`
   *(Uygulama kum havuzunda: `files/PocketLocal.db3`)*
 * **İlgili Medya Dizinleri:**
   - `files/Media/` : Çekilen/alınan fotoğraf ve videolar (`.jpg`, `.mp4`)
@@ -73,19 +73,19 @@ Pocket, **Local-First** mimari prensibiyle çalışır. Tüm kullanıcı bilgile
 
 ## ⚡ Veritabanına Erişim ve Yönetim Komutları
 
-Uygulama `debug` modunda olduğu için Android'in `run-as com.companyname.pocket.client.debug` komutu ve `/data/local/tmp` köprüsü ile emülatörden doğrudan çekme/yükleme yapılabilir.
+Uygulama `debug` modunda olduğu için Android'in `run-as com.yunuscakir.pocket.client.debug` komutu ve `/data/local/tmp` köprüsü ile emülatörden doğrudan çekme/yükleme yapılabilir.
 
 ### 1. Veritabanını Cihazdan Bilgisayara Çekme (Pull)
 
 **Emülatör 1 (`emulator-5554`):**
 ```powershell
-adb -s emulator-5554 shell "touch /data/local/tmp/dump.db3; chmod 777 /data/local/tmp/dump.db3; run-as com.companyname.pocket.client.debug cp files/PocketLocal.db3 /data/local/tmp/dump.db3"
+adb -s emulator-5554 shell "touch /data/local/tmp/dump.db3; chmod 777 /data/local/tmp/dump.db3; run-as com.yunuscakir.pocket.client.debug cp files/PocketLocal.db3 /data/local/tmp/dump.db3"
 adb -s emulator-5554 pull /data/local/tmp/dump.db3 ./PocketLocal_5554.db3
 ```
 
 **Emülatör 2 (`emulator-5556`):**
 ```powershell
-adb -s emulator-5556 shell "touch /data/local/tmp/dump.db3; chmod 777 /data/local/tmp/dump.db3; run-as com.companyname.pocket.client.debug cp files/PocketLocal.db3 /data/local/tmp/dump.db3"
+adb -s emulator-5556 shell "touch /data/local/tmp/dump.db3; chmod 777 /data/local/tmp/dump.db3; run-as com.yunuscakir.pocket.client.debug cp files/PocketLocal.db3 /data/local/tmp/dump.db3"
 adb -s emulator-5556 pull /data/local/tmp/dump.db3 ./PocketLocal_5556.db3
 ```
 
@@ -100,17 +100,17 @@ Bilgisayarınızda düzenlediğiniz veya seed verisi eklediğiniz `.db3` dosyas�
 **Emülatör 1 (`emulator-5554`):**
 ```powershell
 adb -s emulator-5554 push ./PocketLocal_5554.db3 /data/local/tmp/new.db3
-adb -s emulator-5554 shell "chmod 777 /data/local/tmp/new.db3; run-as com.companyname.pocket.client.debug cp /data/local/tmp/new.db3 files/PocketLocal.db3"
-adb -s emulator-5554 shell am force-stop com.companyname.pocket.client.debug
-adb -s emulator-5554 shell am start -n com.companyname.pocket.client.debug/crc646dd0ab311caf03fd.MainActivity
+adb -s emulator-5554 shell "chmod 777 /data/local/tmp/new.db3; run-as com.yunuscakir.pocket.client.debug cp /data/local/tmp/new.db3 files/PocketLocal.db3"
+adb -s emulator-5554 shell am force-stop com.yunuscakir.pocket.client.debug
+adb -s emulator-5554 shell am start -n com.yunuscakir.pocket.client.debug/crc646dd0ab311caf03fd.MainActivity
 ```
 
 **Emülatör 2 (`emulator-5556`):**
 ```powershell
 adb -s emulator-5556 push ./PocketLocal_5556.db3 /data/local/tmp/new.db3
-adb -s emulator-5556 shell "chmod 777 /data/local/tmp/new.db3; run-as com.companyname.pocket.client.debug cp /data/local/tmp/new.db3 files/PocketLocal.db3"
-adb -s emulator-5556 shell am force-stop com.companyname.pocket.client.debug
-adb -s emulator-5556 shell am start -n com.companyname.pocket.client.debug/crc646dd0ab311caf03fd.MainActivity
+adb -s emulator-5556 shell "chmod 777 /data/local/tmp/new.db3; run-as com.yunuscakir.pocket.client.debug cp /data/local/tmp/new.db3 files/PocketLocal.db3"
+adb -s emulator-5556 shell am force-stop com.yunuscakir.pocket.client.debug
+adb -s emulator-5556 shell am start -n com.yunuscakir.pocket.client.debug/crc646dd0ab311caf03fd.MainActivity
 ```
 
 ---
@@ -159,8 +159,8 @@ print("Seed veriler başarıyla eklendi.")
 Hızlı deployment DLL'lerini bozmadan sadece veritabanını ve yerel medyaları sıfırlamak için:
 
 ```powershell
-adb -s emulator-5554 shell run-as com.companyname.pocket.client.debug rm -rf files/PocketLocal.db3* files/Media files/Profile
-adb -s emulator-5556 shell run-as com.companyname.pocket.client.debug rm -rf files/PocketLocal.db3* files/Media files/Profile
+adb -s emulator-5554 shell run-as com.yunuscakir.pocket.client.debug rm -rf files/PocketLocal.db3* files/Media files/Profile
+adb -s emulator-5556 shell run-as com.yunuscakir.pocket.client.debug rm -rf files/PocketLocal.db3* files/Media files/Profile
 ```
 Uygulama bir sonraki açılışında temiz bir veritabanı, yeni kullanıcı kimliği ve yeni ECDH anahtarları oluşturur.
 

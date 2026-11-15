@@ -14,8 +14,8 @@ Test ortamında iki farklı Android emülatörü (karşılıklı mesajlaşma, ar
 | **Emülatör 2 (İkincil)** | `pixel_7_-_api_34_0` | Android 14 (API 34) | `emulator-5556` | `Pixel7_A14_API34` (Uygulama içi: `@pixel7_api34`) |
 | **Fiziksel Cihaz (Gerçek)** | Redmi Note 13 Pro 5G vb. | Android 14+ | Değişken (örn: `dd9fc8be`) | USB ile bağlı gerçek Android test cihazı |
 
-* **Uygulama Kimliği (ApplicationId):** `com.companyname.pocket.client.debug`
-* **MainActivity Bileşeni:** `com.companyname.pocket.client.debug/crc646dd0ab311caf03fd.MainActivity`
+* **Uygulama Kimliği (ApplicationId):** `com.yunuscakir.pocket.client.debug`
+* **MainActivity Bileşeni:** `com.yunuscakir.pocket.client.debug/crc646dd0ab311caf03fd.MainActivity`
 * **Target Framework:** `net10.0-android`
 * **Relay Server Adresi (Host):** `http://0.0.0.0:5200` (Health Check: `GET http://localhost:5200/`)
 * **Relay Hub Adresi (Emülatör İçi):** `http://10.0.2.2:5200/hubs/relay`
@@ -86,17 +86,17 @@ Derleme yapmadan uygulamayı her iki cihazda hızlıca yeniden başlatmak, izin 
 ### 1. Kamera İznini Otomatik Verme (Permission Dialog Atlatma)
 Uygulama ilk açıldığında çıkan kamera izni penceresinin otomasyonu veya ekran görüntüsünü engellememesi için:
 ```powershell
-adb -s emulator-5554 shell pm grant com.companyname.pocket.client.debug android.permission.CAMERA
-adb -s emulator-5556 shell pm grant com.companyname.pocket.client.debug android.permission.CAMERA
+adb -s emulator-5554 shell pm grant com.yunuscakir.pocket.client.debug android.permission.CAMERA
+adb -s emulator-5556 shell pm grant com.yunuscakir.pocket.client.debug android.permission.CAMERA
 ```
 
 ### 2. İki Cihazda Uygulamayı Yeniden Başlatma (Force-Stop & Start)
 ```powershell
-adb -s emulator-5554 shell am force-stop com.companyname.pocket.client.debug
-adb -s emulator-5554 shell am start -n com.companyname.pocket.client.debug/crc646dd0ab311caf03fd.MainActivity
+adb -s emulator-5554 shell am force-stop com.yunuscakir.pocket.client.debug
+adb -s emulator-5554 shell am start -n com.yunuscakir.pocket.client.debug/crc646dd0ab311caf03fd.MainActivity
 
-adb -s emulator-5556 shell am force-stop com.companyname.pocket.client.debug
-adb -s emulator-5556 shell am start -n com.companyname.pocket.client.debug/crc646dd0ab311caf03fd.MainActivity
+adb -s emulator-5556 shell am force-stop com.yunuscakir.pocket.client.debug
+adb -s emulator-5556 shell am start -n com.yunuscakir.pocket.client.debug/crc646dd0ab311caf03fd.MainActivity
 ```
 
 ### 3. UI Navigasyon ve Koordinat Kısayolları (1080x2400 Ekran)
@@ -156,17 +156,17 @@ adb -s emulator-5554 shell dumpsys activity activities | Select-String -Pattern 
 
 ## 🗄️ SQLite Veritabanına Erişim, Çekme (Pull), Yükleme (Push) ve Seed Veri Ekleme
 
-Uygulamanın veritabanı dosyası (`PocketLocal.db3`), cihazdaki izole uygulama kum havuzunda (`files/PocketLocal.db3`) saklanır. `Debug` derlemesinde `run-as com.companyname.pocket.client.debug` ve `/data/local/tmp` köprüsüyle doğrudan bilgisayara çekilebilir ve tekrar yüklenebilir.
+Uygulamanın veritabanı dosyası (`PocketLocal.db3`), cihazdaki izole uygulama kum havuzunda (`files/PocketLocal.db3`) saklanır. `Debug` derlemesinde `run-as com.yunuscakir.pocket.client.debug` ve `/data/local/tmp` köprüsüyle doğrudan bilgisayara çekilebilir ve tekrar yüklenebilir.
 
 ### 1. Veritabanını Emülatörden Bilgisayara Çekme (Pull & İnceleme)
 
 ```powershell
 # emulator-5554'ten çekmek için:
-adb -s emulator-5554 shell "touch /data/local/tmp/dump.db3; chmod 777 /data/local/tmp/dump.db3; run-as com.companyname.pocket.client.debug cp files/PocketLocal.db3 /data/local/tmp/dump.db3"
+adb -s emulator-5554 shell "touch /data/local/tmp/dump.db3; chmod 777 /data/local/tmp/dump.db3; run-as com.yunuscakir.pocket.client.debug cp files/PocketLocal.db3 /data/local/tmp/dump.db3"
 adb -s emulator-5554 pull /data/local/tmp/dump.db3 ./PocketLocal_5554.db3
 
 # emulator-5556'dan çekmek için:
-adb -s emulator-5556 shell "touch /data/local/tmp/dump.db3; chmod 777 /data/local/tmp/dump.db3; run-as com.companyname.pocket.client.debug cp files/PocketLocal.db3 /data/local/tmp/dump.db3"
+adb -s emulator-5556 shell "touch /data/local/tmp/dump.db3; chmod 777 /data/local/tmp/dump.db3; run-as com.yunuscakir.pocket.client.debug cp files/PocketLocal.db3 /data/local/tmp/dump.db3"
 adb -s emulator-5556 pull /data/local/tmp/dump.db3 ./PocketLocal_5556.db3
 ```
 > Çekilen `.db3` dosyasını **DB Browser for SQLite**, **VS Code SQLite eklentisi** veya Python ile doğrudan açıp tabloları (`User`, `Friend`, `MediaPost`, `DirectMessage`) görüntüleyebilir ve değiştirebilirsiniz.
@@ -176,14 +176,14 @@ adb -s emulator-5556 pull /data/local/tmp/dump.db3 ./PocketLocal_5556.db3
 ```powershell
 # emulator-5554'e geri yükleme:
 adb -s emulator-5554 push ./PocketLocal_5554.db3 /data/local/tmp/new.db3
-adb -s emulator-5554 shell "chmod 777 /data/local/tmp/new.db3; run-as com.companyname.pocket.client.debug cp /data/local/tmp/new.db3 files/PocketLocal.db3"
+adb -s emulator-5554 shell "chmod 777 /data/local/tmp/new.db3; run-as com.yunuscakir.pocket.client.debug cp /data/local/tmp/new.db3 files/PocketLocal.db3"
 
 # emulator-5556'ya geri yükleme:
 adb -s emulator-5556 push ./PocketLocal_5556.db3 /data/local/tmp/new.db3
-adb -s emulator-5556 shell "chmod 777 /data/local/tmp/new.db3; run-as com.companyname.pocket.client.debug cp /data/local/tmp/new.db3 files/PocketLocal.db3"
+adb -s emulator-5556 shell "chmod 777 /data/local/tmp/new.db3; run-as com.yunuscakir.pocket.client.debug cp /data/local/tmp/new.db3 files/PocketLocal.db3"
 
 # Değişikliklerin ekrana yansıması için uygulamayı yeniden başlatın:
-adb -s emulator-5554 shell am force-stop com.companyname.pocket.client.debug; adb -s emulator-5554 shell am start -n com.companyname.pocket.client.debug/crc646dd0ab311caf03fd.MainActivity
+adb -s emulator-5554 shell am force-stop com.yunuscakir.pocket.client.debug; adb -s emulator-5554 shell am start -n com.yunuscakir.pocket.client.debug/crc646dd0ab311caf03fd.MainActivity
 ```
 
 ---
@@ -193,19 +193,19 @@ adb -s emulator-5554 shell am force-stop com.companyname.pocket.client.debug; ad
 **1. Fast Deployment DLL'lerini Bozmadan Sadece Veritabanını ve Medyayı Sıfırlama (Önerilen):**
 `Debug` modunda `pm clear` komutu `.NET MAUI` Fast Deployment dizinini (`files/.__override__`) sildiği için yeniden `-t:Run` gerektirir. Yeniden derleme yapmadan sadece SQLite veritabanını ve medya dosyalarını sıfırlamak için:
 ```powershell
-adb -s emulator-5554 shell run-as com.companyname.pocket.client.debug rm -rf files/PocketLocal.db3* files/Media
-adb -s emulator-5556 shell run-as com.companyname.pocket.client.debug rm -rf files/PocketLocal.db3* files/Media
+adb -s emulator-5554 shell run-as com.yunuscakir.pocket.client.debug rm -rf files/PocketLocal.db3* files/Media
+adb -s emulator-5556 shell run-as com.yunuscakir.pocket.client.debug rm -rf files/PocketLocal.db3* files/Media
 ```
 
 **2. Tam Uygulama Verisi Sıfırlama (`pm clear`):**
 Uygulamanın tüm verilerini (`SecureStorage` / `SharedPreferences` dahil) sıfırlamak için (`pm clear` sonrasında `-t:Run` ile tekrar dağıtım yapılmalıdır):
 ```powershell
-adb -s emulator-5554 shell pm clear com.companyname.pocket.client.debug
-adb -s emulator-5556 shell pm clear com.companyname.pocket.client.debug
+adb -s emulator-5554 shell pm clear com.yunuscakir.pocket.client.debug
+adb -s emulator-5556 shell pm clear com.yunuscakir.pocket.client.debug
 ```
 
 **Uygulamayı Kaldırma (Uninstall):**
 ```powershell
-adb -s emulator-5554 uninstall com.companyname.pocket.client.debug
-adb -s emulator-5556 uninstall com.companyname.pocket.client.debug
+adb -s emulator-5554 uninstall com.yunuscakir.pocket.client.debug
+adb -s emulator-5556 uninstall com.yunuscakir.pocket.client.debug
 ```

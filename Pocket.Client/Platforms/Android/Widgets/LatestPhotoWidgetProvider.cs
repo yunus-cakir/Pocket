@@ -22,7 +22,7 @@ namespace Pocket.Client.Platforms.Android.Widgets
     /// directly inside the bottom-left of the 1:1 photo.
     /// </summary>
     [BroadcastReceiver(
-        Name = "com.companyname.pocket.client.LatestPhotoWidgetProvider",
+        Name = "com.yunuscakir.pocket.client.LatestPhotoWidgetProvider",
         Label = "Pocket - Latest Photo",
         Exported = true)]
     [IntentFilter(new[] { AppWidgetManager.ActionAppwidgetUpdate })]
