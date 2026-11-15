@@ -1,3 +1,6 @@
 # Shell scripts and launchd plists run on macOS: always LF.
 *.sh    text eol=lf
 *.plist text eol=lf
+
+# Git hooks run under sh and must keep LF endings
+.githooks/* text eol=lf

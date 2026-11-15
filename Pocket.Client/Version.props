@@ -1,0 +1,14 @@
+<Project>
+	<!--
+		App version, managed by Build/ApkVersioning.ps1. Edit by hand only to reset the scheme.
+		  PocketVersion           Major.Minor.Patch. Merge into main -> Minor+1 (Patch=0);
+		                          a signed Release APK built from changed client sources -> Patch+1.
+		  PocketBuildNumber       Increments on every signed Release APK (the "bX" suffix and Android versionCode).
+		  PocketSourceFingerprint Hash of Pocket.Client + Pocket.Shared at the last version change; used to detect new changes.
+	-->
+	<PropertyGroup>
+		<PocketVersion>1.0.0</PocketVersion>
+		<PocketBuildNumber>2</PocketBuildNumber>
+		<PocketSourceFingerprint>0aa1adaf117048c3054200122cd7135b844b9ca9</PocketSourceFingerprint>
+	</PropertyGroup>
+</Project>

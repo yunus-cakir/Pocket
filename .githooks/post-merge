@@ -1,0 +1,28 @@
+#!/bin/sh
+# Merge into main -> bump the app's minor version (1.2.x -> 1.3.0) and commit Version.props.
+# Enabled with: git config core.hooksPath .githooks
+# Pulls (e.g. `git pull` on main) and merges of origin/main are ignored.
+
+branch=$(git rev-parse --abbrev-ref HEAD)
+[ "$branch" = "main" ] || exit 0
+
+action=$(git reflog -1 --format=%gs HEAD)
+case "$action" in
+  merge\ origin/*|merge\ */main:*|pull*) exit 0 ;;
+  merge\ *) ;;
+  *) exit 0 ;;
+esac
+
+root=$(git rev-parse --show-toplevel)
+version=$(powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+  -File "$root/Pocket.Client/Build/ApkVersioning.ps1" -Mode MinorBump | tr -d '\r' | tail -n 1)
+[ -n "$version" ] || { echo "post-merge: version bump failed" >&2; exit 0; }
+
+git commit -q -m "chore(version): bump to $version" -- Pocket.Client/Version.props || exit 0
+echo "post-merge: Pocket version bumped to $version"
+
+# Keep development in step with main so the next merge stays a fast-forward.
+if git show-ref -q --verify refs/heads/development && git merge-base --is-ancestor development main; then
+  git branch -f development main
+  echo "post-merge: development fast-forwarded to main"
+fi

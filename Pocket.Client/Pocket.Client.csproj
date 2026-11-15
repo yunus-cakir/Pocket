@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+	<Import Project="Version.props" />
+
 	<PropertyGroup>
 		<TargetFrameworks>net10.0-android</TargetFrameworks>
 		<TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('linux'))">$(TargetFrameworks);net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
@@ -21,9 +23,12 @@
 		<!-- App Identifier -->
 		<ApplicationId>com.companyname.pocket.client</ApplicationId>
 
-		<!-- Versions -->
-		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
-		<ApplicationVersion>1</ApplicationVersion>
+		<!-- Versions: see Version.props and Build/ApkVersioning.ps1 -->
+		<ApplicationDisplayVersion>$(PocketVersion)</ApplicationDisplayVersion>
+		<ApplicationVersion>$(PocketBuildNumber)</ApplicationVersion>
+
+		<!-- Release Android builds produce a signed APK (sideloaded, not Play Store). -->
+		<AndroidPackageFormat Condition="'$(Configuration)' == 'Release'">apk</AndroidPackageFormat>
 
 		<WindowsPackageType>None</WindowsPackageType>
 
@@ -74,5 +79,39 @@
 	<ItemGroup>
 		<ProjectReference Include="..\Pocket.Shared\Pocket.Shared.csproj" />
 	</ItemGroup>
+
+	<!--
+		Signed Release APK versioning + distribution (Windows only).
+		Before the manifest is generated: resolve the next version/build (Patch+1 if client sources changed).
+		After signing: copy "Pocket vX.Y.Z-bN (MM-dd).apk" to Desktop\Pocket and to Download/Pocket on
+		connected physical Android devices, then persist the new state to Version.props.
+	-->
+	<PropertyGroup>
+		<_PocketApkVersioning Condition="'$(Configuration)' == 'Release' and '$(DesignTimeBuild)' != 'true' and '$(AndroidPackageFormat)' == 'apk' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android' and $([MSBuild]::IsOSPlatform('windows'))">true</_PocketApkVersioning>
+		<_PocketVersioningScript>powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)Build\ApkVersioning.ps1&quot;</_PocketVersioningScript>
+	</PropertyGroup>
+
+	<Target Name="PocketResolveApkVersion" BeforeTargets="_GetAndroidPackageName" Condition="'$(_PocketApkVersioning)' == 'true' and '$(_PocketResolvedVersion)' == ''">
+		<Exec Command="$(_PocketVersioningScript) -Mode Resolve" ConsoleToMSBuild="true" StandardOutputImportance="low">
+			<Output TaskParameter="ConsoleOutput" PropertyName="_PocketResolveOutput" />
+		</Exec>
+		<PropertyGroup>
+			<_PocketResolveLine>$([System.Text.RegularExpressions.Regex]::Match('$(_PocketResolveOutput)', '\d+\.\d+\.\d+\|\d+\|[0-9a-f]*').Value)</_PocketResolveLine>
+			<_PocketResolvedVersion>$(_PocketResolveLine.Split('|')[0])</_PocketResolvedVersion>
+			<_PocketResolvedBuild>$(_PocketResolveLine.Split('|')[1])</_PocketResolvedBuild>
+			<_PocketResolvedFingerprint>$(_PocketResolveLine.Split('|')[2])</_PocketResolvedFingerprint>
+			<ApplicationDisplayVersion>$(_PocketResolvedVersion)</ApplicationDisplayVersion>
+			<ApplicationVersion>$(_PocketResolvedBuild)</ApplicationVersion>
+		</PropertyGroup>
+		<Error Condition="'$(_PocketResolveLine)' == ''" Text="ApkVersioning.ps1 -Mode Resolve returned no version: $(_PocketResolveOutput)" />
+		<Message Importance="high" Text="Pocket APK version: v$(_PocketResolvedVersion)-b$(_PocketResolvedBuild)" />
+	</Target>
+
+	<Target Name="PocketExportSignedApk" AfterTargets="_Sign" Condition="'$(_PocketApkVersioning)' == 'true' and '$(_PocketResolvedVersion)' != '' and '$(_PocketApkExported)' != 'true'">
+		<Exec Command="$(_PocketVersioningScript) -Mode Export -ApkPath &quot;$(ApkFileSigned)&quot; -Version $(_PocketResolvedVersion) -Build $(_PocketResolvedBuild) -SourceFingerprint &quot;$(_PocketResolvedFingerprint)&quot;" StandardOutputImportance="high" />
+		<PropertyGroup>
+			<_PocketApkExported>true</_PocketApkExported>
+		</PropertyGroup>
+	</Target>
 
 </Project>
