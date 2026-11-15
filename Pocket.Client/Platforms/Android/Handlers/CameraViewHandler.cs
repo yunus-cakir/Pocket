@@ -382,6 +382,11 @@ namespace Pocket.Client.Platforms.Android.Handlers
                     : global::Android.Hardware.Camera.Open();
                 if (camera == null) return null;
 
+                // Camera.TakePicture() plays the system's synthetic shutter click; the app gives its own
+                // visual feedback, so mute it. Returns false where the OS mandates the sound (e.g. JP/KR).
+                try { camera.EnableShutterSound(false); }
+                catch (System.Exception ex) { System.Diagnostics.Debug.WriteLine($"Shutter sound disable error: {ex.Message}"); }
+
                 ConfigureCamera(camera);
                 camera.SetPreviewTexture(surface);
                 camera.SetDisplayOrientation(displayOrientation);
