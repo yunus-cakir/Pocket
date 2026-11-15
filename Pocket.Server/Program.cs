@@ -1,12 +1,29 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Hosting.WindowsServices;
 using Microsoft.IdentityModel.Tokens;
 using Pocket.Server.Hubs;
 using Pocket.Server.Services;
 
-var builder = WebApplication.CreateBuilder(args);
+// As a Windows Service the working dir is System32, so the content root (where
+// appsettings*.json are read from) must be set to the app folder up front —
+// WebApplicationBuilder doesn't allow changing it later.
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = WindowsServiceHelpers.IsWindowsService() ? AppContext.BaseDirectory : default
+});
 
-builder.WebHost.UseUrls("http://0.0.0.0:5200");
+// Runs as a Windows Service when started by the SCM (no-op under `dotnet run`).
+builder.Host.UseWindowsService(options => options.ServiceName = "PocketServer");
+
+// Listen address comes from config ("Urls" in appsettings*.json, ASPNETCORE_URLS or --urls).
+// Dev default listens on all interfaces for LAN/emulator testing; the installed service
+// overrides it to loopback-only so it is reachable from outside only via Cloudflare Tunnel.
+if (string.IsNullOrWhiteSpace(builder.Configuration["Urls"]))
+{
+    builder.WebHost.UseUrls("http://0.0.0.0:5200");
+}
 
 builder.Services.AddSignalR(options =>
 {
