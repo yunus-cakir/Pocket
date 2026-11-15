@@ -6,15 +6,15 @@ namespace Pocket.Client.Controls
     {
         /// <summary>Preferences key for the "capture from preview" shutter mode (General settings).</summary>
         public const string CaptureFromPreviewPreferenceKey = "CaptureFromPreview";
-        public const bool CaptureFromPreviewDefault = true;
+        public const bool CaptureFromPreviewDefault = false;
 
         /// <summary>Preferences key for showing the vertical zoom slider after tap-to-focus (General settings).</summary>
         public const string ZoomSliderPreferenceKey = "ZoomSliderEnabled";
-        public const bool ZoomSliderDefault = false;
+        public const bool ZoomSliderDefault = true;
 
         /// <summary>Preferences key for showing the horizontal exposure slider after tap-to-focus (General settings).</summary>
         public const string ExposureSliderPreferenceKey = "ExposureSliderEnabled";
-        public const bool ExposureSliderDefault = false;
+        public const bool ExposureSliderDefault = true;
 
         /// <summary>
         /// Current shutter mode, read at capture time so settings changes apply immediately.
@@ -36,7 +36,7 @@ namespace Pocket.Client.Controls
 
         /// <summary>Preferences key: keep the last exposure compensation between taps and camera restarts (General settings).</summary>
         public const string KeepExposurePreferenceKey = "KeepLastExposure";
-        public const bool KeepExposureDefault = false;
+        public const bool KeepExposureDefault = true;
         public const string LastExposureIndexPreferenceKey = "LastExposureIndexValue"; // double (fractional index)
 
         public static bool KeepLastZoom =>
