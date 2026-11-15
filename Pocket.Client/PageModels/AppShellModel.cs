@@ -1482,7 +1482,9 @@ namespace Pocket.Client.PageModels
 
                 if (isConnected)
                 {
-                    ConnectionStatusText = "Sunucuya Bağlandı";
+                    ConnectionStatusText = _relayService?.IsOnFallback == true
+                        ? "Sunucuya Bağlandı (yedek: Mac)"
+                        : "Sunucuya Bağlandı";
                     ConnectionStatusColor = "#10B981"; // Emerald Green
                     ConnectedUrlText = _relayService?.CurrentHubUrl ?? "-";
                     ConnectedAtText = _relayService?.ConnectedAt?.ToString("HH:mm:ss") ?? "-";

@@ -34,9 +34,23 @@ Write-Host "==> Copying build to $InstallDir" -ForegroundColor Cyan
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 Copy-Item -Path (Join-Path $staging '*') -Destination $InstallDir -Recurse -Force
 
-# Service runs in the Production environment; this file sets its listen address.
+# Service runs in the Production environment; this file sets its listen address and its
+# cluster identity (primary). The shared secret is generated once and kept across re-installs;
+# the Mac standby needs the same value (deploy/mac/install.sh --secret ...).
 $prodSettings = Join-Path $InstallDir 'appsettings.Production.json'
-@{ Urls = $Urls } | ConvertTo-Json | Out-File -FilePath $prodSettings -Encoding utf8
+$secret = $null
+if (Test-Path $prodSettings) {
+    try { $secret = (Get-Content $prodSettings -Raw | ConvertFrom-Json).Cluster.Secret } catch { }
+}
+if ([string]::IsNullOrWhiteSpace($secret)) {
+    $bytes = New-Object byte[] 32
+    [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+    $secret = -join ($bytes | ForEach-Object { $_.ToString('x2') })
+}
+@{
+    Urls    = $Urls
+    Cluster = @{ NodeName = 'pc'; Role = 'primary'; Secret = $secret }
+} | ConvertTo-Json -Depth 3 | Out-File -FilePath $prodSettings -Encoding utf8
 
 $exe = Join-Path $InstallDir 'Pocket.Server.exe'
 if (-not $svc) {
@@ -63,6 +77,9 @@ for ($i = 0; $i -lt 15 -and -not $ok; $i++) {
 
 if ($ok) {
     Write-Host "OK  $healthUrl -> $resp" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Cluster secret (for the Mac standby: ./install.sh --secret ...):" -ForegroundColor Cyan
+    Write-Host "  $secret"
 } else {
     Write-Warning "Service started but $healthUrl did not answer. Check Event Viewer > Windows Logs > Application (source: PocketServer / .NET Runtime)."
 }

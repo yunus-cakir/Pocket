@@ -51,6 +51,20 @@ namespace Pocket.Client.Services
 
         public static string GetHubUrl() => BuildHubUrl(GetSavedServer());
 
+        /// <summary>Standby relay (Mac). Only live while the primary is down — see deploy/README.md.</summary>
+        public const string FallbackServerUrl = "https://yunuscakir-mac.tail4d1102.ts.net";
+
+        /// <summary>
+        /// Servers to try, in order. With the default server saved ("automatic" mode) this is
+        /// primary → standby; a custom server is used on its own.
+        /// </summary>
+        public static IReadOnlyList<string> GetServerCandidates()
+        {
+            string saved = GetSavedServer();
+            bool isDefault = string.Equals(BuildHubUrl(saved), BuildHubUrl(DefaultServerUrl), StringComparison.OrdinalIgnoreCase);
+            return isDefault ? new[] { DefaultServerUrl, FallbackServerUrl } : new[] { saved };
+        }
+
         /// <summary>
         /// Accepts a bare host/IP ("192.168.1.35" → http://host:5200), host:port
         /// ("192.168.1.35:6000"), or a full URL ("https://pocket.example.com", e.g. a
@@ -83,36 +97,102 @@ namespace Pocket.Client.Services
         public event Action<FriendRequestDto>? OnFriendRequestReceived;
         public event Action<FriendAcceptDto>? OnFriendAcceptReceived;
 
+        /// <summary>True while connected to a non-first candidate (the standby).</summary>
+        public bool IsOnFallback { get; private set; }
+
+        private static readonly HttpClient HealthClient = new() { Timeout = TimeSpan.FromSeconds(5) };
+        private static readonly TimeSpan StartTimeout = TimeSpan.FromSeconds(10);
+        private static readonly TimeSpan PrimaryProbeInterval = TimeSpan.FromSeconds(30);
+        private static readonly int[] FailoverDelaysSeconds = { 2, 5, 10, 20, 30, 60 };
+
+        private readonly SemaphoreSlim _connectLock = new(1, 1);
+        private string? _userId;
+        private string? _username;
+        private bool _stopped;
+        private CancellationTokenSource? _failoverCts;
+        private Timer? _primaryProbeTimer;
+
         public async Task ConnectAsync(string userId, string username)
         {
-            if (_hubConnection != null)
+            _userId = userId;
+            _username = username;
+            _stopped = false;
+            CancelFailoverLoop();
+
+            bool connected;
+            await _connectLock.WaitAsync();
+            try
             {
-                await _hubConnection.DisposeAsync();
+                connected = await ConnectToFirstAvailableAsync();
+            }
+            finally
+            {
+                _connectLock.Release();
             }
 
-            var token = GenerateDevJwt(userId, username);
-            CurrentHubUrl = GetHubUrl();
+            if (!connected)
+            {
+                StartFailoverLoop();
+            }
+        }
 
-            _hubConnection = new HubConnectionBuilder()
-                .WithUrl(CurrentHubUrl, options => { options.AccessTokenProvider = () => Task.FromResult(token)!; })
+        /// <summary>Tries each candidate in order; caller must hold _connectLock.</summary>
+        private async Task<bool> ConnectToFirstAvailableAsync()
+        {
+            var candidates = GetServerCandidates();
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                if (await TryStartAsync(BuildHubUrl(candidates[i])))
+                {
+                    IsOnFallback = i > 0;
+                    UpdatePrimaryProbe();
+                    OnConnectionStateChanged?.Invoke(true);
+                    return true;
+                }
+            }
+
+            // Show the primary as the target while nothing is reachable.
+            CurrentHubUrl = BuildHubUrl(candidates[0]);
+            IsOnFallback = false;
+            UpdatePrimaryProbe();
+            ConnectedAt = null;
+            OnConnectionStateChanged?.Invoke(false);
+            return false;
+        }
+
+        private async Task<bool> TryStartAsync(string hubUrl)
+        {
+            var old = _hubConnection;
+            _hubConnection = null;
+            if (old != null)
+            {
+                try { await old.DisposeAsync(); } catch { /* already closed */ }
+            }
+
+            var token = GenerateDevJwt(_userId!, _username!);
+            var connection = new HubConnectionBuilder()
+                .WithUrl(hubUrl, options => { options.AccessTokenProvider = () => Task.FromResult(token)!; })
                 .WithAutomaticReconnect()
                 .Build();
 
-            // Connection Lifecycle Events
-            _hubConnection.Closed += exception =>
+            // Lifecycle events are ignored once this connection has been replaced.
+            connection.Closed += exception =>
             {
+                if (!ReferenceEquals(connection, _hubConnection) || _stopped) return Task.CompletedTask;
                 OnConnectionStateChanged?.Invoke(false);
+                StartFailoverLoop(); // automatic reconnect gave up: try the other server(s)
                 return Task.CompletedTask;
             };
 
-            _hubConnection.Reconnecting += exception =>
+            connection.Reconnecting += exception =>
             {
-                OnConnectionStateChanged?.Invoke(false);
+                if (ReferenceEquals(connection, _hubConnection)) OnConnectionStateChanged?.Invoke(false);
                 return Task.CompletedTask;
             };
 
-            _hubConnection.Reconnected += async connectionId =>
+            connection.Reconnected += async connectionId =>
             {
+                if (!ReferenceEquals(connection, _hubConnection)) return;
                 ConnectedAt = DateTime.Now;
                 if (_lastRegisteredIdentity != null && IsConnected)
                 {
@@ -123,28 +203,137 @@ namespace Pocket.Client.Services
             };
 
             // Map Hub events to C# events
-            _hubConnection.On<EncryptedPayloadDto>("ReceivePayload", payload => OnPayloadReceived?.Invoke(payload));
-            _hubConnection.On<Guid>("AcknowledgeDelivery", messageId => OnDeliveryAcknowledged?.Invoke(messageId));
-            _hubConnection.On<FriendRequestDto>("ReceiveFriendRequest",
+            connection.On<EncryptedPayloadDto>("ReceivePayload", payload => OnPayloadReceived?.Invoke(payload));
+            connection.On<Guid>("AcknowledgeDelivery", messageId => OnDeliveryAcknowledged?.Invoke(messageId));
+            connection.On<FriendRequestDto>("ReceiveFriendRequest",
                 request => OnFriendRequestReceived?.Invoke(request));
-            _hubConnection.On<FriendAcceptDto>("ReceiveFriendAccept", accept => OnFriendAcceptReceived?.Invoke(accept));
+            connection.On<FriendAcceptDto>("ReceiveFriendAccept", accept => OnFriendAcceptReceived?.Invoke(accept));
 
             try
             {
-                await _hubConnection.StartAsync();
+                using var cts = new CancellationTokenSource(StartTimeout);
+                await connection.StartAsync(cts.Token);
+                _hubConnection = connection;
+                CurrentHubUrl = hubUrl;
                 ConnectedAt = DateTime.Now;
-                OnConnectionStateChanged?.Invoke(true);
+
+                // Re-publish identity on the new server (callers of ConnectAsync also register).
+                if (_lastRegisteredIdentity != null)
+                {
+                    await connection.SendAsync("RegisterUser", _lastRegisteredIdentity);
+                }
+                return true;
             }
             catch (Exception ex)
             {
-                ConnectedAt = null;
-                OnConnectionStateChanged?.Invoke(false);
-                System.Diagnostics.Debug.WriteLine($"[RelayService] Failed to connect to SignalR: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[RelayService] Failed to connect to {hubUrl}: {ex.Message}");
+                try { await connection.DisposeAsync(); } catch { }
+                return false;
+            }
+        }
+
+        /// <summary>Retries all candidates with backoff until connected or stopped.</summary>
+        private void StartFailoverLoop()
+        {
+            if (_stopped || _userId == null || _failoverCts != null) return;
+
+            var cts = new CancellationTokenSource();
+            _failoverCts = cts;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    for (int attempt = 0; !cts.IsCancellationRequested; attempt++)
+                    {
+                        int delay = FailoverDelaysSeconds[Math.Min(attempt, FailoverDelaysSeconds.Length - 1)];
+                        await Task.Delay(TimeSpan.FromSeconds(delay), cts.Token);
+
+                        await _connectLock.WaitAsync(cts.Token);
+                        try
+                        {
+                            if (IsConnected || await ConnectToFirstAvailableAsync()) return;
+                        }
+                        finally
+                        {
+                            _connectLock.Release();
+                        }
+                    }
+                }
+                catch (OperationCanceledException) { }
+                finally
+                {
+                    if (ReferenceEquals(_failoverCts, cts)) _failoverCts = null;
+                    cts.Dispose();
+                }
+            });
+        }
+
+        private void CancelFailoverLoop()
+        {
+            var cts = _failoverCts;
+            _failoverCts = null;
+            try { cts?.Cancel(); } catch (ObjectDisposedException) { }
+        }
+
+        /// <summary>While on the standby, periodically check whether the primary is back.</summary>
+        private void UpdatePrimaryProbe()
+        {
+            if (IsOnFallback)
+            {
+                _primaryProbeTimer ??= new Timer(_ => _ = ProbePrimaryAsync(), null, PrimaryProbeInterval, PrimaryProbeInterval);
+            }
+            else
+            {
+                _primaryProbeTimer?.Dispose();
+                _primaryProbeTimer = null;
+            }
+        }
+
+        private async Task ProbePrimaryAsync()
+        {
+            if (!IsOnFallback || _stopped) return;
+
+            var primaryHub = BuildHubUrl(GetServerCandidates()[0]);
+            if (!await IsHealthyAsync(primaryHub)) return;
+
+            if (!await _connectLock.WaitAsync(0)) return;
+            try
+            {
+                if (IsOnFallback && !_stopped)
+                {
+                    System.Diagnostics.Debug.WriteLine("[RelayService] Primary is back, switching from standby.");
+                    if (!await ConnectToFirstAvailableAsync()) StartFailoverLoop();
+                }
+            }
+            finally
+            {
+                _connectLock.Release();
+            }
+        }
+
+        private static async Task<bool> IsHealthyAsync(string hubUrl)
+        {
+            const string hubPath = "/hubs/relay";
+            string baseUrl = hubUrl.EndsWith(hubPath, StringComparison.OrdinalIgnoreCase)
+                ? hubUrl[..^hubPath.Length]
+                : hubUrl;
+            try
+            {
+                using var response = await HealthClient.GetAsync(baseUrl + "/health");
+                return response.IsSuccessStatusCode;
+            }
+            catch
+            {
+                return false;
             }
         }
 
         public async Task DisconnectAsync()
         {
+            _stopped = true;
+            CancelFailoverLoop();
+            _primaryProbeTimer?.Dispose();
+            _primaryProbeTimer = null;
             if (_hubConnection != null)
             {
                 await _hubConnection.StopAsync();
@@ -234,6 +423,9 @@ namespace Pocket.Client.Services
 
         public async ValueTask DisposeAsync()
         {
+            _stopped = true;
+            CancelFailoverLoop();
+            _primaryProbeTimer?.Dispose();
             if (_hubConnection != null)
             {
                 await _hubConnection.DisposeAsync();

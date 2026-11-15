@@ -22,6 +22,40 @@ tailscale up --unattended          # tarayıcıda giriş yap; Windows oturumu ka
 - Funnel ayarı kalıcıdır ve bilgisayar yeniden başladığında Tailscale servisiyle birlikte geri gelir.
 - Durumu görmek için: `tailscale funnel status`. Kapatmak için: `.\setup-tailscale-funnel.ps1 -Off`
 
+## Birincil (PC) + yedek (Mac)
+
+Sunucu her şeyi bellekte tutuyor. İki sunucu aynı anda açık olursa kullanıcılar ikiye bölünür ve birbirlerine mesaj gönderemez. Bu yüzden kural: **her an yalnızca bir sunucu aktif**.
+
+| | PC (birincil) | Mac (yedek) |
+|---|---|---|
+| Adres | `https://yunuscakir.tail4d1102.ts.net` | `https://yunuscakir-mac.tail4d1102.ts.net` |
+| Ne zaman çalışır | Her zaman (Windows servisi) | Yalnızca PC ~45 sn yanıt vermezse (bekçi script'i) |
+| Kurulum | `install-service.ps1` | `mac/install.sh --secret ...` |
+
+Nasıl çalışır:
+- **Bekçi (`mac/watchdog.sh`, launchd):** PC'nin `/health` ucunu 15 sn'de bir kontrol eder. PC 3 kontrolde üst üste yanıt vermezse Mac sunucusunu başlatır. PC 2 kontrolde üst üste sağlıklı görünürse Mac sunucusunu durdurur.
+- **Devir:** Mac sunucusu kapanırken önce yeni bağlantıları reddeder ve bağlı istemcileri koparır; böylece istemciler PC'ye döner. Ardından teslim edilmemiş mesajları PC'nin `/internal/handoff` ucuna aktarır. Aktarım bellekten belleğe yapılır, diske hiçbir şey yazılmaz (BR-201). Bu uç, ortak gizli anahtar (`Cluster:Secret`) ile korunur.
+- **Uygulama:** Varsayılan sunucu seçiliyken uygulama önce PC'ye bağlanmayı dener, olmazsa Mac'e geçer. Mac'e bağlıyken 30 sn'de bir PC'yi yoklar ve PC geri gelince ona döner. Ayarlarda "Sunucuya Bağlandı (yedek: Mac)" yazısı görünür. Elle başka bir adres girilirse yalnızca o adres kullanılır.
+
+Mac kurulumu:
+1. Mac'e Tailscale'i kur ve aynı hesapla giriş yap.
+2. [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)'yı kur.
+3. Repoyu Mac'e klonla.
+4. PC'de `install-service.ps1` çalıştırıldığında ekrana basılan gizli anahtarı al. Daha sonra tekrar görmek için PC'de `C:\Services\PocketServer\appsettings.Production.json` dosyasında `Cluster.Secret` alanına bakabilirsin.
+5. Kurulum script'ini çalıştır:
+   ```bash
+   cd Pocket.Server/deploy/mac
+   chmod +x *.sh
+   ./install.sh --secret "<gizli anahtar>"
+   ```
+6. Logları izlemek için: `tail -f ~/PocketServer/logs/watchdog.log`
+
+Dikkat edilmesi gerekenler:
+- Mac'te sunucuyu **elle başlatma** (`dotnet run` vb.). Her zaman bekçi script'i üzerinden çalışsın, yoksa iki sunucu aynı anda açık kalabilir.
+- Mac uykudayken bekçi çalışmaz. Yedek olarak kullanılacağı zamanlarda Mac'i uyanık tut (Ayarlar → Pil/Enerji).
+- PC kapanırken PC'nin kuyruğundaki teslim edilmemiş mesajlar Mac'e aktarılmaz, çünkü o anda Mac sunucusu henüz çalışmıyor. Bu mesajlar PC'nin belleğindeydi; PC servisi düzgün kapanmazsa kaybolurlar. Bu, bugünkü tek sunuculu davranışla aynı.
+- Kapatmak için: `./uninstall.sh`
+
 ## Cloudflare Tunnel (kendi alan adınla)
 
 ```

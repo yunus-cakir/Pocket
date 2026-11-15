@@ -15,14 +15,37 @@ namespace Pocket.Server.Hubs
         private static readonly ConcurrentDictionary<string, HashSet<string>> UserConnections = new();
         private static readonly ConcurrentDictionary<string, UserIdentityDto> ActiveUsernames = new(StringComparer.OrdinalIgnoreCase);
         private readonly TransientMemoryStore _memoryStore;
+        private readonly ClusterState _cluster;
 
-        public RelayHub(TransientMemoryStore memoryStore)
+        public RelayHub(TransientMemoryStore memoryStore, ClusterState cluster)
         {
             _memoryStore = memoryStore;
+            _cluster = cluster;
+        }
+
+        /// <summary>Current connection ids of a user (used to push handed-off payloads).</summary>
+        public static string[] GetConnectionIds(string userId)
+        {
+            if (UserConnections.TryGetValue(userId, out var connections))
+            {
+                lock (connections)
+                {
+                    return connections.ToArray();
+                }
+            }
+            return Array.Empty<string>();
         }
 
         public override async Task OnConnectedAsync()
         {
+            if (_cluster.Draining)
+            {
+                // Handing off to the peer node: refuse so the client fails over there.
+                Context.Abort();
+                return;
+            }
+            _cluster.Track(Context);
+
             var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var username = Context.User?.FindFirst(ClaimTypes.Name)?.Value ?? Context.User?.FindFirst("username")?.Value;
 
@@ -47,6 +70,7 @@ namespace Pocket.Server.Hubs
 
         public override Task OnDisconnectedAsync(Exception? exception)
         {
+            _cluster.Untrack(Context.ConnectionId);
             var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var username = Context.User?.FindFirst(ClaimTypes.Name)?.Value ?? Context.User?.FindFirst("username")?.Value;
 

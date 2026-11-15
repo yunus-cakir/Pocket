@@ -32,6 +32,12 @@ namespace Pocket.Server.Services
             return new List<EncryptedPayloadDto>();
         }
 
+        /// <summary>Snapshot of every undelivered payload (used for standby → primary handoff).</summary>
+        public List<EncryptedPayloadDto> SnapshotAll()
+        {
+            return _pendingPayloads.Values.SelectMany(m => m.Values).ToList();
+        }
+
         /// <summary>
         /// Safely removes a specific message after it has been confirmed delivered.
         /// Thread-safe and O(1) removal.

@@ -15,6 +15,7 @@ namespace Pocket.Client.Services
         Task SendFriendAcceptAsync(FriendAcceptDto accept);
         
         string CurrentHubUrl { get; }
+        bool IsOnFallback { get; }
         DateTime? ConnectedAt { get; }
 
         // Events received from Hub
