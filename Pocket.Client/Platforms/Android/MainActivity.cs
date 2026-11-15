@@ -10,7 +10,6 @@ using AndroidX.Core.View;
 namespace Pocket.Client
 {
     [Activity(
-        Label = "Pocket",
         Theme = "@style/Maui.SplashTheme",
         MainLauncher = true,
         LaunchMode = LaunchMode.SingleTop,
