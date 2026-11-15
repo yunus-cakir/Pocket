@@ -10,7 +10,7 @@ PROFILE_LOCAL_DIR = os.path.join(SEED_DIR, "Profile")
 os.makedirs(MEDIA_LOCAL_DIR, exist_ok=True)
 os.makedirs(PROFILE_LOCAL_DIR, exist_ok=True)
 
-APP_FILES_BASE = "/data/user/0/com.companyname.pocket.client/files"
+APP_FILES_BASE = "/data/user/0/com.companyname.pocket.client.debug/files"
 
 # Sabit eşleşmiş ECDH P-256 anahtar çiftleri (emulator-5554 <-> emulator-5556 canlı E2EE iletişimi için)
 DEFAULT_5554 = {
