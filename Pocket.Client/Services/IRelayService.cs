@@ -6,6 +6,9 @@ namespace Pocket.Client.Services
     {
         bool IsConnected { get; }
         Task ConnectAsync(string userId, string username);
+
+        /// <summary>Supplies the identity key pair used to log in (sign the server's challenge).</summary>
+        void SetIdentityKeyProvider(Func<Task<(string PublicKey, string PrivateKey)>> provider);
         Task DisconnectAsync();
         Task SendPayloadAsync(EncryptedPayloadDto payload);
         Task ConfirmDeliveryAsync(string senderId, Guid messageId);

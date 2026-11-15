@@ -45,6 +45,13 @@ builder.Services.AddHttpClient("handoff", c => c.Timeout = TimeSpan.FromSeconds(
 builder.Services.AddHostedService<HandoffService>();
 builder.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromMinutes(2));
 
+// Auth: clients prove possession of their identity key (/auth/challenge + /auth/token) and get a
+// JWT signed with a random per-process key — nothing secret ships in the client anymore.
+var jwtSigningKey = AuthService.CreateSigningKey();
+builder.Services.AddSingleton(jwtSigningKey);
+builder.Services.AddSingleton<IdentityRegistry>();
+builder.Services.AddSingleton<AuthService>();
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -66,12 +73,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
         options.TokenValidationParameters = new TokenValidationParameters
         {
-            // WARNING: Configure these securely using builder.Configuration in production!
-            ValidateIssuer = false, 
-            ValidateAudience = false,
+            ValidateIssuer = true,
+            ValidIssuer = AuthService.Issuer,
+            ValidateAudience = true,
+            ValidAudience = AuthService.Audience,
             ValidateLifetime = true,
-            ValidateIssuerSigningKey = false,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("SuperSecretDummyKeyForDevelopmentPurposesOnly!!!"))
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = jwtSigningKey,
+            ClockSkew = TimeSpan.FromMinutes(1)
         };
     });
 builder.Services.AddAuthorization();
@@ -96,6 +105,23 @@ app.UseAuthorization();
 
 app.MapGet("/", () => "📸 Pocket Transient Relay Server is running.");
 app.MapHub<RelayHub>("/hubs/relay");
+
+// Login step 1: one-time nonce to sign.
+app.MapGet("/auth/challenge", (AuthService auth) => Results.Ok(new { nonce = auth.IssueNonce() }));
+
+// Login step 2: signature over "pocket-auth-v1|{userId}|{nonce}" with the identity key → JWT.
+app.MapPost("/auth/token", (TokenRequest request, AuthService auth) =>
+{
+    var (outcome, token, expiresAt) = auth.IssueToken(
+        request.UserId, request.Username, request.PublicKey, request.Nonce, request.Signature);
+    return outcome switch
+    {
+        AuthService.Outcome.Ok => Results.Ok(new { token, expiresAt }),
+        AuthService.Outcome.BadRequest => Results.BadRequest(),
+        AuthService.Outcome.KeyMismatch => Results.StatusCode(StatusCodes.Status403Forbidden),
+        _ => Results.Unauthorized()
+    };
+});
 
 // Liveness + identity, used by clients (failover/failback) and the standby watchdog.
 app.MapGet("/health", (IOptions<ClusterOptions> options, ClusterState state) =>
@@ -132,3 +158,6 @@ app.MapPost("/internal/handoff", async (HttpContext http, EncryptedPayloadDto pa
     .WithMetadata(new RequestSizeLimitAttribute(64 * 1024 * 1024));
 
 app.Run();
+
+/// <summary>Body of POST /auth/token.</summary>
+record TokenRequest(string UserId, string Username, string PublicKey, string Nonce, string Signature);

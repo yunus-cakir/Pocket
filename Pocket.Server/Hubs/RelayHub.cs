@@ -16,12 +16,22 @@ namespace Pocket.Server.Hubs
         private static readonly ConcurrentDictionary<string, UserIdentityDto> ActiveUsernames = new(StringComparer.OrdinalIgnoreCase);
         private readonly TransientMemoryStore _memoryStore;
         private readonly ClusterState _cluster;
+        private readonly IdentityRegistry _identities;
 
-        public RelayHub(TransientMemoryStore memoryStore, ClusterState cluster)
+        public RelayHub(TransientMemoryStore memoryStore, ClusterState cluster, IdentityRegistry identities)
         {
             _memoryStore = memoryStore;
             _cluster = cluster;
+            _identities = identities;
         }
+
+        private string AuthenticatedUserId =>
+            Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? throw new HubException("Unauthorized.");
+
+        /// <summary>The caller's registered identity key (bound at login via /auth/token).</summary>
+        private string RegisteredPublicKey(string userId) =>
+            _identities.GetPublicKey(userId) ?? throw new HubException("Unauthorized: unknown identity.");
 
         /// <summary>Current connection ids of a user (used to push handed-off payloads).</summary>
         public static string[] GetConnectionIds(string userId)
@@ -72,7 +82,6 @@ namespace Pocket.Server.Hubs
         {
             _cluster.Untrack(Context.ConnectionId);
             var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            var username = Context.User?.FindFirst(ClaimTypes.Name)?.Value ?? Context.User?.FindFirst("username")?.Value;
 
             if (!string.IsNullOrEmpty(userId) && UserConnections.TryGetValue(userId, out var connections))
             {
@@ -82,10 +91,14 @@ namespace Pocket.Server.Hubs
                     if (connections.Count == 0)
                     {
                         UserConnections.TryRemove(userId, out _);
-                        if (!string.IsNullOrEmpty(username))
+
+                        // Remove this user's lookup entry once all devices disconnected (only their own).
+                        foreach (var kvp in ActiveUsernames)
                         {
-                            // Remove from active usernames only if all devices disconnected
-                            ActiveUsernames.TryRemove(username, out _);
+                            if (kvp.Value.UserId == userId)
+                            {
+                                ActiveUsernames.TryRemove(kvp.Key, out _);
+                            }
                         }
                     }
                 }
@@ -94,14 +107,25 @@ namespace Pocket.Server.Hubs
             return base.OnDisconnectedAsync(exception);
         }
 
-        // Clients still call this to publish their PublicKey, but identity is validated against the JWT
+        // Publishes the caller for username lookup. UserId comes from the JWT and the key must be
+        // the one proven at login, so nobody can advertise their own key under someone else's name.
         public Task RegisterUser(UserIdentityDto identity)
         {
-            var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            
+            var userId = AuthenticatedUserId;
+
             if (userId != identity.UserId)
             {
                 throw new HubException("Unauthorized: Token UserId does not match the provided Identity UserId.");
+            }
+
+            if (identity.PublicKey != RegisteredPublicKey(userId))
+            {
+                throw new HubException("Unauthorized: PublicKey does not match the registered identity.");
+            }
+
+            if (string.IsNullOrWhiteSpace(identity.Username) || !_identities.TryClaimUsername(userId, identity.Username))
+            {
+                throw new HubException("Username is already taken by another identity.");
             }
 
             // Remove any previous username mapping for this UserId if the user renamed their account
@@ -192,6 +216,11 @@ namespace Pocket.Server.Hubs
 
         public async Task SendFriendRequest(FriendRequestDto request)
         {
+            // Sender identity and key come from the authenticated login, not from the client.
+            var userId = AuthenticatedUserId;
+            request.SenderId = userId;
+            request.SenderPublicKey = RegisteredPublicKey(userId);
+
             if (UserConnections.TryGetValue(request.RecipientId, out var connections))
             {
                 string[] targetIds;
@@ -209,6 +238,10 @@ namespace Pocket.Server.Hubs
 
         public async Task SendFriendAccept(FriendAcceptDto accept)
         {
+            var userId = AuthenticatedUserId;
+            accept.SenderId = userId;
+            accept.SenderPublicKey = RegisteredPublicKey(userId);
+
             if (UserConnections.TryGetValue(accept.RecipientId, out var connections))
             {
                 string[] targetIds;

@@ -463,7 +463,8 @@ namespace Pocket.Client.PageModels
                 _relayService.OnDeliveryAcknowledged -= HandleDeliveryAcknowledged;
                 _relayService.OnDeliveryAcknowledged += HandleDeliveryAcknowledged;
 
-                // Connect to Relay Server securely
+                // Connect to Relay Server securely: login signs the server's challenge with our identity key
+                _relayService.SetIdentityKeyProvider(async () => (CurrentUser.PublicKey, await GetPrivateKeyAsync()));
                 await _relayService.ConnectAsync(CurrentUser.Id, CurrentUser.Username);
                 if (_relayService.IsConnected)
                 {

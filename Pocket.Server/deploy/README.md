@@ -114,6 +114,17 @@ Uygulamada **Ayarlar → Server** alanına `https://pocket.alanadin.com` yaz ve 
 & "${env:ProgramFiles(x86)}\cloudflared\cloudflared.exe" service uninstall
 ```
 
-## ⚠️ Güvenlik notu
+## Kimlik doğrulama
 
-İstemci JWT'yi kendisi imzalıyor ve imza anahtarı uygulamanın içinde gömülü. Sunucu internete açıkken APK'yı inceleyen biri herhangi bir kullanıcı adına token üretebilir. İçerik E2EE olduğu için mesajlar okunamaz, ama kimlik taklidi ve sunucunun kötüye kullanılması mümkün. Gerçek kullanıcılara açmadan önce token'ı sunucunun vermesi sağlanmalı.
+Token'ı sunucu verir; uygulamada hiçbir gizli anahtar bulunmaz.
+
+1. Uygulama `GET /auth/challenge` ile tek kullanımlık bir nonce alır.
+2. `pocket-auth-v1|{userId}|{nonce}` metnini kendi kimlik anahtarıyla imzalar (ECDSA P-256). Bu, arkadaşlarının E2EE için kullandığı anahtarın aynısıdır. İmzayı `POST /auth/token` ile gönderir.
+3. Sunucu imzayı doğrular ve kendi **rastgele, işlem başına üretilen** anahtarıyla imzalanmış 12 saatlik bir JWT döndürür. Sunucu yeniden başlarsa eski token'lar geçersiz olur; uygulama her bağlantıda yeni token aldığı için bu sorun çıkarmaz.
+
+**Kimlik kaydı (`data/identities.json`):** Bir kullanıcı ID'si ilk kez hangi anahtarla giriş yaptıysa artık yalnızca o anahtarı kabul eder (ilk kullanımda güven, TOFU). Kullanıcı adı da o ID'ye bağlanır. Böylece:
+- Başkasının ID'siyle giriş yapılamaz.
+- Başkasının kullanıcı adı kendi anahtarınla kaydedilemez, yani arkadaş eklerken araya girme saldırısı engellenir.
+- Arkadaşlık isteklerinde gönderen bilgisi sunucu tarafından doldurulur.
+
+Dosyada yalnızca public key ve kullanıcı adı bulunur, mesaj ya da medya yoktur (BR-201). PC ve Mac kendi kayıtlarını ayrı tutar. Bir kullanıcının anahtarı gerçekten değiştiyse (örneğin yedekten dönmeden yeniden kurulum), o kullanıcının kaydını iki sunucudaki dosyadan da silmek gerekir.

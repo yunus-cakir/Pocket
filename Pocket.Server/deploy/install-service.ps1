@@ -10,7 +10,9 @@
 param(
     [string]$InstallDir  = "C:\Services\PocketServer",
     [string]$Urls        = "http://127.0.0.1:5200",
-    [string]$ServiceName = "PocketServer"
+    [string]$ServiceName = "PocketServer",
+    # Update the build/config but leave the service stopped (e.g. while the Mac standby is serving).
+    [switch]$NoStart
 )
 
 $ErrorActionPreference = 'Stop'
@@ -64,6 +66,11 @@ if (-not $svc) {
 
 # Restart automatically on crash: 5s, 5s, then 30s; reset failure counter daily.
 sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/5000/restart/30000 | Out-Null
+
+if ($NoStart) {
+    Write-Host "==> Installed; service left stopped (-NoStart). Start it with: Start-Service $ServiceName" -ForegroundColor Yellow
+    return
+}
 
 Write-Host "==> Starting service" -ForegroundColor Cyan
 Start-Service -Name $ServiceName

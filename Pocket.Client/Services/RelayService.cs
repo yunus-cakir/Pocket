@@ -1,7 +1,5 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
+using System.Net.Http.Json;
 using Microsoft.AspNetCore.SignalR.Client;
-using Microsoft.IdentityModel.Tokens;
 using Pocket.Shared.DTOs;
 
 namespace Pocket.Client.Services
@@ -169,9 +167,10 @@ namespace Pocket.Client.Services
                 try { await old.DisposeAsync(); } catch { /* already closed */ }
             }
 
-            var token = GenerateDevJwt(_userId!, _username!);
+            // A fresh server-issued token per connection attempt (server restarts invalidate tokens).
+            string baseUrl = GetBaseUrl(hubUrl);
             var connection = new HubConnectionBuilder()
-                .WithUrl(hubUrl, options => { options.AccessTokenProvider = () => Task.FromResult(token)!; })
+                .WithUrl(hubUrl, options => { options.AccessTokenProvider = () => FetchTokenAsync(baseUrl)!; })
                 .WithAutomaticReconnect()
                 .Build();
 
@@ -311,12 +310,72 @@ namespace Pocket.Client.Services
             }
         }
 
-        private static async Task<bool> IsHealthyAsync(string hubUrl)
+        private static string GetBaseUrl(string hubUrl)
         {
             const string hubPath = "/hubs/relay";
-            string baseUrl = hubUrl.EndsWith(hubPath, StringComparison.OrdinalIgnoreCase)
+            return hubUrl.EndsWith(hubPath, StringComparison.OrdinalIgnoreCase)
                 ? hubUrl[..^hubPath.Length]
                 : hubUrl;
+        }
+
+        private Func<Task<(string PublicKey, string PrivateKey)>>? _identityKeyProvider;
+
+        public void SetIdentityKeyProvider(Func<Task<(string PublicKey, string PrivateKey)>> provider)
+        {
+            _identityKeyProvider = provider;
+        }
+
+        private record ChallengeResponse(string Nonce);
+        private record TokenResponse(string Token, DateTime ExpiresAt);
+
+        /// <summary>
+        /// Logs in by signing the server's one-time nonce with the identity key (the same P-256
+        /// key used for E2EE); the server verifies it and returns a JWT it signed itself.
+        /// </summary>
+        private async Task<string> FetchTokenAsync(string baseUrl)
+        {
+            if (_identityKeyProvider == null || _userId == null)
+                throw new InvalidOperationException("Identity key provider is not set.");
+
+            var (publicKey, privateKey) = await _identityKeyProvider();
+            if (string.IsNullOrEmpty(publicKey) || string.IsNullOrEmpty(privateKey))
+                throw new InvalidOperationException("Identity keys are not available.");
+
+            var challenge = await AuthClient.GetFromJsonAsync<ChallengeResponse>(baseUrl + "/auth/challenge")
+                            ?? throw new InvalidOperationException("Empty auth challenge.");
+
+            byte[] signature;
+            using (var ecdsa = System.Security.Cryptography.ECDsa.Create())
+            {
+                ecdsa.ImportECPrivateKey(Convert.FromBase64String(privateKey), out _);
+                signature = ecdsa.SignData(
+                    System.Text.Encoding.UTF8.GetBytes($"pocket-auth-v1|{_userId}|{challenge.Nonce}"),
+                    System.Security.Cryptography.HashAlgorithmName.SHA256);
+            }
+
+            using var response = await AuthClient.PostAsJsonAsync(baseUrl + "/auth/token", new
+            {
+                userId = _userId,
+                username = _username ?? string.Empty,
+                publicKey,
+                nonce = challenge.Nonce,
+                signature = Convert.ToBase64String(signature)
+            });
+
+            if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                throw new UnauthorizedAccessException("Server rejected this identity key for the user (key mismatch).");
+            response.EnsureSuccessStatusCode();
+
+            var token = await response.Content.ReadFromJsonAsync<TokenResponse>()
+                        ?? throw new InvalidOperationException("Empty auth token.");
+            return token.Token;
+        }
+
+        private static readonly HttpClient AuthClient = new() { Timeout = TimeSpan.FromSeconds(10) };
+
+        private static async Task<bool> IsHealthyAsync(string hubUrl)
+        {
+            string baseUrl = GetBaseUrl(hubUrl);
             try
             {
                 using var response = await HealthClient.GetAsync(baseUrl + "/health");
@@ -391,34 +450,6 @@ namespace Pocket.Client.Services
             {
                 await _hubConnection!.SendAsync("SendFriendAccept", accept);
             }
-        }
-
-        /// <summary>
-        /// Generates a dummy JWT for development purposes. 
-        /// Since ValidateIssuerSigningKey = false on the server, any signature works.
-        /// </summary>
-        private string GenerateDevJwt(string userId, string username)
-        {
-            var claims = new[]
-            {
-                new Claim(ClaimTypes.NameIdentifier, userId),
-                new Claim(ClaimTypes.Name, username)
-            };
-
-            // Using an arbitrary key just to satisfy the token structure
-            var key = new SymmetricSecurityKey(
-                System.Text.Encoding.UTF8.GetBytes("SuperSecretDummyKeyForDevelopmentPurposesOnly!!!"));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-            var token = new JwtSecurityToken(
-                issuer: "pocket-client-dev",
-                audience: "pocket-server",
-                claims: claims,
-                expires: DateTime.Now.AddDays(7),
-                signingCredentials: creds
-            );
-
-            return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
         public async ValueTask DisposeAsync()
