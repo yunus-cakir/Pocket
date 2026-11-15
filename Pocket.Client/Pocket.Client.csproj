@@ -26,7 +26,7 @@
 		<!-- Android Debug builds install as a separate app (own sandbox: DB, Preferences, media),
 		     so they can sit next to the signed Release APK without sharing data. -->
 		<ApplicationId Condition="'$(Configuration)' == 'Debug' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">com.yunuscakir.pocket.client.debug</ApplicationId>
-		<ApplicationTitle Condition="'$(Configuration)' == 'Debug' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">Pocket Debug</ApplicationTitle>
+		<ApplicationTitle Condition="'$(Configuration)' == 'Debug' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">Pocket (Debug)</ApplicationTitle>
 
 		<!-- Versions: see Version.props and Build/ApkVersioning.ps1 -->
 		<ApplicationDisplayVersion>$(PocketVersion)</ApplicationDisplayVersion>
