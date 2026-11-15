@@ -322,7 +322,14 @@ namespace Pocket.Client.Pages
             {
                 MainThread.BeginInvokeOnMainThread(() =>
                 {
+                    bool playSendMorph = isPreviewing && _isAwaitingShutterCapture &&
+                                         !(BindingContext is CameraPageModel pvm && pvm.IsFromGallery);
+                    _isAwaitingShutterCapture = false;
                     ResetShutterVisualState();
+                    if (playSendMorph)
+                        PlaySendMorphAnimation();
+                    else
+                        SetSendButtonFinalState();
                     SetVerticalFeedScrollEnabled(!isPreviewing);
                     UpdateOrientationLockButtonVisibility(isPreviewing);
                     if (!isPreviewing)
@@ -2493,7 +2500,17 @@ namespace Pocket.Client.Pages
 
         private const double ShutterPressedScale = 0.85;
         private const double ShutterPressedOpacity = 0.46;
+        private const double ShutterRingRestThickness = 4.5;
+        private const double ShutterRingArmedThickness = 7.5;
+        private const int ShutterCaptureFallbackMs = 4000;
+        private const string ShutterRingAnimationName = "ShutterRingThickness";
+        private const string SendMorphAnimationName = "SendMorph";
+        private static readonly Color SendButtonRestColor = Color.FromArgb("#4E4E52");
+        // Pressed shutter look: white inner circle at ShutterPressedOpacity over black.
+        private static readonly Color SendButtonMorphStartColor = Color.FromRgb(0.46, 0.46, 0.46);
         private bool _isTriggeringShutter;
+        private bool _isAwaitingShutterCapture;
+        private int _shutterCaptureGeneration;
         private long _shutterPressDownTick;
 
 #if ANDROID
@@ -2564,7 +2581,7 @@ namespace Pocket.Client.Pages
             switch (ev.ActionMasked)
             {
                 case global::Android.Views.MotionEventActions.Down:
-                    if (_isCapturingWithFlash || _isTriggeringShutter ||
+                    if (_isCapturingWithFlash || _isTriggeringShutter || _isAwaitingShutterCapture ||
                         (BindingContext is CameraPageModel vm && vm.IsPreviewing))
                     {
                         e.Handled = true;
@@ -2676,6 +2693,149 @@ namespace Pocket.Client.Pages
             ShutterInnerCircle.AbortAnimation("FadeTo");
             ShutterInnerCircle.Scale = 1.0;
             ShutterInnerCircle.Opacity = 1.0;
+            ShutterOuterRing.AbortAnimation(ShutterRingAnimationName);
+            _shutterRingVisualThickness = ShutterRingRestThickness;
+            ShutterOuterRing.Scale = 1.0;
+            ShutterOuterRing.StrokeThickness = ShutterRingRestThickness;
+        }
+
+        private double _shutterRingVisualThickness = ShutterRingRestThickness;
+
+        /// <summary>
+        /// Draws a ring of <paramref name="baseSize"/> layout size with the given on-screen outer
+        /// diameter and stroke width. Uses Scale (not WidthRequest) so the ring can grow past its
+        /// layout bounds without a relayout; the stroke is divided by the scale to compensate.
+        /// </summary>
+        private static void SetRingGeometry(Border ring, double baseSize, double outerDiameter, double visualThickness)
+        {
+            if (baseSize <= 0)
+                return;
+
+            double scale = Math.Max(0.01, outerDiameter / baseSize);
+            ring.Scale = scale;
+            ring.StrokeThickness = Math.Max(0, visualThickness / scale);
+        }
+
+        /// <summary>
+        /// Outer diameter of the shutter ring for a given stroke width: the inner edge stays fixed at
+        /// its resting position, so a thicker stroke grows the ring outward.
+        /// </summary>
+        private static double ShutterRingOuterDiameter(double baseSize, double visualThickness) =>
+            baseSize + (2 * (visualThickness - ShutterRingRestThickness));
+
+        private void AnimateShutterRingThickness(double to, uint length)
+        {
+            ShutterOuterRing.AbortAnimation(ShutterRingAnimationName);
+            double baseSize = ShutterOuterRing.WidthRequest;
+            new Animation(v =>
+            {
+                _shutterRingVisualThickness = v;
+                SetRingGeometry(ShutterOuterRing, baseSize, ShutterRingOuterDiameter(baseSize, v), v);
+            }, _shutterRingVisualThickness, to)
+                .Commit(ShutterOuterRing, ShutterRingAnimationName, 16, length, Easing.CubicOut);
+        }
+
+        /// <summary>
+        /// Puts the (still hidden) preview send button into the pressed-shutter look so the first
+        /// preview frame already matches the shutter and the morph starts seamlessly.
+        /// </summary>
+        private void SetSendButtonMorphStartState()
+        {
+            this.AbortAnimation(SendMorphAnimationName);
+            if (BindingContext is not CameraPageModel vm || vm.ShutterButtonSize <= 0)
+            {
+                SetSendButtonFinalState();
+                return;
+            }
+
+            SendButtonCircle.Scale = (vm.ShutterInnerCircleSize * ShutterPressedScale) / vm.ShutterButtonSize;
+            SendButtonCircle.BackgroundColor = SendButtonMorphStartColor;
+            SendButtonIcon.Scale = 0.2;
+            SendButtonIcon.Opacity = 0;
+
+            double baseSize = vm.ShutterOuterRingSize;
+            SendMorphRing.WidthRequest = baseSize;
+            SendMorphRing.HeightRequest = baseSize;
+            SetRingGeometry(SendMorphRing, baseSize,
+                ShutterRingOuterDiameter(baseSize, ShutterRingArmedThickness), ShutterRingArmedThickness);
+            SendMorphRing.IsVisible = true;
+        }
+
+        private void SetSendButtonFinalState()
+        {
+            this.AbortAnimation(SendMorphAnimationName);
+            SendButtonCircle.Scale = 1.0;
+            SendButtonCircle.BackgroundColor = SendButtonRestColor;
+            SendButtonIcon.Scale = 1.0;
+            SendButtonIcon.Opacity = 1.0;
+            SendMorphRing.IsVisible = false;
+            SendMorphRing.Scale = 1.0;
+            SendMorphRing.StrokeThickness = 0;
+        }
+
+        private static double Segment(double t, double start, double end) =>
+            Math.Clamp((t - start) / (end - start), 0.0, 1.0);
+
+        private static Color LerpColor(Color a, Color b, double t) => new(
+            (float)(a.Red + ((b.Red - a.Red) * t)),
+            (float)(a.Green + ((b.Green - a.Green) * t)),
+            (float)(a.Blue + ((b.Blue - a.Blue) * t)),
+            (float)(a.Alpha + ((b.Alpha - a.Alpha) * t)));
+
+        /// <summary>
+        /// Shutter → send morph: the shrunken grey inner circle grows into the grey send button,
+        /// the airplane icon grows in with it, and the thickened ring thins inward until it vanishes.
+        /// </summary>
+        private void PlaySendMorphAnimation()
+        {
+            SetSendButtonMorphStartState();
+            if (!SendMorphRing.IsVisible)
+                return;
+
+            double startScale = SendButtonCircle.Scale;
+            double ringBase = SendMorphRing.WidthRequest;
+            double ringInner = Math.Max(0,
+                ShutterRingOuterDiameter(ringBase, ShutterRingArmedThickness) - (2 * ShutterRingArmedThickness));
+
+            new Animation(t =>
+            {
+                double circleT = Easing.CubicOut.Ease(Segment(t, 0.0, 1.0));
+                SendButtonCircle.Scale = startScale + ((1.0 - startScale) * circleT);
+                SendButtonCircle.BackgroundColor = LerpColor(SendButtonMorphStartColor, SendButtonRestColor, circleT);
+
+                double iconT = Easing.CubicOut.Ease(Segment(t, 0.12, 1.0));
+                SendButtonIcon.Scale = 0.2 + (0.8 * iconT);
+                SendButtonIcon.Opacity = iconT;
+
+                // Inner edge stays put while the outer edge collapses inward onto it.
+                double ringT = Easing.CubicInOut.Ease(Segment(t, 0.0, 0.8));
+                double thickness = ShutterRingArmedThickness * (1.0 - ringT);
+                double outer = ringInner + (2 * thickness);
+                SetRingGeometry(SendMorphRing, ringBase, outer, thickness);
+            }, 0.0, 1.0)
+            .Commit(this, SendMorphAnimationName, 16, 380, Easing.Linear,
+                (_, cancelled) =>
+                {
+                    if (!cancelled)
+                        SetSendButtonFinalState();
+                });
+        }
+
+        private async void StartShutterCaptureFallback()
+        {
+            int generation = ++_shutterCaptureGeneration;
+            await Task.Delay(ShutterCaptureFallbackMs);
+            if (generation != _shutterCaptureGeneration || !_isAwaitingShutterCapture)
+                return;
+
+            // Capture never produced a preview (camera error) — restore the idle shutter.
+            _isAwaitingShutterCapture = false;
+            if (!(BindingContext is CameraPageModel vm && vm.IsPreviewing))
+            {
+                SetShutterPressedVisual(false);
+                AnimateShutterRingThickness(ShutterRingRestThickness, 150);
+                SetSendButtonFinalState();
+            }
         }
 
         private async Task ReleaseAndTriggerShutterAsync()
@@ -2695,12 +2855,12 @@ namespace Pocket.Client.Pages
                     await Task.Delay((int)(70 - elapsedMs));
                 }
 
-                ShutterInnerCircle.AbortAnimation("ScaleTo");
-                ShutterInnerCircle.AbortAnimation("FadeTo");
-                await Task.WhenAll(
-                    ShutterInnerCircle.ScaleToAsync(1.0, 85, Easing.CubicOut),
-                    ShutterInnerCircle.FadeToAsync(1.0, 85, Easing.CubicOut)
-                );
+                // Keep the inner circle shrunken/grey (it grows into the send button once the
+                // preview appears) and thicken the outer ring to signal the capture.
+                AnimateShutterRingThickness(ShutterRingArmedThickness, 120);
+                _isAwaitingShutterCapture = true;
+                SetSendButtonMorphStartState();
+                StartShutterCaptureFallback();
 
                 await TriggerShutterCaptureAsync();
             }

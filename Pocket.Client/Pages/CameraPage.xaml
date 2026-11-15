@@ -1239,7 +1239,8 @@
                                           VerticalOptions="Center"
                                           BackgroundColor="Transparent"
                                           HandlerChanged="OnShutterButtonHandlerChanged">
-                                        <Border WidthRequest="{Binding ShutterOuterRingSize}"
+                                        <Border x:Name="ShutterOuterRing"
+                                                WidthRequest="{Binding ShutterOuterRingSize}"
                                                 HeightRequest="{Binding ShutterOuterRingSize}"
                                                 StrokeShape="RoundRectangle 45"
                                                 Stroke="{DynamicResource AccentColor}"
@@ -1309,31 +1310,51 @@
                                               Data="M1,1 L19,19 M19,1 L1,19" />
                                     </Grid>
 
-                                    <!-- Center: Large Solid Grey Circle with Tilted Outlined Paper Airplane Icon -->
-                                    <Border Grid.Column="1"
-                                            WidthRequest="{Binding ShutterButtonSize}"
-                                            HeightRequest="{Binding ShutterButtonSize}"
-                                            StrokeShape="RoundRectangle 46"
-                                            StrokeThickness="0"
-                                            BackgroundColor="#4E4E52"
-                                            Padding="0"
-                                            HorizontalOptions="Center"
-                                            VerticalOptions="Center">
-                                        <Border.GestureRecognizers>
-                                            <TapGestureRecognizer Command="{Binding SendCommand}" />
-                                        </Border.GestureRecognizers>
-                                        <Path WidthRequest="38"
-                                              HeightRequest="38"
-                                              Stroke="#FFFFFF"
-                                              StrokeThickness="2.8"
-                                              StrokeLineCap="Round"
-                                              StrokeLineJoin="Round"
-                                              Fill="Transparent"
-                                              HorizontalOptions="Center"
-                                              VerticalOptions="Center"
-                                              Margin="-4,2,0,0"
-                                              Data="M34,4 L4,16.5 L16.5,21.5 L34,4 Z M16.5,21.5 L21.5,34 L34,4" />
-                                    </Border>
+                                    <!-- Center: Large Solid Grey Circle with Tilted Outlined Paper Airplane Icon.
+                                         After a shutter capture it morphs in from the pressed shutter (code-behind). -->
+                                    <Grid Grid.Column="1"
+                                          WidthRequest="{Binding ShutterButtonSize}"
+                                          HeightRequest="{Binding ShutterButtonSize}"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center">
+                                        <Border x:Name="SendButtonCircle"
+                                                WidthRequest="{Binding ShutterButtonSize}"
+                                                HeightRequest="{Binding ShutterButtonSize}"
+                                                StrokeShape="RoundRectangle 46"
+                                                StrokeThickness="0"
+                                                BackgroundColor="#4E4E52"
+                                                Padding="0"
+                                                HorizontalOptions="Center"
+                                                VerticalOptions="Center">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding SendCommand}" />
+                                            </Border.GestureRecognizers>
+                                            <Path x:Name="SendButtonIcon"
+                                                  WidthRequest="38"
+                                                  HeightRequest="38"
+                                                  Stroke="#FFFFFF"
+                                                  StrokeThickness="2.8"
+                                                  StrokeLineCap="Round"
+                                                  StrokeLineJoin="Round"
+                                                  Fill="Transparent"
+                                                  HorizontalOptions="Center"
+                                                  VerticalOptions="Center"
+                                                  Margin="-4,2,0,0"
+                                                  Data="M34,4 L4,16.5 L16.5,21.5 L34,4 Z M16.5,21.5 L21.5,34 L34,4" />
+                                        </Border>
+
+                                        <!-- Thickened shutter ring that thins inward and vanishes during the morph -->
+                                        <Border x:Name="SendMorphRing"
+                                                IsVisible="False"
+                                                InputTransparent="True"
+                                                StrokeShape="RoundRectangle 45"
+                                                Stroke="{DynamicResource AccentColor}"
+                                                StrokeThickness="0"
+                                                BackgroundColor="Transparent"
+                                                Padding="0"
+                                                HorizontalOptions="Center"
+                                                VerticalOptions="Center" />
+                                    </Grid>
 
                                     <Grid Grid.Column="2" WidthRequest="56" HeightRequest="56" />
                                 </Grid>
