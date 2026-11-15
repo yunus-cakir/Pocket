@@ -356,8 +356,15 @@ namespace Pocket.Client.Pages
                     {
                         UnfocusCaptionEntry();
                     }
+                    if (_isSendFadeInPending)
+                    {
+                        _isSendFadeInPending = false;
+                        _ = PlaySendFadeInAsync();
+                    }
                 });
             };
+
+            viewModel.PlaySendOutTransitionAsync = PlaySendOutTransitionAsync;
         }
 
 #if ANDROID
@@ -2846,6 +2853,7 @@ namespace Pocket.Client.Pages
             SendButtonCircle.BackgroundColor = SendButtonMorphStartColor;
             SendButtonIcon.Scale = 0.2;
             SendButtonIcon.Opacity = 0;
+            SendButtonCheck.Opacity = 0;
 
             double baseSize = vm.ShutterOuterRingSize;
             SendMorphRing.WidthRequest = baseSize;
@@ -2862,9 +2870,120 @@ namespace Pocket.Client.Pages
             SendButtonCircle.BackgroundColor = SendButtonRestColor;
             SendButtonIcon.Scale = 1.0;
             SendButtonIcon.Opacity = 1.0;
+            SendButtonCheck.Opacity = 0;
+            SendButtonCheck.Scale = 1.0;
             SendMorphRing.IsVisible = false;
             SendMorphRing.Scale = 1.0;
             SendMorphRing.StrokeThickness = 0;
+        }
+
+        private const string SendConfirmAnimationName = "SendConfirm";
+        private const double SendFadeInStartScale = 0.86;
+        private bool _isSendFadeInPending;
+
+        /// <summary>
+        /// Send exit transition: the grey send button turns into an accent-colored check, then the
+        /// photo card flies off the top of the screen while the preview controls fade out to black.
+        /// Leaves the camera panel invisible so the view model can reset the preview state behind it;
+        /// <see cref="PlaySendFadeInAsync"/> then brings the camera page back.
+        /// </summary>
+        private async Task PlaySendOutTransitionAsync()
+        {
+            this.AbortAnimation(SendMorphAnimationName);
+            SetSendButtonFinalState();
+            PreviewControlsRow.InputTransparent = true;
+            PreviewTopOverlay.InputTransparent = true;
+            PreviewRecipientsScroll.InputTransparent = true;
+            UnfocusCaptionEntry();
+
+            // 1) Send button → accent circle with checkmark
+            Color accent = AppShellModel.GetAccentColor();
+            var confirmDone = new TaskCompletionSource<bool>();
+            SendButtonCheck.Scale = 0.4;
+            new Animation(t =>
+            {
+                double colorT = Easing.CubicOut.Ease(Segment(t, 0.0, 0.7));
+                SendButtonCircle.BackgroundColor = LerpColor(SendButtonRestColor, accent, colorT);
+
+                // Quick press-in then settle back, so the confirmation reads as a "pop"
+                SendButtonCircle.Scale = t < 0.35
+                    ? 1.0 - (0.08 * Easing.CubicOut.Ease(Segment(t, 0.0, 0.35)))
+                    : 0.92 + (0.08 * Easing.SpringOut.Ease(Segment(t, 0.35, 1.0)));
+
+                double planeT = Easing.CubicIn.Ease(Segment(t, 0.0, 0.4));
+                SendButtonIcon.Opacity = 1.0 - planeT;
+                SendButtonIcon.Scale = 1.0 - (0.6 * planeT);
+
+                double checkT = Segment(t, 0.3, 1.0);
+                SendButtonCheck.Opacity = Easing.CubicOut.Ease(checkT);
+                SendButtonCheck.Scale = 0.4 + (0.6 * Easing.SpringOut.Ease(checkT));
+            }, 0.0, 1.0)
+            .Commit(this, SendConfirmAnimationName, 16, 340, Easing.Linear,
+                (_, _) => confirmDone.TrySetResult(true));
+            await confirmDone.Task;
+            await Task.Delay(140);
+
+            // 2) Photo flies up off-screen while 3) the preview UI fades to black
+            double flyDistance = Math.Max(Height, 800) + CameraCardBorder.Height;
+            await Task.WhenAll(
+                CameraCardBorder.TranslateToAsync(0, -flyDistance, 460, Easing.CubicIn),
+                PreviewControlsRow.FadeToAsync(0, 300, Easing.CubicOut),
+                PreviewTopOverlay.FadeToAsync(0, 300, Easing.CubicOut),
+                PreviewRecipientsScroll.FadeToAsync(0, 300, Easing.CubicOut));
+
+            // Hide the whole camera page (screen is black now) and restore the moved pieces behind it.
+            CameraPanel.Opacity = 0;
+            CameraPanel.Scale = SendFadeInStartScale;
+            SharedBottomBar.Opacity = 0;
+            CameraCardBorder.TranslationY = 0;
+            PreviewControlsRow.Opacity = 1;
+            PreviewTopOverlay.Opacity = 1;
+            PreviewRecipientsScroll.Opacity = 1;
+            PreviewControlsRow.InputTransparent = false;
+            PreviewTopOverlay.InputTransparent = false;
+            PreviewRecipientsScroll.InputTransparent = false;
+            SetSendButtonFinalState();
+
+            _isSendFadeInPending = true;
+            StartSendFadeInFallback();
+            await Task.Delay(90);
+        }
+
+        // Never leave the camera page invisible if the send failed before the preview state was reset.
+        private async void StartSendFadeInFallback()
+        {
+            await Task.Delay(2500);
+            if (!_isSendFadeInPending)
+                return;
+            _isSendFadeInPending = false;
+            await PlaySendFadeInAsync();
+        }
+
+        /// <summary>
+        /// Camera page returns after a send: fades in while growing to its real size.
+        /// </summary>
+        private async Task PlaySendFadeInAsync()
+        {
+            CameraPanel.AnchorX = 0.5;
+            CameraPanel.AnchorY = 0.5;
+
+            // The bottom bar lives outside CameraPanel; anchor it at the same screen point so both grow together.
+            SharedBottomBar.Scale = SendFadeInStartScale;
+            SharedBottomBar.AnchorX = 0.5;
+            if (SharedBottomBar.Height > 0 && CameraPanel.Height > 0)
+                SharedBottomBar.AnchorY = ((CameraPanel.Height / 2) - SharedBottomBar.Y) / SharedBottomBar.Height;
+
+            await Task.WhenAll(
+                CameraPanel.FadeToAsync(1, 360, Easing.CubicOut),
+                CameraPanel.ScaleToAsync(1, 440, Easing.CubicOut),
+                SharedBottomBar.FadeToAsync(1, 360, Easing.CubicOut),
+                SharedBottomBar.ScaleToAsync(1, 440, Easing.CubicOut));
+
+            CameraPanel.Opacity = 1;
+            CameraPanel.Scale = 1;
+            SharedBottomBar.Opacity = 1;
+            SharedBottomBar.Scale = 1;
+            SharedBottomBar.AnchorY = 0.5;
         }
 
         private static double Segment(double t, double start, double end) =>

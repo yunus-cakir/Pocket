@@ -1011,7 +1011,8 @@
                             <BoxView Grid.Row="0" HeightRequest="{Binding GalleryTopSpacerHeight}" BackgroundColor="Transparent" Color="Transparent" />
 
                             <!-- Row 1: Camera Viewfinder Rounded Square Card -->
-                            <Border Grid.Row="1"
+                            <Border x:Name="CameraCardBorder"
+                                    Grid.Row="1"
                                     WidthRequest="{Binding CardSize}"
                                     HeightRequest="{Binding CardSize}"
                                     Margin="6,4,6,0"
@@ -1338,7 +1339,8 @@
                                 </Grid>
 
                                 <!-- Preview Mode Controls (Visible when photo is captured and keyboard is not active) -->
-                                <Grid IsVisible="{Binding ShowPreviewControls}"
+                                <Grid x:Name="PreviewControlsRow"
+                                      IsVisible="{Binding ShowPreviewControls}"
                                       ColumnDefinitions="*, Auto, *"
                                       VerticalOptions="Center"
                                       Margin="0">
@@ -1381,18 +1383,33 @@
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer Command="{Binding SendCommand}" />
                                             </Border.GestureRecognizers>
-                                            <Path x:Name="SendButtonIcon"
-                                                  WidthRequest="38"
-                                                  HeightRequest="38"
-                                                  Stroke="#FFFFFF"
-                                                  StrokeThickness="2.8"
-                                                  StrokeLineCap="Round"
-                                                  StrokeLineJoin="Round"
-                                                  Fill="Transparent"
-                                                  HorizontalOptions="Center"
-                                                  VerticalOptions="Center"
-                                                  Margin="-4,2,0,0"
-                                                  Data="M34,4 L4,16.5 L16.5,21.5 L34,4 Z M16.5,21.5 L21.5,34 L34,4" />
+                                            <Grid InputTransparent="True">
+                                                <Path x:Name="SendButtonIcon"
+                                                      WidthRequest="38"
+                                                      HeightRequest="38"
+                                                      Stroke="#FFFFFF"
+                                                      StrokeThickness="2.8"
+                                                      StrokeLineCap="Round"
+                                                      StrokeLineJoin="Round"
+                                                      Fill="Transparent"
+                                                      HorizontalOptions="Center"
+                                                      VerticalOptions="Center"
+                                                      Margin="-4,2,0,0"
+                                                      Data="M34,4 L4,16.5 L16.5,21.5 L34,4 Z M16.5,21.5 L21.5,34 L34,4" />
+                                                <!-- "Sent" checkmark shown on the accent-colored circle after tapping send -->
+                                                <Path x:Name="SendButtonCheck"
+                                                      Opacity="0"
+                                                      WidthRequest="34"
+                                                      HeightRequest="28"
+                                                      Stroke="#111111"
+                                                      StrokeThickness="3.6"
+                                                      StrokeLineCap="Round"
+                                                      StrokeLineJoin="Round"
+                                                      Fill="Transparent"
+                                                      HorizontalOptions="Center"
+                                                      VerticalOptions="Center"
+                                                      Data="M3,14.5 L12,23.5 L31,4" />
+                                            </Grid>
                                         </Border>
 
                                         <!-- Thickened shutter ring that thins inward and vanishes during the morph -->
@@ -1940,7 +1957,8 @@
                 <!-- ============================================================== -->
                 <!-- PREVIEW TOP OVERLAY BAR ("Send to..." + Save to Gallery Icon)  -->
                 <!-- ============================================================== -->
-                <Grid IsVisible="{Binding ShowPreviewControls}"
+                <Grid x:Name="PreviewTopOverlay"
+                      IsVisible="{Binding ShowPreviewControls}"
                       ColumnDefinitions="42, *, 42"
                       Margin="{Binding TopOverlayMargin}"
                       VerticalOptions="Start">
@@ -1980,7 +1998,8 @@
                 <!-- ============================================================== -->
                 <!-- PREVIEW BOTTOM OVERLAY BAR (Recipient Selector: "All", Friends)-->
                 <!-- ============================================================== -->
-                <ScrollView IsVisible="{Binding ShowPreviewControls}"
+                <ScrollView x:Name="PreviewRecipientsScroll"
+                            IsVisible="{Binding ShowPreviewControls}"
                             Orientation="Horizontal"
                             HorizontalScrollBarVisibility="Never"
                             HorizontalOptions="Center"

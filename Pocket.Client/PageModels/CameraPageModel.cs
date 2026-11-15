@@ -1956,9 +1956,19 @@ namespace Pocket.Client.PageModels
             }
         }
 
+        /// <summary>
+        /// Plays the "sent" exit transition (send button → check, photo flies up, preview UI fades to black).
+        /// Awaited before the preview state is reset; the page plays the camera fade-in afterwards.
+        /// </summary>
+        public Func<Task>? PlaySendOutTransitionAsync;
+
+        private bool _isSending;
+
         [RelayCommand]
         private void Cancel()
         {
+            if (_isSending) return;
+
             if (!string.IsNullOrEmpty(CapturedImagePath) && System.IO.File.Exists(CapturedImagePath))
             {
                 try
@@ -1981,14 +1991,39 @@ namespace Pocket.Client.PageModels
         [RelayCommand]
         private async Task SendAsync()
         {
+            if (_isSending) return;
             if (string.IsNullOrEmpty(CapturedImagePath) || !System.IO.File.Exists(CapturedImagePath)) return;
+            _isSending = true;
+            try
+            {
+                await SendCoreAsync();
+            }
+            finally
+            {
+                _isSending = false;
+            }
+        }
+
+        private async Task SendCoreAsync()
+        {
+            // The exit animation runs while the photo is persisted below; state is reset once both finish.
+            Task transition = Task.CompletedTask;
+            try
+            {
+                transition = PlaySendOutTransitionAsync?.Invoke() ?? Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Send transition failed to start: {ex.Message}");
+            }
 
             // Migrate temporary cached photo to persistent AppDataDirectory storage
             var mediaDir = System.IO.Path.Combine(Microsoft.Maui.Storage.FileSystem.AppDataDirectory, "Media");
             System.IO.Directory.CreateDirectory(mediaDir);
 
             var persistentPath = System.IO.Path.Combine(mediaDir, $"post_{Guid.NewGuid()}.jpg");
-            System.IO.File.Copy(CapturedImagePath, persistentPath, true);
+            var tempPath = CapturedImagePath;
+            await Task.Run(() => System.IO.File.Copy(tempPath, persistentPath, true));
 
             // Clean up temporary cache file
             try
@@ -2044,6 +2079,15 @@ namespace Pocket.Client.PageModels
             }
 
             OnPropertyChanged(nameof(ShowEmptyFilteredFeedCard));
+
+            try
+            {
+                await transition;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Send transition failed: {ex.Message}");
+            }
 
             IsViewingFeed = false;
             IsEditingCaption = false;
