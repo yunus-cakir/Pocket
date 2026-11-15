@@ -23,7 +23,7 @@ namespace Pocket.Client.Platforms.Android.Widgets
     /// </summary>
     [BroadcastReceiver(
         Name = "com.companyname.pocket.client.LatestPhotoWidgetProvider",
-        Label = "Pocket - Son Fotoğraf",
+        Label = "Pocket - Latest Photo",
         Exported = true)]
     [IntentFilter(new[] { AppWidgetManager.ActionAppwidgetUpdate })]
     [MetaData(AppWidgetManager.MetaDataAppwidgetProvider, Resource = "@xml/latest_photo_widget_info")]

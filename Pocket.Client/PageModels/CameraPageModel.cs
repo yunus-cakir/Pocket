@@ -1330,7 +1330,7 @@ namespace Pocket.Client.PageModels
             var list = new System.Collections.Generic.List<string>
                 { FirstRecentEmoji, SecondRecentEmoji, ThirdRecentEmoji };
             list.Remove(emoji);
-            list.Insert(0, emoji); // En son kullanılan emoji en soldan başlar
+            list.Insert(0, emoji); // Most recently used emoji goes first (leftmost)
 
             FirstRecentEmoji = list.Count > 0 ? list[0] : "💗";
             SecondRecentEmoji = list.Count > 1 ? list[1] : "🙃";
@@ -1616,9 +1616,9 @@ namespace Pocket.Client.PageModels
                 if (Microsoft.Maui.Controls.Shell.Current != null)
                 {
                     await Microsoft.Maui.Controls.Shell.Current.DisplayAlert(
-                        "Arkadaş Bulunamadı",
-                        "Yanıt veya reaksiyon göndermek için önce bir arkadaş ekleyin.",
-                        "Tamam");
+                        "No Friends Yet",
+                        "Add a friend first to send replies or reactions.",
+                        "OK");
                 }
 
                 return;

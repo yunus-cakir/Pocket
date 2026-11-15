@@ -2230,7 +2230,7 @@
                                            VerticalOptions="Center" />
                                 </Grid>
 
-                                <!-- Right: Quick Emojis (En son kullanılan emojiler soldan başlar) + Add-Emoji Icon (😊+) -->
+                                <!-- Right: Quick Emojis (most recently used first) + Add-Emoji Icon (😊+) -->
                                 <HorizontalStackLayout Grid.Column="1" Spacing="14" VerticalOptions="Center">
                                     <Label Text="{Binding FirstRecentEmoji}" FontSize="23" VerticalOptions="Center">
                                         <Label.GestureRecognizers>

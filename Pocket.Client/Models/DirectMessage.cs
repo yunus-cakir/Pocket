@@ -92,7 +92,7 @@ namespace Pocket.Client.Models
         public string ReferencedPostCaption
         {
             get => string.IsNullOrWhiteSpace(_referencedPostCaption)
-                ? "📸 Fotoğrafa yanıt"
+                ? "📸 Replied to a photo"
                 : $"📸 {_referencedPostCaption}";
             set => SetProperty(ref _referencedPostCaption, value);
         }
@@ -215,13 +215,13 @@ namespace Pocket.Client.Models
 
         [Ignore]
         public string StatusText => IsIncoming
-            ? $"🔐 E2EE Çözüldü • {SentAt.ToLocalTime():HH:mm}"
+            ? $"🔐 E2EE Decrypted • {SentAt.ToLocalTime():HH:mm}"
             : SyncStatus switch
             {
-                SyncStatus.Pending => $"⏳ Bekliyor • {SentAt.ToLocalTime():HH:mm}",
-                SyncStatus.Sent => $"🔒 E2EE Gönderildi • {SentAt.ToLocalTime():HH:mm}",
-                SyncStatus.Delivered => $"✅ E2EE İletildi & Silindi • {SentAt.ToLocalTime():HH:mm}",
-                SyncStatus.Failed => $"❌ Başarısız • {SentAt.ToLocalTime():HH:mm}",
+                SyncStatus.Pending => $"⏳ Pending • {SentAt.ToLocalTime():HH:mm}",
+                SyncStatus.Sent => $"🔒 E2EE Sent • {SentAt.ToLocalTime():HH:mm}",
+                SyncStatus.Delivered => $"✅ E2EE Delivered & Deleted • {SentAt.ToLocalTime():HH:mm}",
+                SyncStatus.Failed => $"❌ Failed • {SentAt.ToLocalTime():HH:mm}",
                 _ => string.Empty
             };
     }

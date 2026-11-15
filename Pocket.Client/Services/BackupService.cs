@@ -435,7 +435,7 @@ namespace Pocket.Client.Services
                 if (extractedDbPath == null && dataDump == null)
                 {
                     result.Success = false;
-                    result.ErrorMessage = "Seçilen dosya geçerli bir Pocket yedeği (.zip, .json veya .db3) değil.";
+                    result.ErrorMessage = "The selected file is not a valid Pocket backup (.zip, .json or .db3).";
                     return result;
                 }
 
@@ -565,7 +565,7 @@ namespace Pocket.Client.Services
             if (rc != raw.SQLITE_OK)
             {
                 srcDb.Dispose();
-                throw new InvalidOperationException($"Yedek SQLite dosyası açılamadı (Kod: {rc}).");
+                throw new InvalidOperationException($"Could not open the backup SQLite file (code: {rc}).");
             }
 
             try
@@ -754,7 +754,7 @@ namespace Pocket.Client.Services
                 if (rc != raw.SQLITE_OK)
                 {
                     stmt.Dispose();
-                    throw new InvalidOperationException($"SQL hazırlanamadı ({tableName}): {raw.sqlite3_errmsg(db).utf8_to_string()}");
+                    throw new InvalidOperationException($"Could not prepare SQL ({tableName}): {raw.sqlite3_errmsg(db).utf8_to_string()}");
                 }
 
                 try
@@ -1132,7 +1132,7 @@ namespace Pocket.Client.Services
             {
                 string err = raw.sqlite3_errmsg(db).utf8_to_string();
                 stmt.Dispose();
-                throw new InvalidOperationException($"SQL Hatası: {err} ({sql})");
+                throw new InvalidOperationException($"SQL error: {err} ({sql})");
             }
 
             try

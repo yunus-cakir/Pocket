@@ -9,7 +9,7 @@ namespace Pocket.Client.Models
         private string _username = string.Empty;
         private string _displayName = string.Empty;
         private string _profilePictureUrl = string.Empty;
-        private string _lastMessagePreview = "Henüz mesaj yok";
+        private string _lastMessagePreview = "No messages yet";
         private string _lastMessageTimeText = string.Empty;
         private bool _isSelectedForSend;
 

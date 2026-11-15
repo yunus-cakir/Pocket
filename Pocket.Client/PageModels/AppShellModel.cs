@@ -246,9 +246,9 @@ namespace Pocket.Client.PageModels
             if (!requested && Microsoft.Maui.Controls.Shell.Current != null)
             {
                 await Microsoft.Maui.Controls.Shell.Current.DisplayAlert(
-                    "Widget Eklenemedi",
-                    "Ana ekranınız otomatik widget eklemeyi desteklemiyor. Ana ekranda boş bir alana basılı tutup \"Widget'lar\" menüsünden Pocket'ı seçerek ekleyebilirsiniz.",
-                    "Tamam");
+                    "Couldn't Add Widget",
+                    "Your home screen doesn't support adding widgets automatically. Long-press an empty area of the home screen, open \"Widgets\" and pick Pocket.",
+                    "OK");
             }
         }
 
@@ -345,7 +345,7 @@ namespace Pocket.Client.PageModels
                 {
                     f.LastMessagePreview = !string.IsNullOrWhiteSpace(dm.TextContent)
                         ? dm.TextContent
-                        : (!string.IsNullOrWhiteSpace(dm.ReactionEmoji) ? dm.ReactionEmoji : "Fotoğrafa yanıt verdi");
+                        : (!string.IsNullOrWhiteSpace(dm.ReactionEmoji) ? dm.ReactionEmoji : "Replied to a photo");
                     f.LastMessageTimeText = MediaPost.FormatRelativeTime(dm.SentAt);
                     break;
                 }
@@ -441,12 +441,12 @@ namespace Pocket.Client.PageModels
                         var lastDm = chatDms[chatDms.Count - 1];
                         friend.LastMessagePreview = !string.IsNullOrWhiteSpace(lastDm.TextContent)
                             ? lastDm.TextContent
-                            : "Fotoğrafa yanıt verdi";
+                            : "Replied to a photo";
                         friend.LastMessageTimeText = MediaPost.FormatRelativeTime(lastDm.SentAt);
                     }
                     else
                     {
-                        friend.LastMessagePreview = "Sohbeti başlatmak için dokun";
+                        friend.LastMessagePreview = "Tap to start chatting";
                         friend.LastMessageTimeText = MediaPost.FormatRelativeTime(friend.AddedAt);
                     }
 
@@ -544,7 +544,7 @@ namespace Pocket.Client.PageModels
                     {
                         targetFriend.LastMessagePreview = !string.IsNullOrWhiteSpace(dm.TextContent)
                             ? dm.TextContent
-                            : "Fotoğrafa yanıt verdi";
+                            : "Replied to a photo";
                         targetFriend.LastMessageTimeText = MediaPost.FormatRelativeTime(dm.SentAt);
                     }
                 }
@@ -666,12 +666,12 @@ namespace Pocket.Client.PageModels
                         var lastDm = chatDms[chatDms.Count - 1];
                         targetFriend.LastMessagePreview = !string.IsNullOrWhiteSpace(lastDm.TextContent)
                             ? lastDm.TextContent
-                            : "Fotoğrafa yanıt verdi";
+                            : "Replied to a photo";
                         targetFriend.LastMessageTimeText = MediaPost.FormatRelativeTime(lastDm.SentAt);
                     }
                     else
                     {
-                        targetFriend.LastMessagePreview = "Sohbeti başlatmak için dokun";
+                        targetFriend.LastMessagePreview = "Tap to start chatting";
                         targetFriend.LastMessageTimeText = MediaPost.FormatRelativeTime(targetFriend.AddedAt);
                     }
                 }
@@ -1007,7 +1007,7 @@ namespace Pocket.Client.PageModels
                             {
                                 targetFriend.LastMessagePreview = !string.IsNullOrWhiteSpace(dm.TextContent)
                                     ? dm.TextContent
-                                    : "Fotoğrafa yanıt verdi";
+                                    : "Replied to a photo";
                                 targetFriend.LastMessageTimeText = MediaPost.FormatRelativeTime(dm.SentAt);
                             }
                         }
@@ -1581,10 +1581,10 @@ namespace Pocket.Client.PageModels
                 if (Microsoft.Maui.Controls.Shell.Current == null) return;
 
                 bool accept = await Microsoft.Maui.Controls.Shell.Current.DisplayAlert(
-                    "Arkadaşlık İsteği",
-                    $"{request.SenderUsername} size bir arkadaşlık isteği gönderdi. Kabul ediyor musunuz?",
-                    "Kabul Et",
-                    "Reddet");
+                    "Friend Request",
+                    $"{request.SenderUsername} sent you a friend request. Do you accept?",
+                    "Accept",
+                    "Decline");
 
                 if (accept && _database != null && _relayService != null)
                 {
@@ -1648,8 +1648,8 @@ namespace Pocket.Client.PageModels
 
                         if (Microsoft.Maui.Controls.Shell.Current != null)
                         {
-                            await Microsoft.Maui.Controls.Shell.Current.DisplayAlert("İstek Kabul Edildi",
-                                $"{acceptDto.SenderUsername} arkadaşlık isteğinizi kabul etti!", "Tamam");
+                            await Microsoft.Maui.Controls.Shell.Current.DisplayAlert("Request Accepted",
+                                $"{acceptDto.SenderUsername} accepted your friend request!", "OK");
                         }
                     }
                     else
@@ -1733,12 +1733,12 @@ namespace Pocket.Client.PageModels
                 if (hasExistingPhoto)
                 {
                     string action = await Microsoft.Maui.Controls.Shell.Current.DisplayActionSheet(
-                        "Profil Fotoğrafı",
-                        "İptal",
-                        "Fotoğrafı Kaldır",
-                        "Galeriden Yeni Fotoğraf Seç");
+                        "Profile Photo",
+                        "Cancel",
+                        "Remove Photo",
+                        "Choose New Photo from Gallery");
 
-                    if (action == "Fotoğrafı Kaldır")
+                    if (action == "Remove Photo")
                     {
                         var oldPath = CurrentUser.ProfilePictureUrl;
                         CurrentUser.ProfilePictureUrl = string.Empty;
@@ -1755,7 +1755,7 @@ namespace Pocket.Client.PageModels
                         return;
                     }
 
-                    if (action != "Galeriden Yeni Fotoğraf Seç")
+                    if (action != "Choose New Photo from Gallery")
                     {
                         return;
                     }
@@ -2014,11 +2014,11 @@ namespace Pocket.Client.PageModels
             if (CurrentUser == null || Microsoft.Maui.Controls.Shell.Current == null) return;
 
             string? result = await Microsoft.Maui.Controls.Shell.Current.DisplayPromptAsync(
-                title: "Görünen Adı Değiştir",
-                message: "Arkadaşlarınızın göreceği adı girin:",
-                accept: "Kaydet",
-                cancel: "İptal",
-                placeholder: "görünen ad",
+                title: "Change Display Name",
+                message: "Enter the name your friends will see:",
+                accept: "Save",
+                cancel: "Cancel",
+                placeholder: "display name",
                 maxLength: 40,
                 keyboard: Keyboard.Text,
                 initialValue: CurrentUser.DisplayName ?? string.Empty);
@@ -2048,11 +2048,11 @@ namespace Pocket.Client.PageModels
             if (CurrentUser == null || Microsoft.Maui.Controls.Shell.Current == null) return;
 
             string? result = await Microsoft.Maui.Controls.Shell.Current.DisplayPromptAsync(
-                title: "Kullanıcı Adını Değiştir",
-                message: "Lütfen yeni kullanıcı adınızı girin (şifreli iletişim anahtarlarınız korunur):",
-                accept: "Kaydet",
-                cancel: "İptal",
-                placeholder: "kullanıcı adı",
+                title: "Change Username",
+                message: "Enter your new username. Your encryption keys are kept.",
+                accept: "Save",
+                cancel: "Cancel",
+                placeholder: "username",
                 maxLength: 30,
                 keyboard: Keyboard.Text,
                 initialValue: CurrentUser.Username ?? string.Empty);
@@ -2072,9 +2072,9 @@ namespace Pocket.Client.PageModels
                 if (existingActive != null && existingActive.UserId != CurrentUser.Id)
                 {
                     await Microsoft.Maui.Controls.Shell.Current.DisplayAlert(
-                        "Kullanıcı Adı Kullanımda",
-                        $"{cleanUsername} şu anda başka bir kullanıcı tarafından kullanılıyor. Lütfen farklı bir isim seçin.",
-                        "Tamam");
+                        "Username Taken",
+                        $"{cleanUsername} is already used by someone else. Please choose a different name.",
+                        "OK");
                     return;
                 }
             }
@@ -2134,15 +2134,15 @@ namespace Pocket.Client.PageModels
                 }
 
                 string summaryMessage =
-                    $"Kullanıcı profili, arkadaşlar, gönderiler, mesajlar, reaksiyonlar ve E2EE şifreleme anahtarları başarıyla dışa aktarıldı.\n\n" +
-                    $"📁 Konum: {savedDisplayPath}\n" +
-                    $"📦 Boyut: {package.ZipBytes.Length / 1024.0:F1} KB";
+                    $"Your profile, friends, posts, messages, reactions and E2EE encryption keys were exported successfully.\n\n" +
+                    $"📁 Location: {savedDisplayPath}\n" +
+                    $"📦 Size: {package.ZipBytes.Length / 1024.0:F1} KB";
 
                 bool share = await Microsoft.Maui.Controls.Shell.Current.DisplayAlert(
-                    "Dışa Aktarma (Export) Tamamlandı",
+                    "Export Complete",
                     summaryMessage,
-                    "Paylaş / Farklı Kaydet",
-                    "Tamam");
+                    "Share / Save As",
+                    "OK");
 
                 if (share)
                 {
@@ -2152,7 +2152,7 @@ namespace Pocket.Client.PageModels
                     await Microsoft.Maui.ApplicationModel.DataTransfer.Share.Default.RequestAsync(
                         new Microsoft.Maui.ApplicationModel.DataTransfer.ShareFileRequest
                         {
-                            Title = "Pocket Yedeğini Paylaş",
+                            Title = "Share Pocket Backup",
                             File = new Microsoft.Maui.ApplicationModel.DataTransfer.ShareFile(shareTempPath)
                         });
                 }
@@ -2163,9 +2163,9 @@ namespace Pocket.Client.PageModels
                 if (Microsoft.Maui.Controls.Shell.Current != null)
                 {
                     await Microsoft.Maui.Controls.Shell.Current.DisplayAlert(
-                        "Dışa Aktarma Hatası",
-                        $"Yedek oluşturulurken bir hata oluştu:\n{ex.Message}",
-                        "Tamam");
+                        "Export Error",
+                        $"Something went wrong while creating the backup:\n{ex.Message}",
+                        "OK");
                 }
             }
             finally
@@ -2211,16 +2211,16 @@ namespace Pocket.Client.PageModels
 
                 await using (fileStream)
                 {
-                    const string optionMerge = "Mevcut Verilerin Üzerine Ekle (Birleştir)";
-                    const string optionClean = "Öncekileri Sıfırla (Temiz Kurulum)";
+                    const string optionMerge = "Merge with Existing Data";
+                    const string optionClean = "Replace Existing Data (Clean Restore)";
 
                     string? modeChoice = await Microsoft.Maui.Controls.Shell.Current.DisplayActionSheet(
-                        "Varolan Verilere Ne Yapılsın?",
-                        "İptal",
+                        "What should happen to existing data?",
+                        "Cancel",
                         optionClean,
                         optionMerge);
 
-                    if (string.IsNullOrEmpty(modeChoice) || modeChoice == "İptal")
+                    if (string.IsNullOrEmpty(modeChoice) || modeChoice == "Cancel")
                         return;
 
                     bool mergeWithExisting = (modeChoice == optionMerge);
@@ -2229,26 +2229,26 @@ namespace Pocket.Client.PageModels
                     if (!importResult.Success)
                     {
                         await Microsoft.Maui.Controls.Shell.Current.DisplayAlert(
-                            "İçe Aktarma Başarısız",
-                            importResult.ErrorMessage ?? "Yedek dosyası okunamadı.",
-                            "Tamam");
+                            "Import Failed",
+                            importResult.ErrorMessage ?? "The backup file could not be read.",
+                            "OK");
                         return;
                     }
 
                     await ReloadAfterImportAsync();
 
                     string modeLabel = mergeWithExisting
-                        ? "Üzerine Eklendi (Birleştirildi)"
-                        : "Temiz Kurulum Olarak Yüklendi";
+                        ? "Merged"
+                        : "Clean restore";
                     await Microsoft.Maui.Controls.Shell.Current.DisplayAlert(
-                        "İçe Aktarma (Import) Başarılı",
-                        $"Mod: {modeLabel}\n" +
-                        $"👤 Kullanıcı: {CurrentUser.DisplayName} (@{CurrentUser.Username})\n" +
-                        $"👥 Arkadaşlar: {importResult.FriendsCount} (🔐 {importResult.SharedSecretsCount} E2EE Anahtar)\n" +
-                        $"📸 Gönderiler: {importResult.PostsCount}\n" +
-                        $"💬 Mesaj & Reaksiyonlar: {importResult.MessagesAndReactionsCount}\n" +
-                        $"🗄️ İşlenen Tablo / Satır: {importResult.TablesProcessed} tablo, {importResult.TotalRowsImported} kayıt",
-                        "Tamam");
+                        "Import Successful",
+                        $"Mode: {modeLabel}\n" +
+                        $"👤 User: {CurrentUser.DisplayName} (@{CurrentUser.Username})\n" +
+                        $"👥 Friends: {importResult.FriendsCount} (🔐 {importResult.SharedSecretsCount} E2EE keys)\n" +
+                        $"📸 Posts: {importResult.PostsCount}\n" +
+                        $"💬 Messages & Reactions: {importResult.MessagesAndReactionsCount}\n" +
+                        $"🗄️ Tables / Rows: {importResult.TablesProcessed} tables, {importResult.TotalRowsImported} rows",
+                        "OK");
                 }
             }
             catch (Exception ex)
@@ -2257,9 +2257,9 @@ namespace Pocket.Client.PageModels
                 if (Microsoft.Maui.Controls.Shell.Current != null)
                 {
                     await Microsoft.Maui.Controls.Shell.Current.DisplayAlert(
-                        "İçe Aktarma Hatası",
-                        $"Yedek geri yüklenirken bir hata oluştu:\n{ex.Message}",
-                        "Tamam");
+                        "Import Error",
+                        $"Something went wrong while restoring the backup:\n{ex.Message}",
+                        "OK");
                 }
             }
             finally

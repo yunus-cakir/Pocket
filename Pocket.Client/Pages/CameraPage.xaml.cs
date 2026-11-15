@@ -1390,7 +1390,7 @@ namespace Pocket.Client.Pages
 
                 case GestureStatus.Completed:
                 case GestureStatus.Canceled:
-                    // "Biraz aşağı kaydırılıp bırakılırsa otomatik olarak kapanacak şekilde devamında kendi kaysın."
+                    // If dragged down a little and released, the sheet keeps sliding and closes on its own.
                     if (ActivitySheetCard.TranslationY > 70)
                     {
                         await AnimateCloseActivitySheet();

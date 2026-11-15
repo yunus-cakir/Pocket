@@ -45,13 +45,13 @@ namespace Pocket.Client.PageModels
 
             if (string.IsNullOrWhiteSpace(cleanQuery))
             {
-                SearchMessage = "Lütfen bir kullanıcı adı girin.";
+                SearchMessage = "Please enter a username.";
                 SearchResult = null;
                 return;
             }
 
             IsSearching = true;
-            SearchMessage = "Aranıyor...";
+            SearchMessage = "Searching...";
             SearchResult = null;
 
             try

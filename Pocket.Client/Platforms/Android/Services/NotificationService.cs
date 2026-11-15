@@ -16,8 +16,8 @@ namespace Pocket.Client.Services
     public partial class NotificationService
     {
         public const string ChannelId = "pocket_messages_high_v1";
-        private const string ChannelName = "Mesajlar ve Tepkiler";
-        private const string ChannelDescription = "Gelen mesaj ve fotoğraf tepkisi bildirimleri";
+        private const string ChannelName = "Messages and Reactions";
+        private const string ChannelDescription = "Notifications for incoming messages and photo reactions";
 
         public const string ExtraFriendId = "extra_notification_friend_id";
         public const string ExtraIsReaction = "extra_notification_is_reaction";

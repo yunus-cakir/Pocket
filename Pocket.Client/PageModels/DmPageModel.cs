@@ -21,7 +21,7 @@ namespace Pocket.Client.PageModels
 
         [ObservableProperty] private string? _mediaPostId;
 
-        [ObservableProperty] private string _friendDisplayName = "Sohbet";
+        [ObservableProperty] private string _friendDisplayName = "Chat";
 
         [ObservableProperty] private string _friendUsername = string.Empty;
 
