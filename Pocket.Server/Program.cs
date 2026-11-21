@@ -36,6 +36,7 @@ builder.Services.AddSignalR(options =>
     options.MaximumReceiveMessageSize = 15 * 1024 * 1024; // 15 MB for E2EE photo/video payloads
 });
 builder.Services.AddSingleton<TransientMemoryStore>();
+builder.Services.AddHostedService<TransientStoreSweeper>();
 
 // Primary/standby cluster (see deploy/README.md). Registered after the web host so the
 // handoff runs before Kestrel stops on shutdown.
@@ -114,7 +115,7 @@ app.MapGet("/auth/challenge", (AuthService auth) => Results.Ok(new { nonce = aut
 app.MapPost("/auth/token", (TokenRequest request, AuthService auth) =>
 {
     var (outcome, token, expiresAt) = auth.IssueToken(
-        request.UserId, request.Username, request.PublicKey, request.Nonce, request.Signature);
+        request.UserId, request.Username, request.PublicKey, request.Nonce, request.Signature, request.DeviceId);
     return outcome switch
     {
         AuthService.Outcome.Ok => Results.Ok(new { token, expiresAt }),
@@ -133,6 +134,7 @@ app.MapGet("/health", (IOptions<ClusterOptions> options, ClusterState state) =>
             node = options.Value.NodeName,
             role = options.Value.Role,
             startedAt = state.StartedAtUtc,
+            now = DateTime.UtcNow, // clients correct a wrong device clock with it
             connections = state.ConnectionCount
         }));
 
@@ -166,8 +168,13 @@ app.MapPost("/internal/handoff", async (HttpContext http, EncryptedPayloadDto pa
     {
         if (!IsPeer(http, options.Value)) return Results.Unauthorized();
 
-        store.EnqueuePayload(payload); // keyed by MessageId, so retries are idempotent
-        foreach (var connectionId in RelayHub.GetConnectionIds(payload.RecipientId))
+        // Keyed by MessageId, so retries are idempotent. Devices that already have it are not sent it again.
+        var confirmed = ParseDeviceList(http.Request.Headers[HandoffService.ConfirmedDevicesHeader].ToString());
+        var devices = ParseDeviceTimes(http.Request.Headers[HandoffService.RecipientDevicesHeader].ToString());
+        // A peer running an older build sends no stamp: it reached the cluster no later than now.
+        payload.ServerReceivedAtUtc ??= DateTime.UtcNow;
+        var haveIt = store.AcceptHandoff(payload, confirmed, devices);
+        foreach (var connectionId in RelayHub.GetConnectionIds(payload.RecipientId, haveIt))
         {
             await hub.Clients.Client(connectionId).ReceivePayload(payload);
         }
@@ -189,5 +196,26 @@ static bool IsPeer(HttpContext http, ClusterOptions options)
            CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(provided), Encoding.UTF8.GetBytes(secret));
 }
 
+static bool IsDeviceId(string id) => id == TransientMemoryStore.LegacyDeviceId || AuthService.IsValidDeviceId(id);
+
+static List<string> ParseDeviceList(string header) =>
+    header.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Where(IsDeviceId)
+        .Take(64)
+        .ToList();
+
+static Dictionary<string, DateTime> ParseDeviceTimes(string header)
+{
+    var result = new Dictionary<string, DateTime>(StringComparer.Ordinal);
+    foreach (var part in header.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Take(64))
+    {
+        var pieces = part.Split('=', 2);
+        if (pieces.Length != 2 || !IsDeviceId(pieces[0]) || !long.TryParse(pieces[1], out var seconds)) continue;
+        try { result[pieces[0]] = DateTimeOffset.FromUnixTimeSeconds(seconds).UtcDateTime; }
+        catch (ArgumentOutOfRangeException) { }
+    }
+    return result;
+}
+
 /// <summary>Body of POST /auth/token.</summary>
-record TokenRequest(string UserId, string Username, string PublicKey, string Nonce, string Signature);
+record TokenRequest(string UserId, string Username, string PublicKey, string Nonce, string Signature, string? DeviceId = null);

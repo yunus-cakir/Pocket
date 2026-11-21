@@ -13,6 +13,12 @@ namespace Pocket.Server.Services
     {
         public const string SecretHeader = "X-Pocket-Cluster-Secret";
 
+        /// <summary>Device ids that already confirmed the handed-off payload, comma separated.</summary>
+        public const string ConfirmedDevicesHeader = "X-Pocket-Confirmed-Devices";
+
+        /// <summary>The recipient's active devices as "id=lastSeenUnixSeconds", comma separated.</summary>
+        public const string RecipientDevicesHeader = "X-Pocket-Recipient-Devices";
+
         private readonly ClusterOptions _options;
         private readonly ClusterState _state;
         private readonly TransientMemoryStore _store;
@@ -47,7 +53,7 @@ namespace Pocket.Server.Services
             _state.AbortAll();
             await Task.Delay(500, CancellationToken.None); // let in-flight SendPayload calls land
 
-            var pending = _store.SnapshotAll();
+            var pending = _store.SnapshotForHandoff();
             if (pending.Count == 0)
             {
                 _logger.LogInformation("Handoff: no pending payloads.");
@@ -58,16 +64,23 @@ namespace Pocket.Server.Services
             var http = _httpClientFactory.CreateClient("handoff");
             int sent = 0;
 
-            foreach (var payload in pending)
+            foreach (var item in pending)
             {
                 if (cancellationToken.IsCancellationRequested) break;
+                var payload = item.Payload;
                 try
                 {
+                    // Same body as before; the delivery state rides in headers an older peer simply ignores.
                     using var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/internal/handoff")
                     {
                         Content = JsonContent.Create(payload)
                     };
                     request.Headers.Add(SecretHeader, _options.Secret);
+                    if (item.ConfirmedDevices.Length > 0)
+                        request.Headers.Add(ConfirmedDevicesHeader, string.Join(",", item.ConfirmedDevices));
+                    if (item.RecipientDevices.Count > 0)
+                        request.Headers.Add(RecipientDevicesHeader, string.Join(",",
+                            item.RecipientDevices.Select(d => $"{d.Key}={new DateTimeOffset(d.Value).ToUnixTimeSeconds()}")));
                     using var response = await http.SendAsync(request, cancellationToken);
                     if (response.IsSuccessStatusCode) sent++;
                     else _logger.LogWarning("Handoff of {MessageId} failed: {Status}", payload.MessageId, (int)response.StatusCode);

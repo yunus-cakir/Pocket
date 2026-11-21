@@ -24,7 +24,7 @@ tailscale up --unattended          # tarayıcıda giriş yap; Windows oturumu ka
 
 ## Birincil (PC) + yedek (Mac)
 
-Sunucu her şeyi bellekte tutuyor. İki sunucu aynı anda açık olursa kullanıcılar ikiye bölünür ve birbirlerine mesaj gönderemez. Bu yüzden kural: **her an yalnızca bir sunucu aktif**.
+Sunucu her şeyi bellekte tutuyor. Bekçi normalde yalnızca bir sunucuyu açık tutar, ama iki sunucunun aynı anda açık olması artık sorun değil (aşağıdaki "Çoklu cihaz ve çoklu sunucu" bölümüne bak).
 
 | | PC (birincil) | Mac (yedek) |
 |---|---|---|
@@ -35,7 +35,7 @@ Sunucu her şeyi bellekte tutuyor. İki sunucu aynı anda açık olursa kullanı
 Nasıl çalışır:
 - **Bekçi (`mac/watchdog.sh`, launchd):** PC'nin `/health` ucunu 15 sn'de bir kontrol eder. PC 3 kontrolde üst üste yanıt vermezse Mac sunucusunu başlatır. PC 2 kontrolde üst üste sağlıklı görünürse Mac sunucusunu durdurur.
 - **Devir:** Mac sunucusu kapanırken önce yeni bağlantıları reddeder ve bağlı istemcileri koparır; böylece istemciler PC'ye döner. Ardından teslim edilmemiş mesajları PC'nin `/internal/handoff` ucuna aktarır. Aktarım bellekten belleğe yapılır, diske hiçbir şey yazılmaz (BR-201). Bu uç, ortak gizli anahtar (`Cluster:Secret`) ile korunur.
-- **Uygulama:** Varsayılan sunucu seçiliyken uygulama önce PC'ye bağlanmayı dener, olmazsa Mac'e geçer. Mac'e bağlıyken 30 sn'de bir PC'yi yoklar ve PC geri gelince ona döner. Ayarlarda "Sunucuya Bağlandı (yedek: Mac)" yazısı görünür. Elle başka bir adres girilirse yalnızca o adres kullanılır.
+- **Uygulama:** Tanımlı tüm sunuculara aynı anda bağlanır, hangisi açıksa onu kullanır; birincil kapalıyken Ayarlarda "yedek" yazısı görünür. Ayrıntı: "Çoklu cihaz ve çoklu sunucu".
 
 Mac kurulumu:
 1. Mac'e Tailscale'i kur ve aynı hesapla giriş yap.
@@ -56,6 +56,17 @@ Dikkat edilmesi gerekenler:
 - Mac uykudayken bekçi çalışmaz. Yedek olarak kullanılacağı zamanlarda Mac'i uyanık tut (Ayarlar → Pil/Enerji).
 - PC kapanırken PC'nin kuyruğundaki teslim edilmemiş mesajlar Mac'e aktarılmaz, çünkü o anda Mac sunucusu henüz çalışmıyor. Bu mesajlar PC'nin belleğindeydi; PC servisi düzgün kapanmazsa kaybolurlar. Bu, bugünkü tek sunuculu davranışla aynı.
 - Kapatmak için: `./uninstall.sh`
+
+## Çoklu cihaz ve çoklu sunucu
+
+Aynı kimlik (aynı kullanıcı ID'si ve anahtar, ör. aynı Selin veritabanı) birden fazla cihazda açık olabilir.
+
+- **İstemci:** Ayarlardaki her sunucuya (birincil + ikincil) aynı anda bağlanır. Gönderdiği her mesajı bağlı olduğu tüm sunuculara yollar; en az biri kabul ederse mesaj gönderilmiş sayılır. Aynı mesaj iki sunucudan gelirse mesaj ID'sine göre bir kez işlenir. Teslim onayı da bağlı tüm sunuculara gider. Kapalı sunucu arka planda yoklanır (`/health`), açılınca ona da bağlanılır.
+- **Cihaz kimliği:** Her kurulum rastgele bir cihaz ID'si üretir (Android'de yedeklenmeyen klasörde tutulur) ve girişte (`/auth/token`, `deviceId`) gönderir. Sunucu bunu JWT'ye `device` claim'i olarak koyar.
+- **Sunucu:** Bir mesaj, alıcının tüm aktif cihazları onaylayana kadar bellekte kalır. Böylece o an kapalı olan cihaz da açılınca mesajı alır. Bağlı olan ya da son 7 gün içinde görülen cihaz aktif sayılır; 7 günden uzun süre görünmeyen cihaz mesaj bekletmez (saatlik temizlik). Gönderene teslim bilgisi ilk onaylayan cihazla gider.
+- **Devir:** Mac kapanırken PC'ye aktarılan her mesajla birlikte, onu zaten onaylamış cihazlar (`X-Pocket-Confirmed-Devices`) ve alıcının aktif cihazları (`X-Pocket-Recipient-Devices`) da gider. PC mesajı yalnızca henüz almamış cihazlara gönderir; örneğin yeniden kurulumdan sonra yeni kurulum aynı fotoğrafı ikinci kez indirmez. Gövde aynı kaldığı için eski sürüm sunucu bu başlıkları yok sayar.
+- **Sınır:** Sunucu yeniden başladıktan sonra henüz hiç bağlanmamış bir cihazı tanımaz. Bu sırada diğer cihaz mesajı onaylarsa mesaj silinir ve o cihaz alamaz.
+- **Eski istemciler** (cihaz ID'si göndermeyen) tek bir ortak yuvayı paylaşır: eskisi gibi ilk onayda silinir.
 
 ## Cloudflare Tunnel (kendi alan adınla)
 

@@ -13,6 +13,8 @@ namespace Pocket.Server.Hubs
     {
         // Maps UserId to a set of ConnectionIds (supports multi-device)
         private static readonly ConcurrentDictionary<string, HashSet<string>> UserConnections = new();
+        // ConnectionId -> DeviceId, to skip devices that already have a handed-off payload.
+        private static readonly ConcurrentDictionary<string, string> ConnectionDevices = new();
         private static readonly ConcurrentDictionary<string, UserIdentityDto> ActiveUsernames = new(StringComparer.OrdinalIgnoreCase);
         private readonly TransientMemoryStore _memoryStore;
         private readonly ClusterState _cluster;
@@ -28,6 +30,15 @@ namespace Pocket.Server.Hubs
         private string AuthenticatedUserId =>
             Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
             ?? throw new HubException("Unauthorized.");
+
+        /// <summary>The caller's device (one user may be signed in on several devices).</summary>
+        private string DeviceId => DeviceIdOf(Context.User);
+
+        private static string DeviceIdOf(ClaimsPrincipal? user)
+        {
+            var id = user?.FindFirst(AuthService.DeviceClaim)?.Value;
+            return string.IsNullOrWhiteSpace(id) ? TransientMemoryStore.LegacyDeviceId : id;
+        }
 
         /// <summary>The caller's registered identity key (bound at login via /auth/token).</summary>
         private string RegisteredPublicKey(string userId) =>
@@ -45,6 +56,12 @@ namespace Pocket.Server.Hubs
             }
             return Array.Empty<string>();
         }
+
+        /// <summary>Connection ids of a user's devices, except those in <paramref name="skipDevices"/>.</summary>
+        public static string[] GetConnectionIds(string userId, IReadOnlySet<string> skipDevices) =>
+            GetConnectionIds(userId)
+                .Where(id => !ConnectionDevices.TryGetValue(id, out var device) || !skipDevices.Contains(device))
+                .ToArray();
 
         public override async Task OnConnectedAsync()
         {
@@ -66,9 +83,11 @@ namespace Pocket.Server.Hubs
                 {
                     connections.Add(Context.ConnectionId);
                 }
+                ConnectionDevices[Context.ConnectionId] = DeviceId;
+                _memoryStore.DeviceConnected(userId, DeviceId);
 
-                // Deliver any pending offline payloads immediately
-                var pendingPayloads = _memoryStore.GetPendingPayloadsForUser(userId);
+                // Deliver what this device has not confirmed yet (other devices may already have it).
+                var pendingPayloads = _memoryStore.GetPendingPayloadsForDevice(userId, DeviceId);
                 foreach (var payload in pendingPayloads)
                 {
                     await Clients.Caller.ReceivePayload(payload);
@@ -101,7 +120,13 @@ namespace Pocket.Server.Hubs
         public override Task OnDisconnectedAsync(Exception? exception)
         {
             _cluster.Untrack(Context.ConnectionId);
+            ConnectionDevices.TryRemove(Context.ConnectionId, out _);
             var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (!string.IsNullOrEmpty(userId))
+            {
+                _memoryStore.DeviceDisconnected(userId, DeviceId);
+            }
 
             if (!string.IsNullOrEmpty(userId) && UserConnections.TryGetValue(userId, out var connections))
             {
@@ -169,6 +194,9 @@ namespace Pocket.Server.Hubs
                 payload.SenderId = authenticatedUserId;
             }
 
+            // The relay's clock, not the sender's (a resend keeps the first stamp, see EnqueuePayload).
+            payload.ServerReceivedAtUtc = DateTime.UtcNow;
+
             if (payload.MediaType == Pocket.Shared.Enums.MediaType.PostDeleted && payload.MediaPostId.HasValue)
             {
                 _memoryStore.RemovePostFromUserQueue(payload.RecipientId, payload.SenderId, payload.MediaPostId.Value);
@@ -176,11 +204,13 @@ namespace Pocket.Server.Hubs
 
             if (payload.MediaType == Pocket.Shared.Enums.MediaType.MessageDeleted && payload.MediaPostId.HasValue)
             {
-                if (_memoryStore.RemoveMessage(payload.RecipientId, payload.MediaPostId.Value))
+                // Original never reached any device of the recipient: drop it, nothing to notify.
+                bool undelivered = _memoryStore.IsUndelivered(payload.RecipientId, payload.MediaPostId.Value);
+                if (_memoryStore.RemoveMessage(payload.RecipientId, payload.MediaPostId.Value) && undelivered)
                 {
-                    // Original message was still pending in RAM and never delivered; no need to notify recipient.
                     return;
                 }
+                // Otherwise some device has it: the removal keeps it off the others, the delete reaches the rest.
             }
 
             // Store transiently in memory until recipient explicitly confirms delivery (BR-201, BR-202)
@@ -207,7 +237,8 @@ namespace Pocket.Server.Hubs
             
             if (!string.IsNullOrEmpty(recipientId))
             {
-                _memoryStore.RemoveMessage(recipientId, messageId);
+                // Purged once every active device of the recipient has confirmed it.
+                _memoryStore.ConfirmDelivery(recipientId, DeviceId, messageId);
             }
 
             if (string.IsNullOrEmpty(recipientId)) return;

@@ -17,6 +17,9 @@ namespace Pocket.Server.Services
     {
         public const string Issuer = "pocket-relay";
         public const string Audience = "pocket-client";
+
+        /// <summary>JWT claim naming the client install (several devices may share one identity).</summary>
+        public const string DeviceClaim = "device";
         private static readonly TimeSpan NonceLifetime = TimeSpan.FromMinutes(2);
         private static readonly TimeSpan TokenLifetime = TimeSpan.FromHours(12);
         private const int MaxOutstandingNonces = 10_000;
@@ -35,6 +38,11 @@ namespace Pocket.Server.Services
             _registry = registry;
             _logger = logger;
         }
+
+        /// <summary>Up to 64 of [A-Za-z0-9_-] (it is passed between nodes in comma separated headers).</summary>
+        public static bool IsValidDeviceId(string? deviceId) =>
+            !string.IsNullOrEmpty(deviceId) && deviceId.Length <= 64 &&
+            deviceId.All(c => char.IsAsciiLetterOrDigit(c) || c == '-' || c == '_');
 
         public static byte[] ChallengeBytes(string userId, string nonce) =>
             Encoding.UTF8.GetBytes($"pocket-auth-v1|{userId}|{nonce}");
@@ -56,7 +64,7 @@ namespace Pocket.Server.Services
         public enum Outcome { Ok, BadRequest, Unauthorized, KeyMismatch }
 
         public (Outcome Outcome, string? Token, DateTime ExpiresAt) IssueToken(
-            string userId, string username, string publicKey, string nonce, string signature)
+            string userId, string username, string publicKey, string nonce, string signature, string? deviceId = null)
         {
             if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(publicKey) ||
                 string.IsNullOrWhiteSpace(nonce) || string.IsNullOrWhiteSpace(signature))
@@ -89,15 +97,22 @@ namespace Pocket.Server.Services
                 _logger.LogInformation("Registered new identity {UserId}.", userId);
             }
 
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, userId),
+                new Claim(ClaimTypes.Name, username ?? string.Empty)
+            };
+            // Not security relevant (it only tracks which installs got a payload), just bounded.
+            if (IsValidDeviceId(deviceId))
+            {
+                claims.Add(new Claim(DeviceClaim, deviceId!));
+            }
+
             var expiresAt = DateTime.UtcNow + TokenLifetime;
             var token = new JwtSecurityToken(
                 issuer: Issuer,
                 audience: Audience,
-                claims: new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, userId),
-                    new Claim(ClaimTypes.Name, username ?? string.Empty)
-                },
+                claims: claims,
                 expires: expiresAt,
                 signingCredentials: new SigningCredentials(_signingKey, SecurityAlgorithms.HmacSha256));
 
