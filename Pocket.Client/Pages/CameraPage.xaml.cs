@@ -160,6 +160,26 @@ namespace Pocket.Client.Pages
                 MainThread.BeginInvokeOnMainThread(async () => { await AnimateCloseConnectionSheetAsync(); });
             };
 
+            viewModel.OpenEmojiLayoutSheetAction = () =>
+            {
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    EmojiLayoutOverlayGrid.IsVisible = true;
+                    double startY = Math.Max(Height, 800);
+                    EmojiLayoutSheetCard.TranslationY = startY;
+                    EmojiLayoutBackdrop.Opacity = 0;
+                    await Task.WhenAll(
+                        EmojiLayoutSheetCard.TranslateToAsync(0, 0, 260, Easing.CubicOut),
+                        EmojiLayoutBackdrop.FadeToAsync(1, 260, Easing.CubicOut)
+                    );
+                });
+            };
+
+            viewModel.CloseEmojiLayoutSheetAction = () =>
+            {
+                MainThread.BeginInvokeOnMainThread(async () => { await AnimateCloseEmojiLayoutSheetAsync(); });
+            };
+
             viewModel.OpenEmojiPickerAction = () =>
             {
                 MainThread.BeginInvokeOnMainThread(async () =>
@@ -328,9 +348,9 @@ namespace Pocket.Client.Pages
                 MainThread.BeginInvokeOnMainThread(async () => { await ShowSendFailedToastAsync(); });
             };
 
-            viewModel.PlayReactionEmojiRainAction = (postId, emojis) =>
+            viewModel.PlayReactionEmojiRainAction = (postId, emojis, rising) =>
             {
-                MainThread.BeginInvokeOnMainThread(() => { PlayReactionEmojiRain(postId, emojis); });
+                MainThread.BeginInvokeOnMainThread(() => { PlayReactionEmojiRain(postId, emojis, rising); });
             };
 
             viewModel.StopReactionEmojiRainAction = () =>
@@ -355,6 +375,7 @@ namespace Pocket.Client.Pages
                     if (!isPreviewing)
                     {
                         UnfocusCaptionEntry();
+                        cameraView.ResumePreview(); // capture froze the viewfinder on the shot
                     }
                     if (_isSendFadeInPending)
                     {
@@ -484,6 +505,7 @@ namespace Pocket.Client.Pages
         private bool _wasKeyboardOpen;
         private long _keyboardWatcherStartTick;
         private int _imeUpperBoundPx;
+        private bool _isLegacyImeSubscribed;
 
         private void RegisterKeyboardVisibilityWatcher()
         {
@@ -506,6 +528,14 @@ namespace Pocket.Client.Pages
                 }
 
                 AndroidX.Core.View.ViewCompat.SetWindowInsetsAnimationCallback(decorView, _imeAnimationCallback);
+            }
+
+            // Android 10 and older report no IME insets with ADJUST_NOTHING: measure the keyboard separately.
+            Pocket.Client.Services.LegacyImeHeightTracker.EnsureAttached(activity);
+            if (Pocket.Client.Services.LegacyImeHeightTracker.IsNeeded && !_isLegacyImeSubscribed)
+            {
+                Pocket.Client.Services.LegacyImeHeightTracker.Changed += CheckKeyboardState;
+                _isLegacyImeSubscribed = true;
             }
 
             if (_keyboardPollTimer == null)
@@ -618,8 +648,9 @@ namespace Pocket.Client.Pages
             decorView.GetWindowVisibleDisplayFrame(rect);
             int screenHeight = decorView.RootView?.Height ?? 0;
             int frameKeypadPx = screenHeight > 0 ? Math.Max(0, screenHeight - rect.Bottom) : 0;
+            int legacyKeyboardPx = Pocket.Client.Services.LegacyImeHeightTracker.GetRawKeyboardPx(decorView);
 
-            int rawKeyboardPx = Math.Max(imeBottomPx, frameKeypadPx);
+            int rawKeyboardPx = Math.Max(imeBottomPx, Math.Max(frameKeypadPx, legacyKeyboardPx));
             bool isKeyboardOpen = (rootInsets?.IsVisible(AndroidX.Core.View.WindowInsetsCompat.Type.Ime()) ?? false)
                                   || (screenHeight > 0 && rawKeyboardPx > screenHeight * 0.15);
 
@@ -959,6 +990,12 @@ namespace Pocket.Client.Pages
                     return true;
                 }
 
+                if (vm.IsEmojiLayoutSheetOpen)
+                {
+                    _ = AnimateCloseEmojiLayoutSheetAsync();
+                    return true;
+                }
+
                 if (vm.IsEmojiPickerOpen)
                 {
                     _ = AnimateCloseEmojiPickerAsync();
@@ -968,6 +1005,21 @@ namespace Pocket.Client.Pages
                 if (vm.IsGridGalleryOpen)
                 {
                     vm.IsGridGalleryOpen = false;
+                    return true;
+                }
+
+                // The home layout is one horizontally swipeable page, so Back must first return to the
+                // camera panel (from Profile/Settings or Messages) before it is allowed to leave the app.
+                if (_currentIndex != 1 || vm.ActivePanelIndex != 1)
+                {
+                    _ = SnapToPanel(1);
+                    return true;
+                }
+
+                // Scrolled down into the photo feed → scroll back up to the camera first.
+                if (vm.IsViewingFeed)
+                {
+                    vm.ScrollToCameraAction?.Invoke();
                     return true;
                 }
             }
@@ -1241,7 +1293,9 @@ namespace Pocket.Client.Pages
             }
         }
 
-        private void PlayReactionEmojiRain(Guid postId, System.Collections.Generic.IReadOnlyList<string> emojis)
+        // rising = true for reactions the user sends (emojis float up from the bottom);
+        // false for received reactions (emojis fall from the top).
+        private void PlayReactionEmojiRain(Guid postId, System.Collections.Generic.IReadOnlyList<string> emojis, bool rising = false)
         {
             if (emojis == null || emojis.Count == 0)
                 return;
@@ -1255,8 +1309,9 @@ namespace Pocket.Client.Pages
 
             var cts = _emojiRainCts;
             var vm = BindingContext as CameraPageModel;
-            if (vm != null)
+            if (vm != null && !rising)
             {
+                // Drives the "X sent ❤️" pill — only meaningful for received reactions
                 vm.IsReactionAnimationPlaying = true;
             }
 
@@ -1266,11 +1321,38 @@ namespace Pocket.Client.Pages
                 : (vm != null && vm.ViewportHeight > 0 ? vm.ViewportHeight : 840);
             double minX = 16;
             double maxX = Math.Max(minX + 80, screenWidth - 74);
-            double startY = -80;
-            double endY = screenHeight + 80;
+            double startY = rising ? screenHeight + 80 : -80;
+            double endY = rising ? -80 : screenHeight + 80;
 
-            int particleCount = Math.Clamp(Math.Max(8, emojis.Count * 4), 8, 16);
             var rng = new Random();
+
+            // Each play randomly picks a pattern so reactions don't always look identical:
+            //  - Normal : the classic shower.
+            //  - Burst  : many more emojis packed tightly together.
+            //  - Trickle: same pace as normal but more emojis with random pauses, so it lasts longer.
+            int baseCount = Math.Clamp(Math.Max(8, emojis.Count * 4), 8, 16);
+            int particleCount;
+            int spacingMs;
+            double pauseChance;
+            double roll = rng.NextDouble();
+            if (roll < 0.4)
+            {
+                particleCount = baseCount;
+                spacingMs = 85;
+                pauseChance = 0;
+            }
+            else if (roll < 0.7)
+            {
+                particleCount = rng.Next(18, 27);
+                spacingMs = 45;
+                pauseChance = 0;
+            }
+            else
+            {
+                particleCount = rng.Next(12, 17);
+                spacingMs = 85;
+                pauseChance = 0.2;
+            }
 
             // Build shuffled horizontal lanes so falling emojis spread naturally across the photo card
             int laneCount = 6;
@@ -1290,6 +1372,7 @@ namespace Pocket.Client.Pages
             double laneWidth = (maxX - minX) / laneCount;
             ReactionEmojiRainOverlay.IsVisible = true;
 
+            int nextDelayMs = 0;
             for (int i = 0; i < particleCount; i++)
             {
                 string emoji = emojis[i % emojis.Count];
@@ -1302,8 +1385,15 @@ namespace Pocket.Client.Pages
                 double fontSize = 44 + (rng.NextDouble() * 8);
                 double startRotation = -16 + (rng.NextDouble() * 24);
                 double endRotation = startRotation + (-10 + (rng.NextDouble() * 20));
-                int delayMs = (i * 110) + rng.Next(0, 35);
-                uint fallDurationMs = (uint)(1050 + rng.Next(0, 240));
+                int delayMs = nextDelayMs + rng.Next(0, 25);
+                nextDelayMs += spacingMs;
+                if (pauseChance > 0 && rng.NextDouble() < pauseChance)
+                {
+                    // Irregular gap between emojis (trickle pattern)
+                    nextDelayMs += rng.Next(100, 221);
+                }
+
+                uint fallDurationMs = (uint)(800 + rng.Next(0, 180));
 
                 var label = new Label
                 {
@@ -1488,6 +1578,64 @@ namespace Pocket.Client.Pages
                         );
                     }
 
+                    break;
+            }
+        }
+
+        private double _emojiLayoutSheetPanInitialTranslationY = 0;
+
+        private async void OnEmojiLayoutBackdropTapped(object? sender, TappedEventArgs e)
+        {
+            await AnimateCloseEmojiLayoutSheetAsync();
+        }
+
+        private async Task AnimateCloseEmojiLayoutSheetAsync()
+        {
+            if (!EmojiLayoutOverlayGrid.IsVisible)
+                return;
+
+            double targetY = Math.Max(Height, 800);
+            await Task.WhenAll(
+                EmojiLayoutSheetCard.TranslateToAsync(0, targetY, 220, Easing.CubicIn),
+                EmojiLayoutBackdrop.FadeToAsync(0, 220, Easing.Linear)
+            );
+            EmojiLayoutOverlayGrid.IsVisible = false;
+            if (BindingContext is CameraPageModel vm)
+            {
+                vm.IsEmojiLayoutSheetOpen = false;
+            }
+        }
+
+        private async void OnEmojiLayoutSheetPanUpdated(object? sender, PanUpdatedEventArgs e)
+        {
+            switch (e.StatusType)
+            {
+                case GestureStatus.Started:
+                    _emojiLayoutSheetPanInitialTranslationY = EmojiLayoutSheetCard.TranslationY;
+                    break;
+
+                case GestureStatus.Running:
+                    if (e.TotalY > 0)
+                    {
+                        EmojiLayoutSheetCard.TranslationY = _emojiLayoutSheetPanInitialTranslationY + e.TotalY;
+                        double denominator = Math.Max(Height * 0.5, 300.0);
+                        EmojiLayoutBackdrop.Opacity = Math.Clamp(1.0 - (EmojiLayoutSheetCard.TranslationY / denominator), 0.0, 1.0);
+                    }
+                    break;
+
+                case GestureStatus.Completed:
+                case GestureStatus.Canceled:
+                    if (EmojiLayoutSheetCard.TranslationY > 90)
+                    {
+                        await AnimateCloseEmojiLayoutSheetAsync();
+                    }
+                    else
+                    {
+                        await Task.WhenAll(
+                            EmojiLayoutSheetCard.TranslateToAsync(0, 0, 160, Easing.CubicOut),
+                            EmojiLayoutBackdrop.FadeToAsync(1, 160, Easing.Linear)
+                        );
+                    }
                     break;
             }
         }
@@ -3062,6 +3210,7 @@ namespace Pocket.Client.Pages
             _isAwaitingShutterCapture = false;
             if (!(BindingContext is CameraPageModel vm && vm.IsPreviewing))
             {
+                cameraView.ResumePreview();
                 SetShutterPressedVisual(false);
                 AnimateShutterRingThickness(ShutterRingRestThickness, 150);
                 SetSendButtonFinalState();
@@ -3178,32 +3327,37 @@ namespace Pocket.Client.Pages
         {
             Dispatcher.Dispatch(() =>
             {
-                // Camera (re)opened: zoom and exposure start from their defaults
-                ZoomSlider.Minimum = 0;
-                ZoomSlider.Maximum = Math.Max(1, cameraView.MaxZoom);
-                ZoomSlider.Value = 0;
-
-                ExposureSlider.Minimum = cameraView.MinExposure;
-                ExposureSlider.Maximum = cameraView.MaxExposure;
-                ExposureSlider.Value = 0;
-
+                // Camera (re)opened: the handler starts at 1x / 0 EV. Restore the remembered values (when
+                // 'keep last' is on) BEFORE touching the sliders: CameraSlider raises ValueChanged for
+                // programmatic changes too, which used to overwrite the saved level with 0 on every reopen.
                 double zoomLevel = 0;
                 if (CameraView.KeepLastZoom && cameraView.MaxZoom > 0)
-                {
-                    zoomLevel = Math.Clamp(Preferences.Get(CameraView.LastZoomLevelPreferenceKey, 0d), 0,
-                        cameraView.MaxZoom);
-                    ZoomSlider.Value = zoomLevel;
-                    if (zoomLevel != 0) cameraView.SetZoom(zoomLevel);
-                }
+                    zoomLevel = Math.Clamp(Preferences.Get(CameraView.LastZoomLevelPreferenceKey, 0d), 0, cameraView.MaxZoom);
 
                 double exposureIndex = 0;
                 if (CameraView.KeepLastExposure && cameraView.MaxExposure > cameraView.MinExposure)
-                {
                     exposureIndex = Math.Clamp(Preferences.Get(CameraView.LastExposureIndexPreferenceKey, 0d),
                         cameraView.MinExposure, cameraView.MaxExposure);
+
+                _suppressSliderEvents = true;
+                try
+                {
+                    ZoomSlider.Minimum = 0;
+                    ZoomSlider.Maximum = Math.Max(1, cameraView.MaxZoom);
+                    ZoomSlider.Value = zoomLevel;
+
+                    ExposureSlider.Minimum = cameraView.MinExposure;
+                    ExposureSlider.Maximum = cameraView.MaxExposure;
                     ExposureSlider.Value = exposureIndex;
-                    if (exposureIndex != 0) cameraView.SetExposure(exposureIndex);
                 }
+                finally
+                {
+                    _suppressSliderEvents = false;
+                }
+
+                // Always push the values: the reopened camera itself starts at 1x / 0 EV
+                cameraView.SetZoom(zoomLevel);
+                cameraView.SetExposure(exposureIndex);
 
                 UpdateZoomLabel(zoomLevel);
                 UpdateExposureLabel(exposureIndex);
@@ -3360,8 +3514,13 @@ namespace Pocket.Client.Pages
             ScheduleSliderAutoHide();
         }
 
+        // True while the page sets slider ranges/values itself (camera reopen): those are not user input,
+        // so they must neither re-apply to the camera nor overwrite the remembered values.
+        private bool _suppressSliderEvents;
+
         private void OnZoomSliderValueChanged(object? sender, double value)
         {
+            if (_suppressSliderEvents) return;
             // Continuous value (no rounding) so zoom follows the finger smoothly
             cameraView.SetZoom(value);
             Preferences.Set(CameraView.LastZoomLevelPreferenceKey, value);
@@ -3370,6 +3529,7 @@ namespace Pocket.Client.Pages
 
         private void OnExposureSliderValueChanged(object? sender, double value)
         {
+            if (_suppressSliderEvents) return;
             // Continuous value (no rounding) so the preview brightness follows the finger smoothly
             cameraView.SetExposure(value);
             Preferences.Set(CameraView.LastExposureIndexPreferenceKey, value);

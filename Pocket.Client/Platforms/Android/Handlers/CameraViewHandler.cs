@@ -63,6 +63,7 @@ namespace Pocket.Client.Platforms.Android.Handlers
         public static CommandMapper<CameraView, CameraViewHandler> CommandMapper = new(ViewHandler.ViewCommandMapper)
         {
             [nameof(CameraView.CapturePhoto)] = MapCapturePhoto,
+            [nameof(CameraView.ResumePreview)] = (h, v, a) => h.ResumePreviewAfterCapture(),
             [nameof(CameraView.FocusAt)] = MapFocusAt,
             [nameof(CameraView.SetZoom)] = MapSetZoom,
             [nameof(CameraView.SetExposure)] = MapSetExposure,
@@ -294,12 +295,13 @@ namespace Pocket.Client.Platforms.Android.Handlers
             {
                 _boundSurface = surface;
                 int displayOrientation = _displayOrientation;
+                bool keepFrozen = _isPreviewFrozen; // a captured shot is on screen: ResumePreview restarts it
                 EnqueueCameraWork(() =>
                 {
                     try { cam.StopPreview(); } catch { }
                     cam.SetPreviewTexture(surface);
                     cam.SetDisplayOrientation(displayOrientation);
-                    cam.StartPreview();
+                    if (!keepFrozen) cam.StartPreview();
                 });
             }
 
@@ -599,6 +601,7 @@ namespace Pocket.Client.Platforms.Android.Handlers
             _isStarting = false;
             _releaseToken++;
             _boundSurface = null;
+            _isPreviewFrozen = false; // a reopened camera starts its own preview
             HidePreviewUntilFirstFrames();
 
             var cam = _camera;
@@ -661,7 +664,13 @@ namespace Pocket.Client.Platforms.Android.Handlers
                 var p = _camera.GetParameters();
                 if (p == null) return;
 
-                bool hwZoom = p.IsZoomSupported && p.MaxZoom > 0;
+                // The Android 10 (API 29) emulator's goldfish camera HAL reports zoom 0..99 through the Camera1
+                // shim but never applies the crop, so the slider moved while the preview stayed at 1x.
+                // Use the software zoom there, like the software exposure already used on emulators.
+                bool brokenEmulatorZoom =
+                    Microsoft.Maui.Devices.DeviceInfo.Current.DeviceType == Microsoft.Maui.Devices.DeviceType.Virtual &&
+                    global::Android.OS.Build.VERSION.SdkInt < global::Android.OS.BuildVersionCodes.R;
+                bool hwZoom = p.IsZoomSupported && p.MaxZoom > 0 && !brokenEmulatorZoom;
                 _useSoftwareZoomFallback = !hwZoom;
 
                 int maxZoom = hwZoom ? p.MaxZoom : FallbackMaxZoom;
@@ -925,11 +934,12 @@ namespace Pocket.Client.Platforms.Android.Handlers
                     SetFlashMode(useHardwareFlash
                         ? global::Android.Hardware.Camera.Parameters.FlashModeOn
                         : global::Android.Hardware.Camera.Parameters.FlashModeOff);
-                    _camera.TakePicture(null, null, new CameraPictureCallback(this));
+                    TakeStillPicture();
                 }
                 catch (System.Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"Capture Error: {ex.Message}");
+                    ResumePreviewAfterCapture();
                 }
                 return;
             }
@@ -978,9 +988,12 @@ namespace Pocket.Client.Platforms.Android.Handlers
                 if (frame == null)
                 {
                     // Fallback to the legacy still capture if the frame could not be read
-                    _camera.TakePicture(null, null, new CameraPictureCallback(this));
+                    TakeStillPicture();
                     return;
                 }
+
+                // Hold the viewfinder on the captured frame while it is encoded and loaded by the page
+                FreezePreview();
 
                 var tempPath = System.IO.Path.Combine(Microsoft.Maui.Storage.FileSystem.CacheDirectory, $"capture_{System.Guid.NewGuid()}.jpg");
                 int rotationDegrees = GetPreviewCaptureRotationDegrees();
@@ -1022,13 +1035,99 @@ namespace Pocket.Client.Platforms.Android.Handlers
                     catch (System.Exception ex)
                     {
                         System.Diagnostics.Debug.WriteLine($"Frame Encode Error: {ex.Message}");
+                        Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(ResumePreviewAfterCapture);
                     }
                 });
             }
             catch (System.Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Capture Error: {ex.Message}");
+                ResumePreviewAfterCapture();
             }
+        }
+
+        // True from the shutter until the page closes the captured photo (ResumePreview): the camera preview
+        // stays stopped, so the TextureView keeps showing the shot instead of the live, moving scene.
+        // Previously the preview restarted right after the capture while the JPEG was still being saved
+        // and decoded for display, which on slower phones (e.g. Galaxy Note 9) was clearly visible.
+        private bool _isPreviewFrozen;
+
+        private void TakeStillPicture()
+        {
+            if (_camera == null) return;
+            _isPreviewFrozen = true; // Camera.TakePicture() stops the preview by itself
+            _camera.TakePicture(null, null, new CameraPictureCallback(this));
+        }
+
+        private void FreezePreview()
+        {
+            var cam = _camera;
+            if (cam == null) return;
+            _isPreviewFrozen = true;
+            EnqueueCameraWork(() =>
+            {
+                try { cam.StopPreview(); }
+                catch (System.Exception ex) { System.Diagnostics.Debug.WriteLine($"Camera freeze error: {ex.Message}"); }
+            });
+        }
+
+        internal void ResumePreviewAfterCapture()
+        {
+            if (!_isPreviewFrozen) return;
+            _isPreviewFrozen = false;
+
+            var cam = _camera;
+            if (cam == null || _boundSurface == null) return; // a later bind / reopen starts the preview itself
+            EnqueueCameraWork(() =>
+            {
+                try { cam.StartPreview(); }
+                catch (System.Exception ex) { System.Diagnostics.Debug.WriteLine($"Camera resume error: {ex.Message}"); }
+            });
+        }
+
+        /// <summary>Decodes, rotates and saves a Camera.TakePicture() JPEG off the UI thread.</summary>
+        internal void SaveStillPictureAsync(byte[] data)
+        {
+            // Read UI-thread state now; the (large) still is processed on a worker thread
+            int rotation = GetStillCaptureRotationDegrees();
+            bool mirror = IsFrontCamera;
+
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    using var originalBitmap = BitmapFactory.DecodeByteArray(data, 0, data.Length)
+                                               ?? throw new System.InvalidOperationException("JPEG decode failed");
+                    using var matrix = new Matrix();
+                    matrix.PostRotate(rotation);
+                    if (mirror)
+                    {
+                        // Mirror selfies so the saved photo matches the (mirrored) preview
+                        matrix.PostScale(-1, 1);
+                    }
+
+                    using var rotatedBitmap = Bitmap.CreateBitmap(
+                        originalBitmap, 0, 0,
+                        originalBitmap.Width, originalBitmap.Height,
+                        matrix, true)!;
+
+                    using var finalBitmap = ApplySoftwareZoomAndExposure(rotatedBitmap);
+                    var tempPath = System.IO.Path.Combine(Microsoft.Maui.Storage.FileSystem.CacheDirectory, $"capture_{System.Guid.NewGuid()}.jpg");
+                    using (var stream = System.IO.File.Create(tempPath))
+                        finalBitmap.Compress(Bitmap.CompressFormat.Jpeg!, 95, stream);
+
+                    Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        if (VirtualView is CameraView cv)
+                            cv.OnPhotoCaptured(tempPath);
+                    });
+                }
+                catch (System.Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Picture Processing Error: {ex.Message}");
+                    Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(ResumePreviewAfterCapture);
+                }
+            });
         }
     }
 
@@ -1107,44 +1206,11 @@ namespace Pocket.Client.Platforms.Android.Handlers
 
         public void OnPictureTaken(byte[]? data, global::Android.Hardware.Camera? camera)
         {
+            // The preview stays stopped (frozen on the shot) until the page calls ResumePreview
             if (data != null && data.Length > 0)
-            {
-                try
-                {
-                    using var originalBitmap = BitmapFactory.DecodeByteArray(data, 0, data.Length);
-                    if (originalBitmap != null)
-                    {
-                        using var matrix = new Matrix();
-                        matrix.PostRotate(_handler.GetStillCaptureRotationDegrees());
-                        if (_handler.IsFrontCamera)
-                        {
-                            // Mirror selfies so the saved photo matches the (mirrored) preview
-                            matrix.PostScale(-1, 1);
-                        }
-
-                        using var rotatedBitmap = Bitmap.CreateBitmap(
-                            originalBitmap, 0, 0,
-                            originalBitmap.Width, originalBitmap.Height,
-                            matrix, true)!;
-
-                        using var finalBitmap = _handler.ApplySoftwareZoomAndExposure(rotatedBitmap);
-                        var tempPath = System.IO.Path.Combine(Microsoft.Maui.Storage.FileSystem.CacheDirectory, $"capture_{System.Guid.NewGuid()}.jpg");
-                        using var stream = System.IO.File.Create(tempPath);
-                        finalBitmap.Compress(Bitmap.CompressFormat.Jpeg!, 95, stream);
-
-                        if (_handler.VirtualView is CameraView cv)
-                        {
-                            cv.OnPhotoCaptured(tempPath);
-                        }
-                    }
-                }
-                catch (System.Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Picture Processing Error: {ex.Message}");
-                }
-                
-                camera?.StartPreview();
-            }
+                _handler.SaveStillPictureAsync(data);
+            else
+                _handler.ResumePreviewAfterCapture();
         }
     }
 }

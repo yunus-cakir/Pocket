@@ -89,7 +89,8 @@ namespace Pocket.Client.PageModels
 
         public bool IsSwipeAllowed => !IsPreviewing && !IsReplyingToFeedPost && !IsActivitySheetOpen &&
                                       !IsFilterMenuOpen && !IsEmojiPickerOpen && !IsPostOptionsMenuOpen &&
-                                      !IsDeleteConfirmOpen && !IsNotificationsSheetOpen && !IsConnectionSheetOpen;
+                                      !IsDeleteConfirmOpen && !IsNotificationsSheetOpen && !IsConnectionSheetOpen &&
+                                      !IsEmojiLayoutSheetOpen;
 
         public bool ShowPreviewControls => IsPreviewing && !IsEditingCaption;
         public bool ShowSaveToGalleryButton => ShowPreviewControls && !IsFromGallery;
@@ -246,6 +247,9 @@ namespace Pocket.Client.PageModels
         private bool _isConnectionSheetOpen;
 
         [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsSwipeAllowed))]
+        private bool _isEmojiLayoutSheetOpen;
+
+        [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsSwipeAllowed))]
         private bool _isPostOptionsMenuOpen;
 
         /// <summary>Per-recipient delivery lines shown in the options menu of an outgoing post.</summary>
@@ -391,6 +395,8 @@ namespace Pocket.Client.PageModels
         public Action? CloseNotificationsSheetAction;
         public Action? OpenConnectionSheetAction;
         public Action? CloseConnectionSheetAction;
+        public Action? OpenEmojiLayoutSheetAction;
+        public Action? CloseEmojiLayoutSheetAction;
         public Action? OpenEmojiPickerAction;
         public Action? CloseEmojiPickerAction;
         public Action<int>? ScrollToEmojiCategoryAction;
@@ -405,7 +411,7 @@ namespace Pocket.Client.PageModels
         public Action? CloseDeleteConfirmAction;
         public Action? ShowSavedToastAction;
         public Action? ShowSendFailedToastAction;
-        public Action<Guid, System.Collections.Generic.IReadOnlyList<string>>? PlayReactionEmojiRainAction;
+        public Action<Guid, System.Collections.Generic.IReadOnlyList<string>, bool>? PlayReactionEmojiRainAction;
         public Action? StopReactionEmojiRainAction;
 
         private readonly System.Collections.Generic.HashSet<Guid> _shownReactionDmIds = new();
@@ -955,6 +961,35 @@ namespace Pocket.Client.PageModels
         }
 
         [RelayCommand]
+        private void OpenEmojiLayoutSheet()
+        {
+            if (IsEmojiLayoutSheetOpen)
+                return;
+            IsEmojiLayoutSheetOpen = true;
+            OpenEmojiLayoutSheetAction?.Invoke();
+        }
+
+        [RelayCommand]
+        private void CloseEmojiLayoutSheet()
+        {
+            if (CloseEmojiLayoutSheetAction != null)
+                CloseEmojiLayoutSheetAction.Invoke();
+            else
+                IsEmojiLayoutSheetOpen = false;
+        }
+
+        /// <summary>Applies the tapped layout and closes the picker, like a dropdown.</summary>
+        [RelayCommand]
+        private void ChooseEmojiLayout(string? value)
+        {
+            if (!Enum.TryParse(value, true, out Pocket.Client.Services.EmojiLayout layout) ||
+                !Pocket.Client.Services.EmojiLayoutSettings.IsAvailable(layout))
+                return;
+            ShellModel.SelectEmojiLayoutCommand.Execute(value);
+            CloseEmojiLayoutSheet();
+        }
+
+        [RelayCommand]
         private async Task SaveConnectionSettingsAsync()
         {
             CloseConnectionSheet();
@@ -1104,7 +1139,7 @@ namespace Pocket.Client.PageModels
             if (emojis.Count > 0)
             {
                 IsReactionAnimationPlaying = true;
-                PlayReactionEmojiRainAction?.Invoke(post.Id, emojis);
+                PlayReactionEmojiRainAction?.Invoke(post.Id, emojis, false);
             }
             else
             {
@@ -1377,6 +1412,11 @@ namespace Pocket.Client.PageModels
             ShellModel.OnMediaPostSent += HandleMediaPostSent;
             ShellModel.OnMediaPostDelivered += HandleMediaPostDelivered;
             ShellModel.OnMediaPostDeleted += HandleMediaPostDeleted;
+            ShellModel.OnRelativeTimeTick += () =>
+            {
+                foreach (var post in FeedPosts)
+                    post.RefreshRelativeTimeText();
+            };
             ShellModel.OnPostDeliveryChanged += postId =>
             {
                 // Keep the preloaded rows of the visible post current, menu open or not.
@@ -1725,6 +1765,8 @@ namespace Pocket.Client.PageModels
                 UpdateRecentEmoji(reactionEmoji);
                 // Send reaction silently in background without navigating to DM page or entering replying mode
                 _ = ShellModel.SendDirectMessageAsync(targetFriendId, null, reactionEmoji, post.Id);
+                // Same emoji burst as a received reaction, but floating upward from the bottom
+                PlayReactionEmojiRainAction?.Invoke(post.Id, new[] { reactionEmoji }, true);
                 return;
             }
 
@@ -2151,7 +2193,7 @@ namespace Pocket.Client.PageModels
                 MediaLocalPath = persistentPath,
                 MediaType = Shared.Enums.MediaType.Photo,
                 Caption = sentCaption,
-                SentAt = DateTime.UtcNow,
+                SentAt = Services.ServerClock.UtcNow,
                 IsIncludedInRollcall = true,
                 SyncStatus = Shared.Enums.SyncStatus.Pending,
                 IsWaitingForServer = false,

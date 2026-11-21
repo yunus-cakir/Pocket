@@ -4,6 +4,7 @@
              xmlns:pm="clr-namespace:Pocket.Client.PageModels"
              xmlns:models="clr-namespace:Pocket.Client.Models"
              xmlns:controls="clr-namespace:Pocket.Client.Controls"
+             xmlns:services="clr-namespace:Pocket.Client.Services"
              xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
              x:Class="Pocket.Client.Pages.CameraPage"
              x:DataType="pm:CameraPageModel"
@@ -294,6 +295,31 @@
                                    FontAttributes="Bold"
                                    VerticalOptions="Center"
                                    Margin="6,0,0,0" />
+                        </Grid>
+
+                        <!-- Battery optimization: same exemption dialog the app shows once at startup -->
+                        <Grid ColumnDefinitions="36, *" Padding="16,12" BackgroundColor="Transparent">
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding ShellModel.OpenBatteryOptimizationCommand}" />
+                            </Grid.GestureRecognizers>
+                            <Grid Grid.Column="0" WidthRequest="22" HeightRequest="22" HorizontalOptions="Start" VerticalOptions="Center">
+                                <Path Fill="#9CA3AF"
+                                      HorizontalOptions="Center"
+                                      VerticalOptions="Center"
+                                      Data="M4,0 L8,0 L8,1.5 L10.5,1.5 C11.33,1.5 12,2.17 12,3 L12,16.5 C12,17.33 11.33,18 10.5,18 L1.5,18 C0.67,18 0,17.33 0,16.5 L0,3 C0,2.17 0.67,1.5 1.5,1.5 L4,1.5 Z M6.8,5 L3,10.5 L5.6,10.5 L5,15 L9,9 L6.3,9 Z" />
+                            </Grid>
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2" Margin="6,0,0,0">
+                                <Label Text="Battery optimization"
+                                       TextColor="#FFFFFF"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="16"
+                                       FontAttributes="Bold" />
+                                <Label Text="{Binding ShellModel.BatteryOptimizationStatusText}"
+                                       IsVisible="{Binding ShellModel.BatteryOptimizationStatusText, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}"
+                                       TextColor="#8E8E93"
+                                       FontFamily="OpenSansRegular"
+                                       FontSize="14" />
+                            </VerticalStackLayout>
                         </Grid>
 
                         <!-- ========================================== -->
@@ -820,25 +846,59 @@
                                     </Border.Triggers>
                                 </Border>
 
-                                <!-- Red (#D43800) -->
+                                <!-- Pink (#FF59D6) -->
                                 <Border WidthRequest="28"
                                         HeightRequest="28"
                                         StrokeShape="RoundRectangle 14"
-                                        BackgroundColor="#D43800"
+                                        BackgroundColor="#FF59D6"
                                         Stroke="#FFFFFF"
                                         StrokeThickness="0"
                                         Padding="0"
                                         VerticalOptions="Center">
                                     <Border.GestureRecognizers>
-                                        <TapGestureRecognizer Command="{Binding ShellModel.SelectAccentColorCommand}" CommandParameter="#D43800" />
+                                        <TapGestureRecognizer Command="{Binding ShellModel.SelectAccentColorCommand}" CommandParameter="#FF59D6" />
                                     </Border.GestureRecognizers>
                                     <Border.Triggers>
-                                        <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsAccentRedSelected}" Value="True">
+                                        <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsAccentPinkSelected}" Value="True">
                                             <Setter Property="StrokeThickness" Value="2.5" />
                                         </DataTrigger>
                                     </Border.Triggers>
                                 </Border>
                             </HorizontalStackLayout>
+                        </Grid>
+
+
+                        <!-- Emoji layout: opens the full-screen Emoji layout picker -->
+                        <Grid ColumnDefinitions="36, *, Auto" Padding="16,12" BackgroundColor="Transparent">
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding OpenEmojiLayoutSheetCommand}" />
+                            </Grid.GestureRecognizers>
+                            <Grid Grid.Column="0" WidthRequest="22" HeightRequest="22" HorizontalOptions="Start" VerticalOptions="Center">
+                                <Path Fill="#9CA3AF"
+                                      HorizontalOptions="Center"
+                                      VerticalOptions="Center"
+                                      Data="M9,0 C13.97,0 18,4.03 18,9 C18,13.97 13.97,18 9,18 C4.03,18 0,13.97 0,9 C0,4.03 4.03,0 9,0 Z M9,2 C5.13,2 2,5.13 2,9 C2,12.87 5.13,16 9,16 C12.87,16 16,12.87 16,9 C16,5.13 12.87,2 9,2 Z M6,5.5 C6.83,5.5 7.5,6.17 7.5,7 C7.5,7.83 6.83,8.5 6,8.5 C5.17,8.5 4.5,7.83 4.5,7 C4.5,6.17 5.17,5.5 6,5.5 Z M12,5.5 C12.83,5.5 13.5,6.17 13.5,7 C13.5,7.83 12.83,8.5 12,8.5 C11.17,8.5 10.5,7.83 10.5,7 C10.5,6.17 11.17,5.5 12,5.5 Z M4.6,10.5 L13.4,10.5 C12.85,12.55 11.1,14 9,14 C6.9,14 5.15,12.55 4.6,10.5 Z" />
+                            </Grid>
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2" Margin="6,0,10,0">
+                                <Label Text="Emoji layout"
+                                       TextColor="#FFFFFF"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="16"
+                                       FontAttributes="Bold" />
+                                <Label Text="{Binding ShellModel.EmojiLayoutDisplayName}"
+                                       TextColor="#8E8E93"
+                                       FontFamily="OpenSansRegular"
+                                       FontSize="14" />
+                            </VerticalStackLayout>
+                            <Path Grid.Column="2"
+                                  WidthRequest="8"
+                                  HeightRequest="14"
+                                  Stroke="#636366"
+                                  StrokeThickness="2.2"
+                                  StrokeLineCap="Round"
+                                  StrokeLineJoin="Round"
+                                  VerticalOptions="Center"
+                                  Data="M1,1 L7,7 L1,13" />
                         </Grid>
 
                         <!-- ========================================== -->
@@ -3243,6 +3303,13 @@
                                         BackgroundColor="#000000"
                                         Padding="3"
                                         VerticalOptions="Center">
+                                    <Border.Triggers>
+                                        <!-- Unread: ring in the accent color from Settings -->
+                                        <DataTrigger TargetType="Border" Binding="{Binding HasUnread}" Value="True">
+                                            <Setter Property="Stroke" Value="{DynamicResource AccentBrush}" />
+                                            <Setter Property="StrokeThickness" Value="3" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
                                     <Border WidthRequest="50"
                                             HeightRequest="50"
                                             StrokeShape="RoundRectangle 25"
@@ -3273,17 +3340,40 @@
                                            TextColor="#8E8E93"
                                            FontFamily="OpenSansRegular"
                                            FontSize="15"
-                                           LineBreakMode="TailTruncation" />
+                                           LineBreakMode="TailTruncation">
+                                        <Label.Triggers>
+                                            <DataTrigger TargetType="Label" Binding="{Binding HasUnread}" Value="True">
+                                                <Setter Property="TextColor" Value="#FFFFFF" />
+                                                <Setter Property="FontFamily" Value="OpenSansSemibold" />
+                                                <Setter Property="FontAttributes" Value="Bold" />
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
                                 </VerticalStackLayout>
 
-                                <!-- Relative Time ("1h") -->
-                                <Label Grid.Column="2"
-                                       Text="{Binding LastMessageTimeText}"
-                                       TextColor="#8E8E93"
-                                       FontFamily="OpenSansSemibold"
-                                       FontSize="14"
-                                       VerticalOptions="Start"
-                                       Margin="0,8,0,0" />
+                                <!-- Relative Time ("1h") + unread dot in the accent color -->
+                                <VerticalStackLayout Grid.Column="2"
+                                                     VerticalOptions="Start"
+                                                     Margin="0,8,0,0"
+                                                     Spacing="10">
+                                    <Label Text="{Binding LastMessageTimeText}"
+                                           TextColor="#8E8E93"
+                                           FontFamily="OpenSansSemibold"
+                                           FontSize="14"
+                                           HorizontalOptions="End">
+                                        <Label.Triggers>
+                                            <DataTrigger TargetType="Label" Binding="{Binding HasUnread}" Value="True">
+                                                <Setter Property="TextColor" Value="#FFFFFF" />
+                                                <Setter Property="FontAttributes" Value="Bold" />
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
+                                    <Ellipse WidthRequest="12"
+                                             HeightRequest="12"
+                                             Fill="{DynamicResource AccentBrush}"
+                                             HorizontalOptions="End"
+                                             IsVisible="{Binding HasUnread}" />
+                                </VerticalStackLayout>
                             </Grid>
                         </DataTemplate>
                     </CollectionView.ItemTemplate>
@@ -4269,6 +4359,254 @@
                                HorizontalOptions="Center"
                                VerticalOptions="Center" />
                     </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ============================================================== -->
+        <!-- EMOJI LAYOUT FULL-SCREEN PICKER OVERLAY                        -->
+        <!-- ============================================================== -->
+        <Grid x:Name="EmojiLayoutOverlayGrid"
+              IsVisible="False"
+              HorizontalOptions="Fill"
+              VerticalOptions="Fill">
+            <BoxView x:Name="EmojiLayoutBackdrop"
+                     BackgroundColor="#99000000"
+                     Color="#99000000"
+                     Opacity="0"
+                     HorizontalOptions="Fill"
+                     VerticalOptions="Fill">
+                <BoxView.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnEmojiLayoutBackdropTapped" />
+                </BoxView.GestureRecognizers>
+            </BoxView>
+
+            <Border x:Name="EmojiLayoutSheetCard"
+                    VerticalOptions="Fill"
+                    HorizontalOptions="Fill"
+                    Margin="0,24,0,0"
+                    TranslationY="900"
+                    BackgroundColor="#1C1C1E"
+                    StrokeShape="RoundRectangle 32,32,0,0"
+                    StrokeThickness="0"
+                    Padding="16,12,16,32">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer />
+                </Border.GestureRecognizers>
+                <Grid RowDefinitions="Auto, *">
+                    <!-- Drag Header Area: Handle pill + Title -->
+                    <Grid Grid.Row="0"
+                          RowDefinitions="Auto, Auto, Auto"
+                          BackgroundColor="Transparent"
+                          Padding="0,4,0,22">
+                        <Grid.GestureRecognizers>
+                            <PanGestureRecognizer PanUpdated="OnEmojiLayoutSheetPanUpdated" />
+                        </Grid.GestureRecognizers>
+
+                        <BoxView Grid.Row="0"
+                                 WidthRequest="38"
+                                 HeightRequest="5"
+                                 CornerRadius="2.5"
+                                 Color="#5A5A5E"
+                                 BackgroundColor="#5A5A5E"
+                                 HorizontalOptions="Center"
+                                 Margin="0,0,0,14">
+                            <BoxView.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnEmojiLayoutBackdropTapped" />
+                            </BoxView.GestureRecognizers>
+                        </BoxView>
+
+                        <Label Grid.Row="1"
+                               Text="Emoji layout"
+                               TextColor="#FFFFFF"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="20"
+                               FontAttributes="Bold"
+                               HorizontalOptions="Center" />
+
+                        <Label Grid.Row="2"
+                               Text="How emoji look in chats, captions and reactions"
+                               TextColor="#8E8E93"
+                               FontFamily="OpenSansRegular"
+                               FontSize="14"
+                               HorizontalOptions="Center"
+                               HorizontalTextAlignment="Center"
+                               Margin="0,6,0,0" />
+                    </Grid>
+
+                    <ScrollView Grid.Row="1">
+                        <VerticalStackLayout Spacing="14">
+                            <!-- Default (system) -->
+                            <Border BackgroundColor="#2C2C2E"
+                                    StrokeShape="RoundRectangle 22"
+                                    StrokeThickness="0"
+                                    Padding="20,16">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding ChooseEmojiLayoutCommand}" CommandParameter="System" />
+                                </Border.GestureRecognizers>
+                                <Grid ColumnDefinitions="*, Auto" ColumnSpacing="12">
+                                    <VerticalStackLayout Grid.Column="0" Spacing="4" VerticalOptions="Center">
+                                        <Label Text="Default (system)"
+                                               TextColor="#FFFFFF"
+                                               FontFamily="OpenSansSemibold"
+                                               FontSize="16"
+                                               FontAttributes="Bold" />
+                                        <Label Text="Your device&apos;s own emoji"
+                                               TextColor="#8E8E93"
+                                               FontFamily="OpenSansRegular"
+                                               FontSize="13" />
+                                        <Label Text="&#x1F600; &#x1F602; &#x1F60D; &#x1F973; &#x1F44D; &#x1F525; &#x2764;&#xFE0F; &#x1F389;"
+                                               services:EmojiLayoutSettings.Override="System"
+                                               FontSize="24"
+                                               Margin="0,6,0,0" />
+                                    </VerticalStackLayout>
+                                    <Border Grid.Column="1"
+                                            WidthRequest="24"
+                                            HeightRequest="24"
+                                            StrokeShape="RoundRectangle 12"
+                                            Stroke="#636366"
+                                            StrokeThickness="2"
+                                            BackgroundColor="Transparent"
+                                            Padding="0"
+                                            VerticalOptions="Center">
+                                        <Border WidthRequest="12"
+                                                HeightRequest="12"
+                                                StrokeShape="RoundRectangle 6"
+                                                StrokeThickness="0"
+                                                BackgroundColor="{DynamicResource AccentColor}"
+                                                HorizontalOptions="Center"
+                                                VerticalOptions="Center"
+                                                IsVisible="{Binding ShellModel.IsEmojiLayoutSystemSelected}" />
+                                        <Border.Triggers>
+                                            <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsEmojiLayoutSystemSelected}" Value="True">
+                                                <Setter Property="Stroke" Value="{DynamicResource AccentColor}" />
+                                            </DataTrigger>
+                                        </Border.Triggers>
+                                    </Border>
+                                </Grid>
+                            </Border>
+
+                            <!-- WhatsApp -->
+                            <Border BackgroundColor="#2C2C2E"
+                                    StrokeShape="RoundRectangle 22"
+                                    StrokeThickness="0"
+                                    Padding="20,16">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding ChooseEmojiLayoutCommand}" CommandParameter="WhatsApp" />
+                                </Border.GestureRecognizers>
+                                <Border.Triggers>
+                                    <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsEmojiLayoutWhatsAppAvailable}" Value="False">
+                                        <Setter Property="Opacity" Value="0.45" />
+                                    </DataTrigger>
+                                </Border.Triggers>
+                                <Grid ColumnDefinitions="*, Auto" ColumnSpacing="12">
+                                    <VerticalStackLayout Grid.Column="0" Spacing="4" VerticalOptions="Center">
+                                        <Label Text="WhatsApp"
+                                               TextColor="#FFFFFF"
+                                               FontFamily="OpenSansSemibold"
+                                               FontSize="16"
+                                               FontAttributes="Bold" />
+                                        <Label Text="WhatsApp-style emoji pack"
+                                               TextColor="#8E8E93"
+                                               FontFamily="OpenSansRegular"
+                                               FontSize="13" />
+                                        <Label Text="&#x1F600; &#x1F602; &#x1F60D; &#x1F973; &#x1F44D; &#x1F525; &#x2764;&#xFE0F; &#x1F389;"
+                                               services:EmojiLayoutSettings.Override="WhatsApp"
+                                               FontSize="24"
+                                               Margin="0,6,0,0" />
+                                        <Label Text="Font file not bundled in this build"
+                                               IsVisible="{Binding ShellModel.IsEmojiLayoutWhatsAppAvailable, Converter={StaticResource InvertedBoolConverter}}"
+                                               TextColor="#FF9F0A"
+                                               FontFamily="OpenSansRegular"
+                                               FontSize="12" />
+                                    </VerticalStackLayout>
+                                    <Border Grid.Column="1"
+                                            WidthRequest="24"
+                                            HeightRequest="24"
+                                            StrokeShape="RoundRectangle 12"
+                                            Stroke="#636366"
+                                            StrokeThickness="2"
+                                            BackgroundColor="Transparent"
+                                            Padding="0"
+                                            VerticalOptions="Center">
+                                        <Border WidthRequest="12"
+                                                HeightRequest="12"
+                                                StrokeShape="RoundRectangle 6"
+                                                StrokeThickness="0"
+                                                BackgroundColor="{DynamicResource AccentColor}"
+                                                HorizontalOptions="Center"
+                                                VerticalOptions="Center"
+                                                IsVisible="{Binding ShellModel.IsEmojiLayoutWhatsAppSelected}" />
+                                        <Border.Triggers>
+                                            <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsEmojiLayoutWhatsAppSelected}" Value="True">
+                                                <Setter Property="Stroke" Value="{DynamicResource AccentColor}" />
+                                            </DataTrigger>
+                                        </Border.Triggers>
+                                    </Border>
+                                </Grid>
+                            </Border>
+
+                            <!-- Google Noto Color -->
+                            <Border BackgroundColor="#2C2C2E"
+                                    StrokeShape="RoundRectangle 22"
+                                    StrokeThickness="0"
+                                    Padding="20,16">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding ChooseEmojiLayoutCommand}" CommandParameter="Noto" />
+                                </Border.GestureRecognizers>
+                                <Border.Triggers>
+                                    <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsEmojiLayoutNotoAvailable}" Value="False">
+                                        <Setter Property="Opacity" Value="0.45" />
+                                    </DataTrigger>
+                                </Border.Triggers>
+                                <Grid ColumnDefinitions="*, Auto" ColumnSpacing="12">
+                                    <VerticalStackLayout Grid.Column="0" Spacing="4" VerticalOptions="Center">
+                                        <Label Text="Google Noto Color"
+                                               TextColor="#FFFFFF"
+                                               FontFamily="OpenSansSemibold"
+                                               FontSize="16"
+                                               FontAttributes="Bold" />
+                                        <Label Text="Google&apos;s open-source emoji pack"
+                                               TextColor="#8E8E93"
+                                               FontFamily="OpenSansRegular"
+                                               FontSize="13" />
+                                        <Label Text="&#x1F600; &#x1F602; &#x1F60D; &#x1F973; &#x1F44D; &#x1F525; &#x2764;&#xFE0F; &#x1F389;"
+                                               services:EmojiLayoutSettings.Override="Noto"
+                                               FontSize="24"
+                                               Margin="0,6,0,0" />
+                                        <Label Text="Font file not bundled in this build"
+                                               IsVisible="{Binding ShellModel.IsEmojiLayoutNotoAvailable, Converter={StaticResource InvertedBoolConverter}}"
+                                               TextColor="#FF9F0A"
+                                               FontFamily="OpenSansRegular"
+                                               FontSize="12" />
+                                    </VerticalStackLayout>
+                                    <Border Grid.Column="1"
+                                            WidthRequest="24"
+                                            HeightRequest="24"
+                                            StrokeShape="RoundRectangle 12"
+                                            Stroke="#636366"
+                                            StrokeThickness="2"
+                                            BackgroundColor="Transparent"
+                                            Padding="0"
+                                            VerticalOptions="Center">
+                                        <Border WidthRequest="12"
+                                                HeightRequest="12"
+                                                StrokeShape="RoundRectangle 6"
+                                                StrokeThickness="0"
+                                                BackgroundColor="{DynamicResource AccentColor}"
+                                                HorizontalOptions="Center"
+                                                VerticalOptions="Center"
+                                                IsVisible="{Binding ShellModel.IsEmojiLayoutNotoSelected}" />
+                                        <Border.Triggers>
+                                            <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsEmojiLayoutNotoSelected}" Value="True">
+                                                <Setter Property="Stroke" Value="{DynamicResource AccentColor}" />
+                                            </DataTrigger>
+                                        </Border.Triggers>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </VerticalStackLayout>
+                    </ScrollView>
                 </Grid>
             </Border>
         </Grid>

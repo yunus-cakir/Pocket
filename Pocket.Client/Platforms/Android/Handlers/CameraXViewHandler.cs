@@ -56,6 +56,7 @@ namespace Pocket.Client.Platforms.Android.Handlers
             [nameof(CameraView.SwitchCamera)] = (h, v, a) => h.SwitchCamera(),
             [nameof(CameraView.SuspendCamera)] = (h, v, a) => h.Suspend(),
             [nameof(CameraView.ResumeCamera)] = (h, v, a) => h.Resume(),
+            [nameof(CameraView.ResumePreview)] = (h, v, a) => h.UnfreezePreview(),
         };
 
         public CameraXViewHandler() : base(PropertyMapper, CommandMapper)
@@ -94,6 +95,7 @@ namespace Pocket.Client.Platforms.Android.Handlers
         {
             _isSuspended = true;
             Unbind();
+            UnfreezePreview();
         }
 
         private void Resume()
@@ -314,12 +316,15 @@ namespace Pocket.Client.Platforms.Android.Handlers
                 _isCapturing = true;
                 try
                 {
+                    // CameraX keeps the preview running during a still capture: hold the shutter-time frame
+                    FreezePreview();
                     _imageCapture.FlashMode = useHardwareFlash ? ImageCapture.FlashModeOn : ImageCapture.FlashModeOff;
                     _imageCapture.TakePicture(ContextCompat.GetMainExecutor(Context), new CaptureCallback(this));
                 }
                 catch (System.Exception ex)
                 {
                     _isCapturing = false;
+                    UnfreezePreview();
                     System.Diagnostics.Debug.WriteLine($"CameraX capture error: {ex.Message}");
                 }
                 return;
@@ -348,7 +353,53 @@ namespace Pocket.Client.Platforms.Android.Handlers
         {
             var frame = PlatformView?.Bitmap;
             if (frame == null) return;
+            FreezePreview();
             SaveBitmapAsync(frame, GetDeviceRotationDegrees(), mirror: false, sourceRotation: 0);
+        }
+
+        // Shows a still snapshot of the preview on top of it from the shutter until the page closes the
+        // captured photo (ResumePreview), so the viewfinder doesn't visibly keep moving while the photo is
+        // still being saved and decoded for display (noticeable on slower phones such as the Galaxy Note 9).
+        private global::Android.Widget.ImageView? _freezeOverlay;
+
+        private void FreezePreview()
+        {
+            var view = PlatformView;
+            var snapshot = view?.Bitmap;
+            if (view == null || snapshot == null) return;
+
+            if (_freezeOverlay == null)
+            {
+                _freezeOverlay = new global::Android.Widget.ImageView(Context);
+                _freezeOverlay.SetScaleType(global::Android.Widget.ImageView.ScaleType.FitXy!);
+            }
+
+            if (_freezeOverlay.Parent == null)
+            {
+                view.AddView(_freezeOverlay, new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent));
+            }
+
+            ReleaseFreezeBitmap();
+            _freezeOverlay.SetImageBitmap(snapshot);
+            _freezeOverlay.Visibility = ViewStates.Visible;
+            _freezeOverlay.BringToFront();
+        }
+
+        internal void UnfreezePreview()
+        {
+            if (_freezeOverlay == null) return;
+            _freezeOverlay.Visibility = ViewStates.Gone;
+            ReleaseFreezeBitmap();
+        }
+
+        private void ReleaseFreezeBitmap()
+        {
+            if (_freezeOverlay?.Drawable is global::Android.Graphics.Drawables.BitmapDrawable { Bitmap: { } old })
+            {
+                _freezeOverlay.SetImageBitmap(null);
+                old.Recycle();
+            }
         }
 
         internal void OnStillCaptured(IImageProxy image)
@@ -364,9 +415,12 @@ namespace Pocket.Client.Platforms.Android.Handlers
                 var bitmap = BitmapFactory.DecodeByteArray(bytes, 0, bytes.Length);
                 if (bitmap != null)
                     SaveBitmapAsync(bitmap, GetDeviceRotationDegrees(), mirror: _useFrontCamera, sourceRotation: sensorRotation);
+                else
+                    UnfreezePreview();
             }
             catch (System.Exception ex)
             {
+                UnfreezePreview();
                 System.Diagnostics.Debug.WriteLine($"CameraX picture processing error: {ex.Message}");
             }
             finally
@@ -379,6 +433,7 @@ namespace Pocket.Client.Platforms.Android.Handlers
         internal void OnCaptureFailed(System.Exception ex)
         {
             _isCapturing = false;
+            UnfreezePreview();
             System.Diagnostics.Debug.WriteLine($"CameraX capture failed: {ex.Message}");
         }
 
@@ -418,6 +473,7 @@ namespace Pocket.Client.Platforms.Android.Handlers
                 catch (System.Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"CameraX encode error: {ex.Message}");
+                    Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(UnfreezePreview);
                 }
             });
         }

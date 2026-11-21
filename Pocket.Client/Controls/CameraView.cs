@@ -188,6 +188,16 @@ namespace Pocket.Client.Controls
             Handler?.Invoke(nameof(ResumeCamera));
         }
 
+        /// <summary>
+        /// Restarts the live preview after a capture. Capturing freezes the viewfinder on the shot so the
+        /// camera doesn't visibly keep moving while the photo is still being saved/decoded (slow devices);
+        /// call this when the captured photo's preview is closed (sent or discarded) or the capture failed.
+        /// </summary>
+        public void ResumePreview()
+        {
+            Handler?.Invoke(nameof(ResumePreview));
+        }
+
         public void OnPhotoCaptured(string filePath)
         {
             PhotoCaptured?.Invoke(this, filePath);
