@@ -10,8 +10,11 @@ using AndroidX.Core.View;
 namespace Pocket.Client
 {
     [Activity(
+        // Fixed Java name: the launcher <activity-alias> entries in AndroidManifest.xml target it.
+        // Not MainLauncher: the enabled alias (AppIconSwitcher) is the launcher entry.
+        Name = "com.yunuscakir.pocket.client.MainActivity",
+        Exported = false,
         Theme = "@style/Maui.SplashTheme",
-        MainLauncher = true,
         LaunchMode = LaunchMode.SingleTop,
         ScreenOrientation = ScreenOrientation.Portrait,
         ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
@@ -257,8 +260,19 @@ namespace Pocket.Client
             MainApplication.NormalizeMetrics(Resources);
             ConfigureSystemBars();
             Pocket.Client.Services.NotificationService.EnsureChannelInitialized(this);
-            EnsureNotificationPermission();
+            Pocket.Client.Services.RelayKeepAliveService.Start(this);
+            // On Android 13+ the notification permission dialog and the battery dialog would open at the
+            // same moment and cover each other; the battery one then waits for the permission result.
+            if (!EnsureNotificationPermission() && savedInstanceState == null)
+                Pocket.Client.Services.BatteryOptimizationHelper.RequestOnceOnStartup(this);
             HandleNotificationIntent(Intent);
+        }
+
+        public override void OnRequestPermissionsResult(int requestCode, string[] permissions, Permission[] grantResults)
+        {
+            base.OnRequestPermissionsResult(requestCode, permissions, grantResults);
+            if (requestCode == RequestPostNotificationsCode)
+                Pocket.Client.Services.BatteryOptimizationHelper.RequestOnceOnStartup(this);
         }
 
         protected override void OnNewIntent(Intent? intent)
@@ -268,7 +282,8 @@ namespace Pocket.Client
             HandleNotificationIntent(intent);
         }
 
-        private void EnsureNotificationPermission()
+        /// <returns>True when the permission dialog was requested (its result arrives in OnRequestPermissionsResult).</returns>
+        private bool EnsureNotificationPermission()
         {
             if (OperatingSystem.IsAndroidVersionAtLeast(33))
             {
@@ -278,11 +293,15 @@ namespace Pocket.Client
                         this,
                         new[] { global::Android.Manifest.Permission.PostNotifications },
                         RequestPostNotificationsCode);
+                    return true;
                 }
             }
+            return false;
         }
 
-        public static bool IsActivityResumed { get; private set; } = true;
+        // False until the activity actually resumes: the process may also be running only for the
+        // keep-alive service, with no UI on screen (notifications must then be shown).
+        public static bool IsActivityResumed { get; private set; }
 
         protected override void OnResume()
         {
@@ -291,7 +310,23 @@ namespace Pocket.Client
             if (Microsoft.Maui.Controls.Shell.Current?.BindingContext is Pocket.Client.PageModels.AppShellModel shellModel)
             {
                 shellModel.IsAppInForeground = true;
+                // The user may just have come back from the battery settings screen.
+                shellModel.RefreshBatteryOptimizationStatus();
             }
+        }
+
+        protected override void OnStop()
+        {
+            base.OnStop();
+            // Swap the launcher icon to the current accent color once the app is off screen.
+            Pocket.Client.Services.AppIconSwitcher.ApplyForAccent(
+                this, Pocket.Client.PageModels.AppShellModel.GetSavedAccentColorHex());
+        }
+
+        protected override void OnDestroy()
+        {
+            Pocket.Client.Services.LegacyImeHeightTracker.Detach();
+            base.OnDestroy();
         }
 
         protected override void OnPause()
