@@ -33,7 +33,69 @@ namespace Pocket.Client.Models
         [Ignore]
         public bool IsOutgoing => !IsIncoming;
 
-        public string? TextContent { get; set; }
+        private string? _textContent;
+
+        public string? TextContent
+        {
+            get => _textContent;
+            set
+            {
+                if (SetProperty(ref _textContent, value))
+                {
+                    OnPropertyChanged(nameof(HasText));
+                    OnPropertyChanged(nameof(DisplayText));
+                    OnPropertyChanged(nameof(IsEmojiOnly));
+                    OnPropertyChanged(nameof(HasReactionAndText));
+                    OnPropertyChanged(nameof(HasReactionOnlyInChat));
+                    OnPropertyChanged(nameof(ShowPostReactionBadge));
+                    OnPropertyChanged(nameof(QuotedText));
+                }
+            }
+        }
+
+        /// <summary>How long after sending our own message can still be edited.</summary>
+        public static readonly TimeSpan EditWindow = TimeSpan.FromHours(1);
+
+        private DateTime? _editedAt;
+
+        /// <summary>When the text was last edited (UTC); null = never edited. Newer edits win.</summary>
+        public DateTime? EditedAt
+        {
+            get => _editedAt;
+            set
+            {
+                if (SetProperty(ref _editedAt, value is DateTime v ? Services.ServerClock.AsUtc(v) : null))
+                    OnPropertyChanged(nameof(IsEdited));
+            }
+        }
+
+        /// <summary>Our edit of this (outgoing) message is not on a server yet: resent on the next connection.</summary>
+        public bool EditPending { get; set; }
+
+        [Ignore]
+        public bool IsEdited => EditedAt.HasValue;
+
+        /// <summary>Our own text message, sent less than <see cref="EditWindow"/> ago.</summary>
+        [Ignore]
+        public bool CanEdit => IsOutgoing && HasText && !IsPostReactionOnly &&
+                               Services.ServerClock.UtcNow - SentAt < EditWindow;
+
+        private bool _isDimmed;
+
+        /// <summary>Another message is being edited: this row fades into the background.</summary>
+        [Ignore]
+        public bool IsDimmed
+        {
+            get => _isDimmed;
+            set
+            {
+                if (SetProperty(ref _isDimmed, value))
+                    OnPropertyChanged(nameof(RowOpacity));
+            }
+        }
+
+        [Ignore]
+        public double RowOpacity => IsDimmed ? 0.28 : 1.0;
 
         public string? ReactionEmoji { get; set; }
 

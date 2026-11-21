@@ -204,6 +204,8 @@ namespace Pocket.Client.PageModels
         public event Action<Guid>? OnDirectMessageDeleted;
         /// <summary>A message's reaction changed (message id, emoji or null when removed). Raised on the main thread.</summary>
         public event Action<Guid, string?>? OnDirectMessageReactionChanged;
+        /// <summary>A message's text was edited (message id, new text, edited at). Raised on the main thread.</summary>
+        public event Action<Guid, string, DateTime>? OnDirectMessageEdited;
         public event Action<Friend>? OnFriendProfileUpdated;
         public event Action<User>? OnUserProfileUpdated;
         public event Action? OnDataImported;
@@ -1009,6 +1011,231 @@ namespace Pocket.Client.PageModels
                 senderFriend.ProfilePictureUrl);
         }
 
+        /// <summary>
+        /// Changes the text of our own message (only within <see cref="DirectMessage.EditWindow"/> of sending), saves
+        /// it locally first and sends the edit; if it cannot be sent now it is resent on the next connection.
+        /// </summary>
+        public async Task<bool> EditDirectMessageAsync(DirectMessage target, string newText)
+        {
+            if (_database == null || target == null || target.IsIncoming)
+                return false;
+
+            newText = (newText ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(newText))
+                return false;
+
+            var stored = await _database.GetDirectMessageAsync(target.Id);
+            if (stored == null || stored.IsIncoming)
+                return false;
+
+            // The edit box may have been open a while: allow a short grace past the window.
+            var now = Pocket.Client.Services.ServerClock.UtcNow;
+            if (now - stored.SentAt >= DirectMessage.EditWindow + TimeSpan.FromMinutes(2))
+                return false;
+
+            if (stored.TextContent == newText)
+                return true;
+
+            stored.TextContent = newText;
+            stored.EditedAt = now;
+            stored.EditPending = true;
+            await _database.SaveDirectMessageAsync(stored);
+
+            target.TextContent = newText;
+            target.EditedAt = now;
+            target.EditPending = true;
+            await RefreshFriendLastMessagePreviewAsync(stored.FriendId);
+
+            var friend = await _database.GetFriendAsync(stored.FriendId);
+            if (friend != null && !string.IsNullOrEmpty(friend.PublicKey))
+            {
+                await TryTransmitMessageEditAsync(stored, friend);
+            }
+
+            return true;
+        }
+
+        private async Task<bool> TryTransmitMessageEditAsync(DirectMessage target, Friend friend)
+        {
+            if (_database == null || _cryptoService == null || _relayService == null || CurrentUser == null)
+                return false;
+
+            if (!_relayService.IsConnected || target.EditedAt is not DateTime editedAt)
+                return false;
+
+            var privateKey = await GetPrivateKeyAsync();
+            if (string.IsNullOrEmpty(privateKey))
+                return false;
+
+            try
+            {
+                var sharedSecret = GetOrDeriveSharedSecret(privateKey, friend.PublicKey);
+                var body = Encoding.UTF8.GetBytes($"{target.Id}|{target.TextContent ?? string.Empty}");
+
+                var payload = new Pocket.Shared.DTOs.EncryptedPayloadDto
+                {
+                    MessageId = Guid.NewGuid(),
+                    SenderId = CurrentUser.Id,
+                    RecipientId = friend.Id,
+                    EncryptedContent = _cryptoService.EncryptData(body, sharedSecret),
+                    MediaType = Pocket.Shared.Enums.MediaType.MessageEdited,
+                    Timestamp = editedAt
+                };
+
+                if (!await _relayService.SendPayloadAsync(payload))
+                    return false;
+
+                // Only clear the flag if it was not edited again meanwhile.
+                var current = await _database.GetDirectMessageAsync(target.Id);
+                if (current != null && current.EditPending && current.EditedAt == editedAt)
+                {
+                    current.EditPending = false;
+                    await _database.SaveDirectMessageAsync(current);
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[E2EE Edit Send Error] {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Edits that arrived before the message they change (the relay does not keep order). Not confirmed to the
+        /// relay until applied, so a restart gets them again.
+        /// </summary>
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, (string SenderId, Guid PayloadId, string Text, DateTime At)>
+            _heldMessageEdits = new();
+
+        private async Task ApplyIncomingMessageEditAsync(Pocket.Shared.DTOs.EncryptedPayloadDto payload, byte[] sharedSecret)
+        {
+            if (_database == null || _cryptoService == null || _relayService == null)
+                return;
+
+            if (payload.EncryptedContent is not { Length: > 0 })
+            {
+                await _relayService.ConfirmDeliveryAsync(payload.SenderId, payload.MessageId);
+                return;
+            }
+
+            var body = Encoding.UTF8.GetString(_cryptoService.DecryptData(payload.EncryptedContent, sharedSecret));
+            int sep = body.IndexOf('|');
+            if (sep <= 0 || !Guid.TryParse(body.AsSpan(0, sep), out var targetId) ||
+                string.IsNullOrWhiteSpace(body[(sep + 1)..]))
+            {
+                await _relayService.ConfirmDeliveryAsync(payload.SenderId, payload.MessageId);
+                return;
+            }
+
+            string text = body[(sep + 1)..];
+            var at = Pocket.Client.Services.PayloadTime.SentAt(payload);
+
+            // Payloads are handled concurrently (a reconnect delivers the message and its edit together):
+            // "not there yet → hold" must not interleave with "saved → apply held" (see SaveIncomingDirectMessageAsync).
+            DirectMessage? target;
+            await _messageEditGate.WaitAsync();
+            try
+            {
+                target = await _database.GetDirectMessageAsync(targetId);
+                if (target == null)
+                {
+                    // The message itself may still be on its way: apply once it arrives.
+                    _heldMessageEdits.AddOrUpdate(targetId,
+                        (payload.SenderId, payload.MessageId, text, at),
+                        (_, old) => old.At > at ? old : (payload.SenderId, payload.MessageId, text, at));
+                    return;
+                }
+            }
+            finally
+            {
+                _messageEditGate.Release();
+            }
+
+            await ApplyMessageEditAsync(target, payload.SenderId, text, at);
+            await _relayService.ConfirmDeliveryAsync(payload.SenderId, payload.MessageId);
+        }
+
+        private async Task ApplyMessageEditAsync(DirectMessage target, string senderId, string text, DateTime at)
+        {
+            if (_database == null)
+                return;
+
+            // Only the friend's own messages, only within the edit window (with slack for clock drift / delays).
+            if (!target.IsIncoming || target.FriendId != senderId)
+                return;
+            if (at - target.SentAt > DirectMessage.EditWindow + TimeSpan.FromMinutes(10))
+                return;
+            if (target.EditedAt is DateTime known && known >= at)
+                return; // an older edit arriving late
+
+            target.TextContent = text;
+            target.EditedAt = at;
+            await _database.SaveDirectMessageAsync(target);
+            await RefreshFriendLastMessagePreviewAsync(target.FriendId);
+
+            var id = target.Id;
+            Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+            {
+                OnDirectMessageEdited?.Invoke(id, text, at);
+            });
+        }
+
+        /// <summary>Serializes the held-edit hand-over between a message and its edit handled at the same time.</summary>
+        private readonly System.Threading.SemaphoreSlim _messageEditGate = new(1, 1);
+
+        /// <summary>
+        /// Saves a newly received message, applying an edit of it that arrived first (the edit is confirmed then).
+        /// </summary>
+        private async Task SaveIncomingDirectMessageAsync(DirectMessage dm)
+        {
+            if (_database == null)
+                return;
+
+            (string SenderId, Guid PayloadId, string Text, DateTime At) held;
+            await _messageEditGate.WaitAsync();
+            try
+            {
+                if (_heldMessageEdits.TryRemove(dm.Id, out held) &&
+                    dm.FriendId == held.SenderId &&
+                    held.At - dm.SentAt <= DirectMessage.EditWindow + TimeSpan.FromMinutes(10))
+                {
+                    dm.TextContent = held.Text;
+                    dm.EditedAt = held.At;
+                }
+
+                await _database.SaveDirectMessageAsync(dm);
+            }
+            finally
+            {
+                _messageEditGate.Release();
+            }
+
+            if (held.PayloadId != Guid.Empty && _relayService != null)
+                await _relayService.ConfirmDeliveryAsync(held.SenderId, held.PayloadId);
+        }
+
+        /// <summary>Resends our edits that never reached a server.</summary>
+        private async Task FlushPendingMessageEditsAsync()
+        {
+            if (_database == null || _relayService == null)
+                return;
+
+            var pending = await _database.GetDirectMessagesWithPendingEditAsync();
+            foreach (var dm in pending)
+            {
+                if (!_relayService.IsConnected)
+                    break;
+
+                var friend = await _database.GetFriendAsync(dm.FriendId);
+                if (friend == null || string.IsNullOrEmpty(friend.PublicKey))
+                    continue;
+
+                await TryTransmitMessageEditAsync(dm, friend);
+            }
+        }
+
         /// <summary>Resends our reactions that never reached a server.</summary>
         private async Task FlushPendingMessageReactionsAsync()
         {
@@ -1264,6 +1491,13 @@ namespace Pocket.Client.PageModels
                     return;
                 }
 
+                if (payload.MediaType == Pocket.Shared.Enums.MediaType.MessageEdited)
+                {
+                    // Confirms the payload itself (or holds it until the edited message arrives).
+                    await ApplyIncomingMessageEditAsync(payload, sharedSecret);
+                    return;
+                }
+
                 if (payload.MediaType == Pocket.Shared.Enums.MediaType.MessageDeleted)
                 {
                     if (payload.EncryptedContent is { Length: > 0 })
@@ -1345,7 +1579,9 @@ namespace Pocket.Client.PageModels
                         }
                     }
 
-                    await _database.SaveDirectMessageAsync(dm);
+                    // An edit of this message may have arrived first: applied while saving.
+                    await SaveIncomingDirectMessageAsync(dm);
+                    textContent = dm.TextContent ?? string.Empty;
 
                     string senderHeader = !string.IsNullOrWhiteSpace(senderFriend.DisplayName)
                         ? senderFriend.DisplayName
@@ -2043,6 +2279,7 @@ namespace Pocket.Client.PageModels
 
                 await FlushOutgoingDirectMessagesAsync(instance);
                 await FlushPendingMessageReactionsAsync();
+                await FlushPendingMessageEditsAsync();
             }
             catch (Exception ex)
             {

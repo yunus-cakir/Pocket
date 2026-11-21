@@ -89,6 +89,49 @@ namespace Pocket.Client.Pages
             {
                 MainThread.BeginInvokeOnMainThread(async () => { await AnimateCloseMessageActionsAsync(); });
             };
+
+            viewModel.BeginEditMessageAction = dm =>
+            {
+                MainThread.BeginInvokeOnMainThread(async () => { await BeginEditMessageAsync(dm); });
+            };
+        }
+
+        /// <summary>Opens the keyboard on the input box (cursor at the end) and keeps the edited message in view.</summary>
+        private async Task BeginEditMessageAsync(Pocket.Client.Models.DirectMessage dm)
+        {
+            // Let the action sheet slide away first so it does not fight the keyboard.
+            await Task.Delay(200);
+            if (BindingContext is not DmPageModel vm || !ReferenceEquals(vm.EditingMessage, dm))
+                return;
+
+            DmMessageEntry.Focus();
+#if ANDROID
+            if (DmMessageEntry.Handler?.PlatformView is AndroidX.AppCompat.Widget.AppCompatEditText editText)
+            {
+                void ActivateFocus()
+                {
+                    if (BindingContext is not DmPageModel { IsEditingMessage: true })
+                        return;
+
+                    editText.RequestFocus();
+                    editText.SetSelection(editText.Text?.Length ?? 0);
+                    var imm = editText.Context?.GetSystemService(global::Android.Content.Context.InputMethodService)
+                        as global::Android.Views.InputMethods.InputMethodManager;
+                    imm?.ShowSoftInput(editText, global::Android.Views.InputMethods.ShowFlags.Implicit);
+                }
+
+                ActivateFocus();
+                editText.Post(ActivateFocus);
+            }
+#endif
+            DmMessageEntry.CursorPosition = DmMessageEntry.Text?.Length ?? 0;
+
+            // The list shrinks as the keyboard opens: bring the edited message back into view once it settled.
+            await Task.Delay(380);
+            if (ReferenceEquals(vm.EditingMessage, dm) && vm.Messages.Contains(dm))
+            {
+                MessagesCollectionView.ScrollTo(dm, position: ScrollToPosition.MakeVisible, animate: true);
+            }
         }
 
         private System.Threading.CancellationTokenSource? _sendFailedToastCts;
@@ -708,6 +751,12 @@ namespace Pocket.Client.Pages
                     _ = AnimateCloseEmojiPickerAsync();
                     return true;
                 }
+
+                if (vm.IsEditingMessage)
+                {
+                    vm.CancelEditMessageCommand.Execute(null);
+                    return true;
+                }
             }
 
             return base.OnBackButtonPressed();
@@ -730,6 +779,7 @@ namespace Pocket.Client.Pages
         {
             if (BindingContext is DmPageModel vm)
             {
+                vm.CancelEditMessageCommand.Execute(null);
                 vm.SetDmWindowActive(false);
             }
 

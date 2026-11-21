@@ -64,7 +64,9 @@ Pocket, **Local-First** mimari prensibiyle çalışır. Tüm kullanıcı bilgile
 | `FriendId` | TEXT (Indexed) | Sohbet edilen arkadaş kimliği |
 | `MediaPostId` | TEXT/GUID | Yanıtlanan veya reaksiyon verilen gönderi GUID'si (opsiyonel) |
 | `IsIncoming` | INTEGER (Bool) | `1` = Gelen mesaj, `0` = Giden mesaj |
-| `TextContent` | TEXT | Mesaj metni |
+| `TextContent` | TEXT | Mesaj metni (düzenlenmişse son hali) |
+| `EditedAt` | DATETIME | Son düzenleme zamanı (UTC); `NULL` = hiç düzenlenmedi (balonun yanında kalem ikonu) |
+| `EditPending` | INTEGER (Bool) | Kendi düzenlememiz henüz sunucuya ulaşmadı; bağlantıda yeniden gönderilir |
 | `ReactionEmoji` | TEXT | Gönderiye bırakılan emoji reaksiyonu (örn: ❤️, 🔥, 😋) |
 | `SentAt` | DATETIME | Gönderilme zamanı (UTC) |
 | `SyncStatus` | INTEGER (Enum) | İletim durumu |

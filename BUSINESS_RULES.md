@@ -16,6 +16,7 @@ This document defines the core business logic, user flow constraints, and operat
 ## 3. Direct Messaging (DMs) & Interactions
 * **BR-301 (Incognito Keyboard):** Whenever a text input field for Direct Messages is focused, the application *must* enforce Incognito Mode on the OS keyboard (e.g., `ImeFlags.NoPersonalizedLearning` on Android, `UITextAutocorrectionType.No` on iOS) to prevent predictive text tracking.
 * **BR-302 (Reactions):** Users can react to any received photo using emojis or direct text replies. These replies are threaded directly to the specific photo in the DM view.
+* **BR-303 (Message Editing):** Users can edit the text of their own direct messages only within 1 hour of sending (long-press → "Edit message"). The edit travels E2EE as a `MessageEdited` payload; the recipient applies it only to that sender's message, newer edits win, and an edited message shows a small pencil icon on both sides.
 
 ## 4. Widget Operations
 * **BR-401 (Widget Syncing):** The OS Widget must always display the *most recently received* photo from a friend.

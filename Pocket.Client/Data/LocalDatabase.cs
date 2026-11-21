@@ -301,6 +301,15 @@ namespace Pocket.Client.Data
                 .ToListAsync();
         }
 
+        /// <summary>Our own messages whose edit has not reached a server yet.</summary>
+        public async Task<List<DirectMessage>> GetDirectMessagesWithPendingEditAsync()
+        {
+            await InitAsync();
+            return await _connection!.Table<DirectMessage>()
+                .Where(dm => dm.EditPending)
+                .ToListAsync();
+        }
+
         public async Task MarkPostReactionsAnimationShownAsync(IEnumerable<Guid> dmIds)
         {
             await InitAsync();

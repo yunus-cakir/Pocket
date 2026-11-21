@@ -33,7 +33,107 @@ namespace Pocket.Client.PageModels
         private string _messageText = string.Empty;
 
         public bool HasMessageText => !string.IsNullOrWhiteSpace(MessageText);
-        public bool ShowQuickEmojis => string.IsNullOrWhiteSpace(MessageText);
+        public bool ShowQuickEmojis => string.IsNullOrWhiteSpace(MessageText) && !IsEditingMessage;
+        public bool ShowSendButton => HasMessageText && !IsEditingMessage;
+
+        /// <summary>Our own message whose text is in the input box for editing (null = normal sending).</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsEditingMessage))]
+        [NotifyPropertyChangedFor(nameof(ShowQuickEmojis))]
+        [NotifyPropertyChangedFor(nameof(ShowSendButton))]
+        [NotifyPropertyChangedFor(nameof(ShowReplyBanner))]
+        [NotifyPropertyChangedFor(nameof(ChromeOpacity))]
+        private DirectMessage? _editingMessage;
+
+        public bool IsEditingMessage => EditingMessage != null;
+
+        /// <summary>Header and other chrome darken while a message is edited, like the other messages.</summary>
+        public double ChromeOpacity => IsEditingMessage ? 0.28 : 1.0;
+
+        /// <summary>The photo-reply banner steps aside while a message is being edited (the reply is kept).</summary>
+        public bool ShowReplyBanner => HasReplyPost && !IsEditingMessage;
+
+        public bool CanEditSelectedMessage => SelectedActionMessage?.CanEdit == true;
+
+        /// <summary>Edit mode started: the page focuses the input box and keeps the message in view.</summary>
+        public Action<DirectMessage>? BeginEditMessageAction { get; set; }
+
+        /// <summary>Edit mode ended (saved or cancelled).</summary>
+        public Action? EndEditMessageAction { get; set; }
+
+        partial void OnMessageTextChanged(string value)
+        {
+            OnPropertyChanged(nameof(ShowSendButton));
+        }
+
+        [RelayCommand]
+        private void EditSelectedMessage()
+        {
+            var dm = SelectedActionMessage;
+            CloseMessageActions();
+
+            if (dm == null || !dm.CanEdit)
+                return;
+
+            if (IsEmojiPickerOpen)
+                CloseEmojiPicker();
+
+            // A draft typed before is not kept: the box now holds the message being edited.
+            EditingMessage = dm;
+            foreach (var msg in Messages)
+            {
+                msg.IsDimmed = !ReferenceEquals(msg, dm);
+            }
+
+            MessageText = dm.TextContent ?? string.Empty;
+            BeginEditMessageAction?.Invoke(dm);
+        }
+
+        [RelayCommand]
+        private void CancelEditMessage()
+        {
+            if (!IsEditingMessage)
+                return;
+
+            EndEditMode();
+        }
+
+        private void EndEditMode()
+        {
+            EditingMessage = null;
+            foreach (var msg in Messages)
+            {
+                msg.IsDimmed = false;
+            }
+
+            MessageText = string.Empty;
+            EndEditMessageAction?.Invoke();
+        }
+
+        private async Task SaveEditedMessageAsync()
+        {
+            var target = EditingMessage;
+            var text = (MessageText ?? string.Empty).Trim();
+            if (target == null || string.IsNullOrEmpty(text))
+                return; // empty text: the check stays disabled, nothing to save
+
+            EndEditMode();
+
+            if (text == target.TextContent)
+                return;
+
+            await _shellModel.EditDirectMessageAsync(target, text);
+        }
+
+        private void HandleDirectMessageEdited(Guid messageId, string text, DateTime editedAt)
+        {
+            var existing = Messages.FirstOrDefault(m => m.Id == messageId);
+            if (existing != null && (existing.EditedAt is not DateTime known || known < editedAt))
+            {
+                existing.TextContent = text;
+                existing.EditedAt = editedAt;
+            }
+        }
 
         [ObservableProperty] private string _firstRecentEmoji = "💗";
 
@@ -237,7 +337,9 @@ namespace Pocket.Client.PageModels
             }
         }
 
-        [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasReplyPost))]
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(HasReplyPost))]
+        [NotifyPropertyChangedFor(nameof(ShowReplyBanner))]
         private MediaPost? _replyingToPost;
 
         public bool HasReplyPost => ReplyingToPost != null;
@@ -245,6 +347,7 @@ namespace Pocket.Client.PageModels
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(SelectedMessageDeleteLabel))]
         [NotifyPropertyChangedFor(nameof(CanReactToSelectedMessage))]
+        [NotifyPropertyChangedFor(nameof(CanEditSelectedMessage))]
         private DirectMessage? _selectedActionMessage;
 
         public string SelectedMessageDeleteLabel =>
@@ -277,6 +380,7 @@ namespace Pocket.Client.PageModels
             Messages.CollectionChanged += (_, _) => _sendStateTicker.Ensure();
             _shellModel.OnDirectMessageDeleted += HandleDirectMessageDeleted;
             _shellModel.OnDirectMessageReactionChanged += HandleDirectMessageReactionChanged;
+            _shellModel.OnDirectMessageEdited += HandleDirectMessageEdited;
             _shellModel.OnMediaPostDeleted += HandleMediaPostDeleted;
             _shellModel.OnFriendProfileUpdated += HandleFriendProfileUpdated;
             _shellModel.OnUserProfileUpdated += HandleUserProfileUpdated;
@@ -422,6 +526,9 @@ namespace Pocket.Client.PageModels
             string myAvatarUrl = _shellModel.CurrentUser.ProfilePictureUrl ?? string.Empty;
             Guid? lastShownMediaPostId = null;
 
+            if (IsEditingMessage)
+                EndEditMode();
+
             Messages.Clear();
             foreach (var dm in dms.Where(d => !d.IsPostReactionOnly))
             {
@@ -477,6 +584,7 @@ namespace Pocket.Client.PageModels
                     dm.ShowMediaCard = prevMsg == null || prevMsg.MediaPostId != dm.MediaPostId;
                 }
 
+                dm.IsDimmed = IsEditingMessage;
                 Messages.Add(dm);
                 ScrollToBottomAction?.Invoke();
             }
@@ -525,6 +633,9 @@ namespace Pocket.Client.PageModels
             var existing = Messages.FirstOrDefault(m => m.Id == messageId);
             if (existing != null)
             {
+                if (ReferenceEquals(existing, EditingMessage))
+                    EndEditMode();
+
                 Messages.Remove(existing);
                 RecalculateShowMediaCards();
             }
@@ -533,7 +644,7 @@ namespace Pocket.Client.PageModels
         [RelayCommand]
         private void OpenMessageActions(DirectMessage? dm)
         {
-            if (dm == null)
+            if (dm == null || IsEditingMessage)
                 return;
 
             if (IsEmojiPickerOpen)
@@ -650,6 +761,12 @@ namespace Pocket.Client.PageModels
         [RelayCommand]
         private async Task SendMessageAsync()
         {
+            if (IsEditingMessage)
+            {
+                await SaveEditedMessageAsync();
+                return;
+            }
+
             var text = (MessageText ?? string.Empty).Trim();
             if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(FriendId))
                 return;
