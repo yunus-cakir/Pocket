@@ -44,6 +44,20 @@ namespace Pocket.Client.Platforms.Android.Handlers
         private AndroidX.Lifecycle.LiveData? _observedZoomState;
         private (float Min, float Max) _reportedZoomRange;
 
+        /// <summary>Keeps only the camera with the given Camera2 id.</summary>
+        private sealed class CameraIdFilter : Java.Lang.Object, ICameraFilter
+        {
+            private readonly string _id;
+            public CameraIdFilter(string id) => _id = id;
+
+            public System.Collections.Generic.IList<ICameraInfo> Filter(System.Collections.Generic.IList<ICameraInfo> cameraInfos) =>
+                cameraInfos.Where(info =>
+                {
+                    try { return AndroidX.Camera.Camera2.InterOp.Camera2CameraInfo.From(info).CameraId == _id; }
+                    catch { return false; }
+                }).ToList();
+        }
+
         public static IPropertyMapper<CameraView, CameraXViewHandler> PropertyMapper =
             new PropertyMapper<CameraView, CameraXViewHandler>(ViewHandler.ViewMapper);
 
@@ -143,6 +157,17 @@ namespace Pocket.Client.Platforms.Android.Handlers
                 {
                     _useFrontCamera = !_useFrontCamera;
                     selector = _useFrontCamera ? CameraSelector.DefaultFrontCamera : CameraSelector.DefaultBackCamera;
+                }
+
+                // Wide selfie: the widest front camera instead of CameraX's first one (Note 9: id 2 = full sensor)
+                if (_useFrontCamera && CameraView.WideSelfie &&
+                    Platforms.Android.WideCameraSelector.WidestCameraId(front: true) is { } wideId)
+                {
+                    var wideSelector = new CameraSelector.Builder()
+                        .RequireLensFacing(CameraSelector.LensFacingFront)
+                        .AddCameraFilter(new CameraIdFilter(wideId))
+                        .Build();
+                    if (_provider.HasCamera(wideSelector)) selector = wideSelector;
                 }
 
                 _camera = _provider.BindToLifecycle(owner, selector, _preview, _imageCapture);

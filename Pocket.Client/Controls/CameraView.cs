@@ -55,6 +55,17 @@ namespace Pocket.Client.Controls
         public static bool KeepLastExposure =>
             Microsoft.Maui.Storage.Preferences.Get(KeepExposurePreferenceKey, KeepExposureDefault);
 
+        /// <summary>
+        /// Preferences key (General settings): open the widest front camera instead of the first one. Some phones
+        /// expose the selfie lens twice with different sensor crops (Galaxy Note 9: id 1 ~58°, id 2 ~69° = Samsung's
+        /// "wide selfie"). Read when the camera opens.
+        /// </summary>
+        public const string WideSelfiePreferenceKey = "WideSelfie";
+        public const bool WideSelfieDefault = true;
+
+        public static bool WideSelfie =>
+            Microsoft.Maui.Storage.Preferences.Get(WideSelfiePreferenceKey, WideSelfieDefault);
+
         // ---- Camera capabilities (reported by the platform handler when the camera opens) ----
 
         /// <summary>Maximum zoom level index (0 = zoom not supported).</summary>

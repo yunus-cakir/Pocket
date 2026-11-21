@@ -532,6 +532,58 @@
                             </Border>
                         </Grid>
 
+                        <!-- Wide selfie (Android only - widest front camera, e.g. Note 9 full-sensor id 2; applies when the camera reopens) -->
+                        <Grid ColumnDefinitions="36, *, Auto" Padding="16,12" IsVisible="{OnPlatform Default=False, Android=True}">
+                            <Grid Grid.Column="0" WidthRequest="22" HeightRequest="22" HorizontalOptions="Start" VerticalOptions="Center">
+                                <Path Fill="#9CA3AF"
+                                      HorizontalOptions="Center"
+                                      VerticalOptions="Center"
+                                      Data="M0,0 L6,0 L6,2 L2,2 L2,6 L0,6 Z M12,0 L18,0 L18,6 L16,6 L16,2 L12,2 Z M0,12 L2,12 L2,16 L6,16 L6,18 L0,18 Z M16,12 L18,12 L18,18 L12,18 L12,16 L16,16 Z M6,6 L12,6 L12,12 L6,12 Z" />
+                            </Grid>
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2" Margin="6,0,10,0">
+                                <Label Text="Wide selfie"
+                                       TextColor="#FFFFFF"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="16"
+                                       FontAttributes="Bold" />
+                                <Label Text="Use the widest front camera when available"
+                                       TextColor="#8E8E93"
+                                       FontFamily="OpenSansRegular"
+                                       FontSize="14" />
+                            </VerticalStackLayout>
+                            <Border Grid.Column="2"
+                                    WidthRequest="54"
+                                    HeightRequest="32"
+                                    StrokeShape="RoundRectangle 16"
+                                    StrokeThickness="0"
+                                    BackgroundColor="{DynamicResource AccentColor}"
+                                    Padding="3"
+                                    VerticalOptions="Center">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding ShellModel.ToggleWideSelfieCommand}" />
+                                </Border.GestureRecognizers>
+                                <Border WidthRequest="26"
+                                        HeightRequest="26"
+                                        StrokeShape="RoundRectangle 13"
+                                        StrokeThickness="0"
+                                        BackgroundColor="#FFFFFF"
+                                        Padding="0"
+                                        HorizontalOptions="End"
+                                        VerticalOptions="Center">
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsWideSelfie}" Value="False">
+                                            <Setter Property="HorizontalOptions" Value="Start" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                </Border>
+                                <Border.Triggers>
+                                    <DataTrigger TargetType="Border" Binding="{Binding ShellModel.IsWideSelfie}" Value="False">
+                                        <Setter Property="BackgroundColor" Value="#3A3A3C" />
+                                    </DataTrigger>
+                                </Border.Triggers>
+                            </Border>
+                        </Grid>
+
                         <!-- Zoom slider (Active - vertical zoom slider on the right of the viewfinder after tap-to-focus) -->
                         <Grid ColumnDefinitions="36, *, Auto" Padding="16,12">
                             <Grid Grid.Column="0" WidthRequest="22" HeightRequest="22" HorizontalOptions="Start" VerticalOptions="Center">

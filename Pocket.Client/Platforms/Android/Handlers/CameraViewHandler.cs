@@ -548,6 +548,15 @@ namespace Pocket.Client.Platforms.Android.Handlers
             }
             if (chosen < 0) chosen = 0;
 
+            // Wide selfie: the widest front camera instead of the first one (e.g. Note 9 id 2 = full sensor)
+            if (preferFront && CameraView.WideSelfie &&
+                int.TryParse(Platforms.Android.WideCameraSelector.WidestCameraId(front: true), out int widest) &&
+                widest >= 0 && widest < count)
+            {
+                global::Android.Hardware.Camera.GetCameraInfo(widest, info);
+                if (info.Facing == global::Android.Hardware.CameraFacing.Front) chosen = widest;
+            }
+
             global::Android.Hardware.Camera.GetCameraInfo(chosen, info);
             _cameraId = chosen;
             _isFrontCamera = info.Facing == global::Android.Hardware.CameraFacing.Front;

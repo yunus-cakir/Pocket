@@ -405,6 +405,20 @@ namespace Pocket.Client.PageModels
                 Microsoft.Maui.Storage.Preferences.Remove(Pocket.Client.Controls.CameraView.CameraEnginePreferenceKey);
         }
 
+        /// <summary>Open the widest front camera ("wide selfie"), applies when the camera reopens.</summary>
+        [ObservableProperty] private bool _isWideSelfie = Pocket.Client.Controls.CameraView.WideSelfie;
+
+        [RelayCommand]
+        private void ToggleWideSelfie()
+        {
+            IsWideSelfie = !IsWideSelfie;
+        }
+
+        partial void OnIsWideSelfieChanged(bool value)
+        {
+            Microsoft.Maui.Storage.Preferences.Set(Pocket.Client.Controls.CameraView.WideSelfiePreferenceKey, value);
+        }
+
         [RelayCommand]
         private void ToggleZoomSlider()
         {
@@ -2924,6 +2938,7 @@ namespace Pocket.Client.PageModels
             IsKeepLastExposure = Microsoft.Maui.Storage.Preferences.Get(
                 Pocket.Client.Controls.CameraView.KeepExposurePreferenceKey,
                 Pocket.Client.Controls.CameraView.KeepExposureDefault);
+            IsWideSelfie = Pocket.Client.Controls.CameraView.WideSelfie;
             AccentColorHex = GetSavedAccentColorHex();
             ApplyAccentColorResources(AccentColorHex);
 
