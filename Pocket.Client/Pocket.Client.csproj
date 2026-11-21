@@ -66,6 +66,13 @@
 		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
 	</ItemGroup>
 
+	<!-- Debug Android builds ship the "Mert Kaya" sample data (SeedData/), copied in on first launch by DebugSeedData. -->
+	<ItemGroup Condition="'$(Configuration)' == 'Debug' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+		<MauiAsset Include="..\SeedData\PocketLocal_5554.db3" LogicalName="Seed/PocketLocal.db3" />
+		<MauiAsset Include="..\SeedData\Media\*.jpg" LogicalName="Seed/Media/%(Filename)%(Extension)" />
+		<MauiAsset Include="..\SeedData\Profile\*.jpg" LogicalName="Seed/Profile/%(Filename)%(Extension)" />
+	</ItemGroup>
+
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Maui.Controls" Version="10.0.90" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.10" />

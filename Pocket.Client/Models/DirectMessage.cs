@@ -40,6 +40,9 @@ namespace Pocket.Client.Models
         [Indexed]
         public DateTime SentAt { get; set; } = DateTime.UtcNow;
 
+        /// <summary>Relay process that accepted this outgoing message (resent if we later connect to another).</summary>
+        public string? ServerInstance { get; set; }
+
         public SyncStatus SyncStatus
         {
             get => _syncStatus;

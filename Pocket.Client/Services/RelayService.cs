@@ -9,58 +9,73 @@ namespace Pocket.Client.Services
     {
         private HubConnection? _hubConnection;
 
-        /// <summary>Public relay (PocketServer service behind Tailscale Funnel).</summary>
-        public const string DefaultServerUrl = "https://yunuscakir.tail4d1102.ts.net";
+        /// <summary>Primary relay (Mac, PocketServer behind Tailscale Funnel).</summary>
+        public const string DefaultServerUrl = "https://yunuscakir-mac.tail4d1102.ts.net";
 
         private const string ServerPreferenceKey = "ServerIp";
         // Bump the suffix whenever DefaultServerUrl changes, and add the previous default below.
-        private const string ServerDefaultMigratedKey = "ServerIpDefaultMigrated_v3";
+        private const string ServerDefaultMigratedKey = "ServerIpDefaultMigrated_v4";
         private static readonly string[] LegacyDefaultServers =
         {
             "10.0.2.2",
             "localhost",
             "https://pc-1.tail4d1102.ts.net",
+            "https://yunuscakir.tail4d1102.ts.net",
         };
 
         public static string GetDefaultServerIp() => DefaultServerUrl;
 
         /// <summary>
-        /// Saved server address, or the default. Once per install (per migration version), a value
-        /// pointing at a previous built-in default is moved to the current default; after that an
-        /// explicitly chosen address is kept.
+        /// Once per install (per migration version): a primary pointing at a previous built-in
+        /// default moves to the current default, and when that happens a secondary that is now
+        /// the same as the primary (the old built-in standby) becomes the new standby. After that
+        /// explicitly chosen addresses are kept.
         /// </summary>
-        public static string GetSavedServer()
+        private static void MigrateServerDefaults()
         {
             var prefs = Microsoft.Maui.Storage.Preferences.Default;
-            string saved = prefs.Get(ServerPreferenceKey, DefaultServerUrl);
+            if (prefs.Get(ServerDefaultMigratedKey, false))
+                return;
+            prefs.Set(ServerDefaultMigratedKey, true);
 
-            if (!prefs.Get(ServerDefaultMigratedKey, false))
+            string savedHub = BuildHubUrl(prefs.Get(ServerPreferenceKey, DefaultServerUrl));
+            if (!LegacyDefaultServers.Any(l => string.Equals(BuildHubUrl(l), savedHub, StringComparison.OrdinalIgnoreCase)))
+                return;
+
+            prefs.Set(ServerPreferenceKey, DefaultServerUrl);
+            if (prefs.ContainsKey(SecondaryServerPreferenceKey))
             {
-                prefs.Set(ServerDefaultMigratedKey, true);
-                string savedHub = BuildHubUrl(saved);
-                if (LegacyDefaultServers.Any(l => string.Equals(BuildHubUrl(l), savedHub, StringComparison.OrdinalIgnoreCase)))
-                {
-                    saved = DefaultServerUrl;
-                    prefs.Set(ServerPreferenceKey, saved);
-                }
+                string secondary = prefs.Get(SecondaryServerPreferenceKey, string.Empty);
+                if (!string.IsNullOrWhiteSpace(secondary) &&
+                    string.Equals(BuildHubUrl(secondary), BuildHubUrl(DefaultServerUrl), StringComparison.OrdinalIgnoreCase))
+                    prefs.Set(SecondaryServerPreferenceKey, FallbackServerUrl);
             }
+        }
 
+        /// <summary>Saved server address, or the default.</summary>
+        public static string GetSavedServer()
+        {
+            MigrateServerDefaults();
+            string saved = Microsoft.Maui.Storage.Preferences.Default.Get(ServerPreferenceKey, DefaultServerUrl);
             return string.IsNullOrWhiteSpace(saved) ? DefaultServerUrl : saved;
         }
 
         public static string GetHubUrl() => BuildHubUrl(GetSavedServer());
 
-        /// <summary>Standby relay (Mac). Only live while the primary is down — see deploy/README.md.</summary>
-        public const string FallbackServerUrl = "https://yunuscakir-mac.tail4d1102.ts.net";
+        /// <summary>Standby relay (PC). See deploy/README.md.</summary>
+        public const string FallbackServerUrl = "https://yunuscakir.tail4d1102.ts.net";
 
         private const string SecondaryServerPreferenceKey = "SecondaryServerIp";
 
         /// <summary>
-        /// Saved secondary (standby) server, or the built-in Mac standby when never set.
+        /// Saved secondary (standby) server, or the built-in PC standby when never set.
         /// An empty string means the user cleared it: no failover.
         /// </summary>
-        public static string GetSavedSecondaryServer() =>
-            (Microsoft.Maui.Storage.Preferences.Default.Get(SecondaryServerPreferenceKey, FallbackServerUrl) ?? string.Empty).Trim();
+        public static string GetSavedSecondaryServer()
+        {
+            MigrateServerDefaults();
+            return (Microsoft.Maui.Storage.Preferences.Default.Get(SecondaryServerPreferenceKey, FallbackServerUrl) ?? string.Empty).Trim();
+        }
 
         /// <summary>Stores both relay addresses; an empty primary falls back to the default.</summary>
         public static void SaveServers(string? primary, string? secondary)
@@ -110,6 +125,27 @@ namespace Pocket.Client.Services
         public event Action<bool>? OnConnectionStateChanged;
         public event Action<EncryptedPayloadDto>? OnPayloadReceived;
         public event Action<Guid>? OnDeliveryAcknowledged;
+        public event Action<Guid, string>? OnDeliveryAcknowledgedFrom;
+
+        public string? CurrentServerInstance { get; private set; }
+
+        private record HealthResponse(string? Node, DateTime? StartedAt);
+
+        /// <summary>Reads node + start time from /health; null if unavailable.</summary>
+        private static async Task<string?> FetchServerInstanceAsync(string hubUrl)
+        {
+            try
+            {
+                var health = await HealthClient.GetFromJsonAsync<HealthResponse>(GetBaseUrl(hubUrl) + "/health");
+                if (health?.StartedAt == null) return null;
+                return $"{health.Node}|{health.StartedAt.Value.ToUniversalTime():O}";
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[RelayService] Server instance lookup failed: {ex.Message}");
+                return null;
+            }
+        }
         public event Action<FriendRequestDto>? OnFriendRequestReceived;
         public event Action<FriendAcceptDto>? OnFriendAcceptReceived;
 
@@ -246,6 +282,7 @@ namespace Pocket.Client.Services
             {
                 if (await TryStartAsync(BuildHubUrl(candidates[i])))
                 {
+                    CurrentServerInstance = await FetchServerInstanceAsync(CurrentHubUrl);
                     IsOnFallback = i > 0;
                     RecordConnected(i, CurrentHubUrl);
                     UpdatePrimaryProbe();
@@ -304,6 +341,8 @@ namespace Pocket.Client.Services
             {
                 if (!ReferenceEquals(connection, _hubConnection)) return;
                 ConnectedAt = DateTime.Now;
+                // Same URL, but the server may have restarted (and lost its queue) meanwhile.
+                CurrentServerInstance = await FetchServerInstanceAsync(hubUrl);
                 RecordConnected(IsOnFallback ? 1 : 0, hubUrl);
                 if (_lastRegisteredIdentity != null && IsConnected)
                 {
@@ -316,6 +355,8 @@ namespace Pocket.Client.Services
             // Map Hub events to C# events
             connection.On<EncryptedPayloadDto>("ReceivePayload", payload => OnPayloadReceived?.Invoke(payload));
             connection.On<Guid>("AcknowledgeDelivery", messageId => OnDeliveryAcknowledged?.Invoke(messageId));
+            connection.On<Guid, string>("AcknowledgeDeliveryFrom",
+                (messageId, recipientId) => OnDeliveryAcknowledgedFrom?.Invoke(messageId, recipientId));
             connection.On<FriendRequestDto>("ReceiveFriendRequest",
                 request => OnFriendRequestReceived?.Invoke(request));
             connection.On<FriendAcceptDto>("ReceiveFriendAccept", accept => OnFriendAcceptReceived?.Invoke(accept));
@@ -511,11 +552,28 @@ namespace Pocket.Client.Services
             }
         }
 
-        public async Task SendPayloadAsync(EncryptedPayloadDto payload)
+        // Generous for a 15 MB photo/video over a slow uplink.
+        private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(90);
+
+        public async Task<bool> SendPayloadAsync(EncryptedPayloadDto payload)
         {
-            if (IsConnected)
+            var connection = _hubConnection;
+            if (connection == null || connection.State != HubConnectionState.Connected)
+                return false;
+
+            try
             {
-                await _hubConnection!.SendAsync("SendPayload", payload);
+                // InvokeAsync completes only once the server ran SendPayload (payload stored in its memory).
+                // SendAsync would return as soon as the bytes were written locally — on a half-dead socket
+                // (server asleep, phone frozen) that "succeeds" and the payload is silently lost.
+                using var cts = new CancellationTokenSource(SendTimeout);
+                await connection.InvokeAsync("SendPayload", payload, cts.Token);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[RelayService] SendPayload {payload.MessageId} not acknowledged: {ex.Message}");
+                return false;
             }
         }
 

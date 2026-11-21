@@ -51,6 +51,24 @@ namespace Pocket.Server.Services
             return false;
         }
 
+        // Delivery receipts for senders that were offline when the recipient confirmed.
+        // Outer key: sender UserId, inner key: (MessageId, recipient UserId). Ids only, no content (BR-201).
+        private readonly ConcurrentDictionary<string, ConcurrentDictionary<(Guid MessageId, string RecipientId), byte>> _pendingAcks = new();
+
+        public void EnqueueAck(string senderId, Guid messageId, string recipientId)
+        {
+            var acks = _pendingAcks.GetOrAdd(senderId, _ => new ConcurrentDictionary<(Guid, string), byte>());
+            acks[(messageId, recipientId)] = 0;
+        }
+
+        /// <summary>Removes and returns the receipts waiting for a sender.</summary>
+        public List<(Guid MessageId, string RecipientId)> TakeAcks(string senderId)
+        {
+            return _pendingAcks.TryRemove(senderId, out var acks)
+                ? acks.Keys.ToList()
+                : new List<(Guid, string)>();
+        }
+
         public void RemovePostFromUserQueue(string userId, string senderId, Guid postId)
         {
             if (_pendingPayloads.TryGetValue(userId, out var userMessages))

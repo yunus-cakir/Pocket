@@ -11,7 +11,18 @@ namespace Pocket.Client.Services
         /// <summary>Supplies the identity key pair used to log in (sign the server's challenge).</summary>
         void SetIdentityKeyProvider(Func<Task<(string PublicKey, string PrivateKey)>> provider);
         Task DisconnectAsync();
-        Task SendPayloadAsync(EncryptedPayloadDto payload);
+        /// <summary>
+        /// Sends a payload and waits until the server has stored it. False when not connected, the
+        /// call failed or the server did not answer in time — the caller must treat it as not sent.
+        /// </summary>
+        Task<bool> SendPayloadAsync(EncryptedPayloadDto payload);
+
+        /// <summary>
+        /// Identifies the running relay process ("node|startedAt"). Payloads accepted by a server live only
+        /// in its memory, so a different value after a reconnect means they may be gone and must be resent.
+        /// Null when unknown.
+        /// </summary>
+        string? CurrentServerInstance { get; }
         Task ConfirmDeliveryAsync(string senderId, Guid messageId);
         Task<UserIdentityDto?> LookupUserAsync(string username);
         Task RegisterUserAsync(UserIdentityDto identity);
@@ -26,6 +37,9 @@ namespace Pocket.Client.Services
         event Action<bool>? OnConnectionStateChanged;
         event Action<EncryptedPayloadDto>? OnPayloadReceived;
         event Action<Guid>? OnDeliveryAcknowledged;
+
+        /// <summary>Delivery receipt that names the recipient (newer servers).</summary>
+        event Action<Guid, string>? OnDeliveryAcknowledgedFrom;
         event Action<FriendRequestDto>? OnFriendRequestReceived;
         event Action<FriendAcceptDto>? OnFriendAcceptReceived;
 

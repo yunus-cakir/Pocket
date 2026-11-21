@@ -203,6 +203,7 @@ namespace Pocket.Client.PageModels
             ConnectionHistoryService connectionHistory)
         {
             _database = database;
+            _connectionHistory = connectionHistory;
             ConnectionHistory = connectionHistory?.RecentEvents ?? new();
             _cryptoService = cryptoService;
             _relayService = relayService;
@@ -497,6 +498,9 @@ namespace Pocket.Client.PageModels
                 _relayService.OnDeliveryAcknowledged -= HandleDeliveryAcknowledged;
                 _relayService.OnDeliveryAcknowledged += HandleDeliveryAcknowledged;
 
+                _relayService.OnDeliveryAcknowledgedFrom -= HandleDeliveryAcknowledgedFrom;
+                _relayService.OnDeliveryAcknowledgedFrom += HandleDeliveryAcknowledgedFrom;
+
                 // Connect to Relay Server securely: login signs the server's challenge with our identity key
                 _relayService.SetIdentityKeyProvider(async () => (CurrentUser.PublicKey, await GetPrivateKeyAsync()));
                 await _relayService.ConnectAsync(CurrentUser.Id, CurrentUser.Username);
@@ -766,7 +770,9 @@ namespace Pocket.Client.PageModels
                     Timestamp = dm.SentAt
                 };
 
-                await _relayService.SendPayloadAsync(payload);
+                // Only a server acknowledgement counts as sent (see IRelayService.SendPayloadAsync).
+                if (!await _relayService.SendPayloadAsync(payload))
+                    return false;
 
                 // Guard against race condition if DeliveryAcknowledged already arrived while SendPayloadAsync was completing
                 var currentInDb = await _database.GetDirectMessageAsync(dm.Id);
@@ -777,6 +783,7 @@ namespace Pocket.Client.PageModels
                 else if (dm.SyncStatus != Pocket.Shared.Enums.SyncStatus.Delivered)
                 {
                     dm.SyncStatus = Pocket.Shared.Enums.SyncStatus.Sent;
+                    dm.ServerInstance = _relayService.CurrentServerInstance;
                     await _database.SaveDirectMessageAsync(dm);
                 }
 
@@ -1172,6 +1179,7 @@ namespace Pocket.Client.PageModels
 
             TryDeleteLocalFile(post.MediaLocalPath);
             await _database.DeleteMediaPostAsync(postId);
+            await _database.DeletePostDeliveriesAsync(postId);
             await UpdateLatestPhotoWidgetAsync();
 
             Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
@@ -1224,6 +1232,46 @@ namespace Pocket.Client.PageModels
             }
         }
 
+        /// <summary>Receipt naming the recipient (newer servers): marks that recipient's copy delivered.</summary>
+        private async void HandleDeliveryAcknowledgedFrom(Guid messageId, string recipientId)
+        {
+            if (_database == null || string.IsNullOrEmpty(recipientId))
+                return;
+
+            try
+            {
+                var post = await _database.GetMediaPostAsync(messageId);
+                if (post != null && !post.IsIncoming)
+                    await MarkPostDeliveredAsync(post, recipientId);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[E2EE Ack Error] Failed to update delivery for {messageId}/{recipientId}: {ex.Message}");
+            }
+        }
+
+        private async Task MarkPostDeliveredAsync(MediaPost post, string recipientId)
+        {
+            System.Collections.Generic.List<PostDelivery> rows;
+            await _deliveryLock.WaitAsync();
+            try
+            {
+                rows = await _database!.GetPostDeliveriesAsync(post.Id);
+                var row = rows.FirstOrDefault(r => r.RecipientId == recipientId);
+                if (row == null || row.State == DeliveryState.Delivered)
+                    return;
+
+                row.State = DeliveryState.Delivered;
+                await _database.SavePostDeliveryAsync(row);
+            }
+            finally
+            {
+                _deliveryLock.Release();
+            }
+
+            await ApplyPostDeliveryStatusAsync(post, rows);
+        }
+
         private async void HandleDeliveryAcknowledged(Guid messageId)
         {
             if (_database == null)
@@ -1232,15 +1280,26 @@ namespace Pocket.Client.PageModels
             try
             {
                 var post = await _database.GetMediaPostAsync(messageId);
-                if (post != null && post.SyncStatus != Pocket.Shared.Enums.SyncStatus.Delivered)
+                if (post != null && !post.IsIncoming)
                 {
-                    post.SyncStatus = Pocket.Shared.Enums.SyncStatus.Delivered;
-                    await _database.SaveMediaPostAsync(post);
-
-                    Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+                    var rows = await _database.GetPostDeliveriesAsync(messageId);
+                    if (rows.Count == 0 && post.SyncStatus != Pocket.Shared.Enums.SyncStatus.Delivered)
                     {
-                        OnMediaPostDelivered?.Invoke(messageId);
-                    });
+                        // Post from before per-recipient tracking: any receipt counts.
+                        post.SyncStatus = Pocket.Shared.Enums.SyncStatus.Delivered;
+                        await _database.SaveMediaPostAsync(post);
+
+                        Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+                        {
+                            OnMediaPostDelivered?.Invoke(messageId);
+                        });
+                    }
+                    else if (rows.Count == 1)
+                    {
+                        // Unambiguous even on servers that don't name the recipient.
+                        await MarkPostDeliveredAsync(post, rows[0].RecipientId);
+                    }
+                    // Several recipients: wait for AcknowledgeDeliveryFrom, which says who it was.
                 }
 
                 var dm = await _database.GetDirectMessageAsync(messageId);
@@ -1308,14 +1367,127 @@ namespace Pocket.Client.PageModels
             }
         }
 
+        /// <summary>Raised on the main thread when a post's per-recipient delivery state changed.</summary>
+        public event Action<Guid>? OnPostDeliveryChanged;
+
+        // Serializes per-recipient row updates between the upload loop and incoming delivery receipts.
+        private readonly System.Threading.SemaphoreSlim _deliveryLock = new(1, 1);
+
+        // OnServer copies older than this are not resent after a server change (recipient likely gone).
+        private static readonly TimeSpan ResendWindow = TimeSpan.FromDays(7);
+
+        public static bool HasNetworkAccess()
+        {
+            var access = Microsoft.Maui.Networking.Connectivity.Current.NetworkAccess;
+            return access == Microsoft.Maui.Networking.NetworkAccess.Internet ||
+                   access == Microsoft.Maui.Networking.NetworkAccess.ConstrainedInternet ||
+                   access == Microsoft.Maui.Networking.NetworkAccess.Local;
+        }
+
+        /// <summary>
+        /// A copy must be (re)sent when no server has confirmed it, or when the confirming server is not the
+        /// one we are connected to now — relays only keep payloads in memory, so a restart or a switch to the
+        /// other node may have dropped it. Resending is safe: servers key payloads by message id and the
+        /// recipient ignores ids it already has (and confirms again).
+        /// </summary>
+        private static bool NeedsSend(PostDelivery delivery, string? currentInstance) =>
+            delivery.State == DeliveryState.Pending ||
+            (delivery.State == DeliveryState.OnServer && delivery.ServerInstance != currentInstance);
+
+        /// <summary>
+        /// Delivery rows of an outgoing post, created on first send. Recipients are fixed then: the explicit
+        /// targets, else the post's single FriendId, else all friends (posts created before this table existed).
+        /// </summary>
+        private async Task<List<PostDelivery>> EnsurePostDeliveriesAsync(MediaPost post,
+            System.Collections.Generic.IReadOnlyList<Friend>? explicitTargets)
+        {
+            var rows = await _database!.GetPostDeliveriesAsync(post.Id);
+            if (rows.Count > 0)
+                return rows;
+
+            System.Collections.Generic.IEnumerable<Friend> targets;
+            if (explicitTargets != null && explicitTargets.Count > 0)
+            {
+                targets = explicitTargets;
+            }
+            else
+            {
+                var allFriends = await _database.GetFriendsAsync();
+                targets = !string.IsNullOrEmpty(post.FriendId)
+                    ? allFriends.Where(f => f.Id == post.FriendId)
+                    : allFriends;
+            }
+
+            foreach (var friend in targets.Where(f => !string.IsNullOrEmpty(f.PublicKey)).DistinctBy(f => f.Id))
+            {
+                var row = new PostDelivery
+                {
+                    Id = PostDelivery.MakeId(post.Id, friend.Id),
+                    PostId = post.Id,
+                    RecipientId = friend.Id,
+                    State = post.SyncStatus == Pocket.Shared.Enums.SyncStatus.Delivered
+                        ? DeliveryState.Delivered
+                        : DeliveryState.Pending
+                };
+                await _database.SavePostDeliveryAsync(row);
+                rows.Add(row);
+            }
+
+            return rows;
+        }
+
+        /// <summary>Fixes a new post's recipients; call before the post itself is saved.</summary>
+        public async Task RegisterPostRecipientsAsync(MediaPost post, System.Collections.Generic.IReadOnlyList<Friend> targets)
+        {
+            if (_database == null || post.IsIncoming || targets.Count == 0)
+                return;
+            await EnsurePostDeliveriesAsync(post, targets);
+        }
+
+        /// <summary>
+        /// Derives the post's overall status from its rows (Pending while any copy is unconfirmed by a server,
+        /// Delivered once every recipient has it, else Sent), saves it and notifies the UI.
+        /// Returns true when no copy is waiting for a server.
+        /// </summary>
+        private async Task<bool> ApplyPostDeliveryStatusAsync(MediaPost post, System.Collections.Generic.IReadOnlyList<PostDelivery> rows)
+        {
+            var newStatus = rows.Any(r => r.State == DeliveryState.Pending) ? Pocket.Shared.Enums.SyncStatus.Pending
+                : rows.All(r => r.State == DeliveryState.Delivered) ? Pocket.Shared.Enums.SyncStatus.Delivered
+                : Pocket.Shared.Enums.SyncStatus.Sent;
+            var oldStatus = post.SyncStatus;
+
+            if (oldStatus != newStatus)
+            {
+                post.SyncStatus = newStatus;
+                await _database!.SaveMediaPostAsync(post);
+            }
+
+            Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (newStatus != Pocket.Shared.Enums.SyncStatus.Pending)
+                    post.IsWaitingForServer = false;
+                if (oldStatus == Pocket.Shared.Enums.SyncStatus.Pending && newStatus != Pocket.Shared.Enums.SyncStatus.Pending)
+                    OnMediaPostSent?.Invoke(post.Id);
+                if (newStatus == Pocket.Shared.Enums.SyncStatus.Delivered && oldStatus != Pocket.Shared.Enums.SyncStatus.Delivered)
+                    OnMediaPostDelivered?.Invoke(post.Id);
+                OnPostDeliveryChanged?.Invoke(post.Id);
+            });
+
+            return newStatus != Pocket.Shared.Enums.SyncStatus.Pending;
+        }
+
+        /// <summary>
+        /// Sends the photo to every recipient whose copy is not safely on the current server (see
+        /// <see cref="NeedsSend"/>). A copy counts as sent only after the server acknowledged it.
+        /// Returns true when every recipient's copy is on a server (or delivered).
+        /// </summary>
         public async Task<bool> TryUploadMediaPostAsync(MediaPost mediaPost,
             System.Collections.Generic.IReadOnlyList<Friend>? explicitTargetFriends = null)
         {
             if (_database == null || _cryptoService == null || _relayService == null || CurrentUser == null)
                 return false;
 
-            if (mediaPost.IsIncoming || mediaPost.SyncStatus == Pocket.Shared.Enums.SyncStatus.Sent ||
-                mediaPost.SyncStatus == Pocket.Shared.Enums.SyncStatus.Delivered)
+            if (mediaPost.IsIncoming)
             {
                 mediaPost.IsWaitingForServer = false;
                 return true;
@@ -1324,16 +1496,34 @@ namespace Pocket.Client.PageModels
             if (string.IsNullOrWhiteSpace(mediaPost.MediaLocalPath) || !File.Exists(mediaPost.MediaLocalPath))
                 return false;
 
-            var access = Microsoft.Maui.Networking.Connectivity.Current.NetworkAccess;
-            bool hasNetwork = access == Microsoft.Maui.Networking.NetworkAccess.Internet ||
-                              access == Microsoft.Maui.Networking.NetworkAccess.ConstrainedInternet ||
-                              access == Microsoft.Maui.Networking.NetworkAccess.Local;
+            var rows = await EnsurePostDeliveriesAsync(mediaPost, explicitTargetFriends);
+            if (rows.Count == 0)
+            {
+                // No recipients with public keys; mark as Sent once connected to server
+                if (_relayService.IsConnected)
+                {
+                    mediaPost.SyncStatus = Pocket.Shared.Enums.SyncStatus.Sent;
+                    mediaPost.IsWaitingForServer = false;
+                    await _database.SaveMediaPostAsync(mediaPost);
+                    Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        OnMediaPostSent?.Invoke(mediaPost.Id);
+                    });
+                    return true;
+                }
 
-            if (!hasNetwork)
+                return false;
+            }
+
+            if (!rows.Any(r => NeedsSend(r, _relayService.CurrentServerInstance)))
+                return await ApplyPostDeliveryStatusAsync(mediaPost, rows);
+
+            if (!HasNetworkAccess())
             {
                 Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
                 {
                     mediaPost.IsWaitingForServer = true;
+                    OnPostDeliveryChanged?.Invoke(mediaPost.Id);
                 });
                 return false;
             }
@@ -1374,38 +1564,6 @@ namespace Pocket.Client.PageModels
             if (string.IsNullOrEmpty(privateKey))
                 return false;
 
-            System.Collections.Generic.IReadOnlyList<Friend> targetFriends;
-            if (explicitTargetFriends != null && explicitTargetFriends.Count > 0)
-            {
-                targetFriends = explicitTargetFriends;
-            }
-            else
-            {
-                var allFriends = await _database.GetFriendsAsync();
-                targetFriends = !string.IsNullOrEmpty(mediaPost.FriendId)
-                    ? allFriends.Where(f => f.Id == mediaPost.FriendId).ToList()
-                    : allFriends;
-            }
-
-            var validFriends = targetFriends.Where(f => !string.IsNullOrEmpty(f.PublicKey)).ToList();
-            if (validFriends.Count == 0)
-            {
-                // No recipients with public keys; mark as Sent once connected to server
-                if (_relayService.IsConnected)
-                {
-                    mediaPost.SyncStatus = Pocket.Shared.Enums.SyncStatus.Sent;
-                    mediaPost.IsWaitingForServer = false;
-                    await _database.SaveMediaPostAsync(mediaPost);
-                    Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
-                    {
-                        OnMediaPostSent?.Invoke(mediaPost.Id);
-                    });
-                    return true;
-                }
-
-                return false;
-            }
-
             byte[] photoBytes;
             try
             {
@@ -1417,33 +1575,55 @@ namespace Pocket.Client.PageModels
                 return false;
             }
 
+            var friendsById = (await _database.GetFriendsAsync())
+                .Where(f => !string.IsNullOrEmpty(f.PublicKey))
+                .GroupBy(f => f.Id)
+                .ToDictionary(g => g.Key, g => g.First());
             var captionBytes = Encoding.UTF8.GetBytes(mediaPost.Caption ?? string.Empty);
-            int sentCount = 0;
 
-            foreach (var friend in validFriends)
+            foreach (var row in rows.Where(r => NeedsSend(r, _relayService.CurrentServerInstance)).ToList())
             {
                 if (!_relayService.IsConnected)
                     break;
 
+                if (!friendsById.TryGetValue(row.RecipientId, out var friend))
+                    continue; // friend removed or lost their key; nothing to send to
+
                 try
                 {
                     var sharedSecret = GetOrDeriveSharedSecret(privateKey, friend.PublicKey);
-                    var encryptedCaption = _cryptoService.EncryptData(captionBytes, sharedSecret);
-                    var encryptedMedia = _cryptoService.EncryptData(photoBytes, sharedSecret);
-
                     var payload = new Pocket.Shared.DTOs.EncryptedPayloadDto
                     {
                         MessageId = mediaPost.Id,
                         SenderId = CurrentUser.Id,
                         RecipientId = friend.Id,
-                        EncryptedContent = encryptedCaption,
-                        EncryptedMedia = encryptedMedia,
+                        EncryptedContent = _cryptoService.EncryptData(captionBytes, sharedSecret),
+                        EncryptedMedia = _cryptoService.EncryptData(photoBytes, sharedSecret),
                         MediaType = mediaPost.MediaType,
                         Timestamp = mediaPost.SentAt
                     };
 
-                    await _relayService.SendPayloadAsync(payload);
-                    sentCount++;
+                    if (!await _relayService.SendPayloadAsync(payload))
+                        continue; // not acknowledged: stays Pending / is retried on the next connect
+
+                    string? instance = _relayService.CurrentServerInstance;
+                    await _deliveryLock.WaitAsync();
+                    try
+                    {
+                        // The recipient may already have confirmed while we waited for the server's answer.
+                        var current = (await _database.GetPostDeliveriesAsync(mediaPost.Id))
+                            .FirstOrDefault(r => r.Id == row.Id);
+                        if (current?.State != DeliveryState.Delivered)
+                        {
+                            row.State = DeliveryState.OnServer;
+                            row.ServerInstance = instance;
+                            await _database.SavePostDeliveryAsync(row);
+                        }
+                    }
+                    finally
+                    {
+                        _deliveryLock.Release();
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -1451,34 +1631,25 @@ namespace Pocket.Client.PageModels
                 }
             }
 
-            if (sentCount > 0)
-            {
-                var currentInDb = await _database.GetMediaPostAsync(mediaPost.Id);
-                if (currentInDb != null && currentInDb.SyncStatus == Pocket.Shared.Enums.SyncStatus.Delivered)
-                {
-                    mediaPost.SyncStatus = Pocket.Shared.Enums.SyncStatus.Delivered;
-                }
-                else if (mediaPost.SyncStatus != Pocket.Shared.Enums.SyncStatus.Delivered)
-                {
-                    mediaPost.SyncStatus = Pocket.Shared.Enums.SyncStatus.Sent;
-                    await _database.SaveMediaPostAsync(mediaPost);
-                }
+            bool allOnServer = await ApplyPostDeliveryStatusAsync(mediaPost,
+                await _database.GetPostDeliveriesAsync(mediaPost.Id));
 
+            if (!allOnServer)
+            {
                 Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
                 {
-                    mediaPost.IsWaitingForServer = false;
-                    OnMediaPostSent?.Invoke(mediaPost.Id);
+                    mediaPost.IsWaitingForServer = true;
                 });
-                return true;
             }
 
-            Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
-            {
-                mediaPost.IsWaitingForServer = true;
-            });
-            return false;
+            return allOnServer;
         }
 
+        /// <summary>
+        /// Run on every (re)connect: sends every outgoing photo copy a server has not confirmed, resends the
+        /// ones confirmed by a server we are no longer connected to (see <see cref="NeedsSend"/>), and does the
+        /// same for direct messages.
+        /// </summary>
         public async Task FlushPendingOutgoingMediaPostsAsync()
         {
             if (_database == null || _relayService == null || !_relayService.IsConnected)
@@ -1489,14 +1660,41 @@ namespace Pocket.Client.PageModels
 
             try
             {
-                var pendingPosts = await _database.GetPendingOutgoingMediaPostsAsync();
-                foreach (var pendingPost in pendingPosts)
+                string? instance = _relayService.CurrentServerInstance;
+                var resendCutoff = DateTime.UtcNow - ResendWindow;
+
+                var undelivered = await _database.GetUndeliveredPostDeliveriesAsync();
+                var postIds = undelivered
+                    .Where(d => NeedsSend(d, instance))
+                    .GroupBy(d => d.PostId)
+                    .Select(g => (PostId: g.Key, HasPending: g.Any(d => d.State == DeliveryState.Pending)))
+                    .ToList();
+
+                // Pending posts without rows yet (created before per-recipient tracking, or never attempted).
+                foreach (var legacy in await _database.GetPendingOutgoingMediaPostsAsync())
+                {
+                    if (postIds.All(p => p.PostId != legacy.Id))
+                        postIds.Add((legacy.Id, true));
+                }
+
+                foreach (var (postId, hasPending) in postIds)
                 {
                     if (!_relayService.IsConnected)
                         break;
 
-                    await TryUploadMediaPostAsync(pendingPost);
+                    // Missing post: deleted (rows go with it) or still being created — skip either way.
+                    var post = await _database.GetMediaPostAsync(postId);
+                    if (post == null || post.IsIncoming)
+                        continue;
+
+                    // Old copies that only need a resend because the server changed are left alone.
+                    if (!hasPending && post.SentAt.ToUniversalTime() < resendCutoff)
+                        continue;
+
+                    await TryUploadMediaPostAsync(post);
                 }
+
+                await FlushOutgoingDirectMessagesAsync(instance);
             }
             catch (Exception ex)
             {
@@ -1505,6 +1703,35 @@ namespace Pocket.Client.PageModels
             finally
             {
                 _pendingPostSyncLock.Release();
+            }
+        }
+
+        /// <summary>
+        /// Resends direct messages that are stuck Pending (app closed mid-send) or were accepted by a server
+        /// we are no longer connected to. Failed ones keep their manual retry button.
+        /// </summary>
+        private async Task FlushOutgoingDirectMessagesAsync(string? instance)
+        {
+            if (_database == null || _relayService == null)
+                return;
+
+            var cutoff = DateTime.UtcNow - ResendWindow;
+            var candidates = await _database.GetUndeliveredOutgoingDirectMessagesAsync(cutoff);
+            foreach (var dm in candidates)
+            {
+                if (!_relayService.IsConnected)
+                    break;
+
+                bool needsSend = dm.SyncStatus == Pocket.Shared.Enums.SyncStatus.Pending ||
+                                 (dm.SyncStatus == Pocket.Shared.Enums.SyncStatus.Sent && dm.ServerInstance != instance);
+                if (!needsSend)
+                    continue;
+
+                var friend = await _database.GetFriendAsync(dm.FriendId);
+                if (friend == null || string.IsNullOrEmpty(friend.PublicKey))
+                    continue;
+
+                await TryTransmitDirectMessageAsync(dm, friend);
             }
         }
 
@@ -2135,6 +2362,51 @@ namespace Pocket.Client.PageModels
         }
 
         private bool _isBackupOperationInProgress;
+        private readonly ConnectionHistoryService? _connectionHistory;
+        private bool _isConnectionExportInProgress;
+
+        /// <summary>Writes the full connection history as CSV to Downloads/Pocket.</summary>
+        [RelayCommand]
+        private async Task ExportConnectionHistoryAsync()
+        {
+            if (_isConnectionExportInProgress || _connectionHistory == null || Microsoft.Maui.Controls.Shell.Current == null)
+                return;
+
+            _isConnectionExportInProgress = true;
+            try
+            {
+                var (fileName, content) = await _connectionHistory.BuildExportCsvAsync();
+
+                string? savedDisplayPath = null;
+#if ANDROID
+                savedDisplayPath = await MainActivity.SaveToDownloadsAsync(fileName, content, "text/csv");
+#endif
+                if (string.IsNullOrEmpty(savedDisplayPath))
+                {
+                    var fallbackPath = Path.Combine(Microsoft.Maui.Storage.FileSystem.AppDataDirectory, fileName);
+                    await File.WriteAllBytesAsync(fallbackPath, content);
+                    savedDisplayPath = fallbackPath;
+                }
+
+                await Microsoft.Maui.Controls.Shell.Current.DisplayAlert(
+                    "History Exported",
+                    $"📁 {savedDisplayPath}",
+                    "OK");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ConnectionHistory Export Error] {ex}");
+                if (Microsoft.Maui.Controls.Shell.Current != null)
+                {
+                    await Microsoft.Maui.Controls.Shell.Current.DisplayAlert(
+                        "Export Failed", ex.Message, "OK");
+                }
+            }
+            finally
+            {
+                _isConnectionExportInProgress = false;
+            }
+        }
 
         [RelayCommand]
         private async Task ExportDataAsync()

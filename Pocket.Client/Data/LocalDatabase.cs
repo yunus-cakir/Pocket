@@ -27,6 +27,9 @@ namespace Pocket.Client.Data
                 if (_isInitialized)
                     return;
 
+#if DEBUG && ANDROID
+                await DebugSeedData.SeedIfMissingAsync();
+#endif
                 _connection = new SQLiteAsyncConnection(DatabaseConstants.DatabasePath, DatabaseConstants.Flags);
 
                 await _connection.CreateTableAsync<User>();
@@ -34,6 +37,7 @@ namespace Pocket.Client.Data
                 await _connection.CreateTableAsync<MediaPost>();
                 await _connection.CreateTableAsync<DirectMessage>();
                 await _connection.CreateTableAsync<ConnectionEvent>();
+                await _connection.CreateTableAsync<PostDelivery>();
 
                 _isInitialized = true;
             }
@@ -304,6 +308,46 @@ namespace Pocket.Client.Data
         #endregion
 
         #region Connection History
+        /// <summary>Outgoing direct messages since <paramref name="sinceUtc"/> the recipient has not confirmed (Pending or Sent).</summary>
+        public async Task<List<DirectMessage>> GetUndeliveredOutgoingDirectMessagesAsync(DateTime sinceUtc)
+        {
+            await InitAsync();
+            return await _connection!.Table<DirectMessage>()
+                .Where(dm => !dm.IsIncoming && dm.SentAt >= sinceUtc &&
+                             (dm.SyncStatus == Pocket.Shared.Enums.SyncStatus.Pending ||
+                              dm.SyncStatus == Pocket.Shared.Enums.SyncStatus.Sent))
+                .OrderBy(dm => dm.SentAt)
+                .ToListAsync();
+        }
+
+        public async Task<List<PostDelivery>> GetPostDeliveriesAsync(Guid postId)
+        {
+            await InitAsync();
+            return await _connection!.Table<PostDelivery>().Where(d => d.PostId == postId).ToListAsync();
+        }
+
+        /// <summary>Deliveries not yet confirmed by the recipient (resend candidates).</summary>
+        public async Task<List<PostDelivery>> GetUndeliveredPostDeliveriesAsync()
+        {
+            await InitAsync();
+            return await _connection!.Table<PostDelivery>()
+                .Where(d => d.State != DeliveryState.Delivered)
+                .ToListAsync();
+        }
+
+        public async Task SavePostDeliveryAsync(PostDelivery delivery)
+        {
+            await InitAsync();
+            delivery.UpdatedAtUtc = DateTime.UtcNow;
+            await _connection!.InsertOrReplaceAsync(delivery);
+        }
+
+        public async Task DeletePostDeliveriesAsync(Guid postId)
+        {
+            await InitAsync();
+            await _connection!.Table<PostDelivery>().DeleteAsync(d => d.PostId == postId);
+        }
+
         public async Task<int> SaveConnectionEventAsync(ConnectionEvent evt)
         {
             await InitAsync();

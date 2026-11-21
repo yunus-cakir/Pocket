@@ -73,6 +73,13 @@ namespace Pocket.Server.Hubs
                 {
                     await Clients.Caller.ReceivePayload(payload);
                 }
+
+                // Delivery receipts that arrived while this user was offline.
+                foreach (var (messageId, recipientId) in _memoryStore.TakeAcks(userId))
+                {
+                    await Clients.Caller.AcknowledgeDelivery(messageId);
+                    await Clients.Caller.AcknowledgeDeliveryFrom(messageId, recipientId);
+                }
             }
 
             await base.OnConnectedAsync();
@@ -203,18 +210,20 @@ namespace Pocket.Server.Hubs
                 _memoryStore.RemoveMessage(recipientId, messageId);
             }
 
-            if (UserConnections.TryGetValue(senderId, out var senderConnections))
-            {
-                string[] targetIds;
-                lock (senderConnections)
-                {
-                    targetIds = senderConnections.ToArray();
-                }
+            if (string.IsNullOrEmpty(recipientId)) return;
 
-                foreach (var senderConnectionId in targetIds)
-                {
-                    await Clients.Client(senderConnectionId).AcknowledgeDelivery(messageId);
-                }
+            string[] targetIds = GetConnectionIds(senderId);
+            if (targetIds.Length == 0)
+            {
+                // Sender offline: keep the receipt (ids only) until it reconnects.
+                _memoryStore.EnqueueAck(senderId, messageId, recipientId);
+                return;
+            }
+
+            foreach (var senderConnectionId in targetIds)
+            {
+                await Clients.Client(senderConnectionId).AcknowledgeDelivery(messageId);
+                await Clients.Client(senderConnectionId).AcknowledgeDeliveryFrom(messageId, recipientId);
             }
         }
 

@@ -3526,7 +3526,7 @@
 
             <!-- Floating Rounded Popup Card above the "..." Button -->
             <Border x:Name="PostOptionsMenuCard"
-                    WidthRequest="200"
+                    WidthRequest="240"
                     Margin="{Binding PostOptionsMenuMargin}"
                     HorizontalOptions="End"
                     VerticalOptions="End"
@@ -3540,6 +3540,72 @@
                     <TapGestureRecognizer />
                 </Border.GestureRecognizers>
                 <VerticalStackLayout Spacing="0">
+                    <!-- Delivery status per recipient (outgoing posts only):
+                         clock = waiting for internet/server, ✓ = on the server, ✓✓ = on the friend's phone -->
+                    <VerticalStackLayout IsVisible="{Binding ShowPostDeliveryStatus}"
+                                         Spacing="0"
+                                         Padding="20,14,20,6">
+                        <Label Text="Delivery"
+                               TextColor="#8E8E93"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="13"
+                               Margin="0,0,0,6" />
+                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding PostDeliveryRows}" Spacing="0">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="models:PostDeliveryRow">
+                                    <Grid ColumnDefinitions="24, *" ColumnSpacing="12" Padding="0,6">
+                                        <!-- Clock -->
+                                        <Path Grid.Column="0"
+                                              IsVisible="{Binding IsWaiting}"
+                                              WidthRequest="18" HeightRequest="18"
+                                              Stroke="{Binding StatusColor}"
+                                              StrokeThickness="2"
+                                              StrokeLineCap="Round"
+                                              StrokeLineJoin="Round"
+                                              HorizontalOptions="Center" VerticalOptions="Center"
+                                              Data="M9,2 A7,7 0 1,1 8.99,2 Z M9,5.5 L9,9 L11.5,10.5" />
+                                        <!-- Single tick -->
+                                        <Path Grid.Column="0"
+                                              IsVisible="{Binding IsSingleTick}"
+                                              WidthRequest="20" HeightRequest="14"
+                                              Stroke="{Binding StatusColor}"
+                                              StrokeThickness="2.2"
+                                              StrokeLineCap="Round"
+                                              StrokeLineJoin="Round"
+                                              HorizontalOptions="Center" VerticalOptions="Center"
+                                              Data="M3,7.5 L6.5,11 L14,3.5" />
+                                        <!-- Double tick -->
+                                        <Path Grid.Column="0"
+                                              IsVisible="{Binding IsDoubleTick}"
+                                              WidthRequest="22" HeightRequest="14"
+                                              Stroke="{Binding StatusColor}"
+                                              StrokeThickness="2.2"
+                                              StrokeLineCap="Round"
+                                              StrokeLineJoin="Round"
+                                              HorizontalOptions="Center" VerticalOptions="Center"
+                                              Data="M1,7.5 L4.5,11 L12,3.5 M8.5,10.5 L9,11 L16.5,3.5" />
+                                        <VerticalStackLayout Grid.Column="1" Spacing="0" VerticalOptions="Center">
+                                            <Label Text="{Binding Name}"
+                                                   TextColor="#E5E5EA"
+                                                   FontFamily="OpenSansSemibold"
+                                                   FontSize="15"
+                                                   LineBreakMode="TailTruncation" />
+                                            <Label Text="{Binding StatusText}"
+                                                   TextColor="{Binding StatusColor}"
+                                                   FontFamily="OpenSansRegular"
+                                                   FontSize="12" />
+                                        </VerticalStackLayout>
+                                    </Grid>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                    <BoxView IsVisible="{Binding ShowPostDeliveryStatus}"
+                             HeightRequest="1"
+                             BackgroundColor="#3A3A3C"
+                             Color="#3A3A3C"
+                             Margin="18,0" />
+
                     <!-- Option 1: Download -->
                     <Grid ColumnDefinitions="26, *"
                           ColumnSpacing="14"
@@ -4060,12 +4126,31 @@
 
                             <!-- Connection history: timeline of drops, failovers and returns (most recent first) -->
                             <VerticalStackLayout Spacing="8" Margin="0,6,0,0">
-                                <Label Text="History"
-                                       TextColor="#FFFFFF"
-                                       FontFamily="OpenSansSemibold"
-                                       FontSize="15"
-                                       FontAttributes="Bold"
-                                       Margin="4,0,0,0" />
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <Label Grid.Column="0"
+                                           Text="History"
+                                           TextColor="#FFFFFF"
+                                           FontFamily="OpenSansSemibold"
+                                           FontSize="15"
+                                           FontAttributes="Bold"
+                                           VerticalOptions="Center"
+                                           Margin="4,0,0,0" />
+                                    <!-- Export the full stored history (CSV) to Downloads/Pocket -->
+                                    <Border Grid.Column="1"
+                                            BackgroundColor="#2C2C2E"
+                                            StrokeShape="RoundRectangle 14"
+                                            StrokeThickness="0"
+                                            Padding="12,6">
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding ShellModel.ExportConnectionHistoryCommand}" />
+                                        </Border.GestureRecognizers>
+                                        <Label Text="Export"
+                                               TextColor="{DynamicResource AccentColor}"
+                                               FontFamily="OpenSansSemibold"
+                                               FontSize="13"
+                                               FontAttributes="Bold" />
+                                    </Border>
+                                </Grid>
                                 <Border BackgroundColor="#2C2C2E"
                                         StrokeShape="RoundRectangle 22"
                                         StrokeThickness="0"

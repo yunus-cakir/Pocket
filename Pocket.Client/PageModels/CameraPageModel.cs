@@ -248,6 +248,60 @@ namespace Pocket.Client.PageModels
         [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsSwipeAllowed))]
         private bool _isPostOptionsMenuOpen;
 
+        /// <summary>Per-recipient delivery lines shown in the options menu of an outgoing post.</summary>
+        public ObservableCollection<PostDeliveryRow> PostDeliveryRows { get; } = new();
+
+        [ObservableProperty]
+        private bool _showPostDeliveryStatus;
+
+        private async Task LoadPostDeliveryRowsAsync(MediaPost? post)
+        {
+            if (post == null || post.IsIncoming)
+            {
+                PostDeliveryRows.Clear();
+                ShowPostDeliveryStatus = false;
+                return;
+            }
+
+            bool hasInternet = AppShellModel.HasNetworkAccess();
+            var friends = (await _database.GetFriendsAsync())
+                .GroupBy(f => f.Id)
+                .ToDictionary(g => g.Key, g => g.First());
+            string NameOf(string id) => friends.TryGetValue(id, out var f)
+                ? (string.IsNullOrWhiteSpace(f.DisplayName) ? f.Username : f.DisplayName)
+                : "Removed friend";
+
+            var deliveries = await _database.GetPostDeliveriesAsync(post.Id);
+            List<PostDeliveryRow> rows;
+            if (deliveries.Count > 0)
+            {
+                rows = deliveries
+                    .Select(d => PostDeliveryRow.Create(NameOf(d.RecipientId), d.State, hasInternet))
+                    .OrderBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase)
+                    .ToList();
+            }
+            else
+            {
+                // Sent before per-recipient tracking: only the overall status is known.
+                var state = post.SyncStatus switch
+                {
+                    Shared.Enums.SyncStatus.Delivered => DeliveryState.Delivered,
+                    Shared.Enums.SyncStatus.Sent => DeliveryState.OnServer,
+                    _ => DeliveryState.Pending
+                };
+                string name = !string.IsNullOrEmpty(post.FriendId) ? NameOf(post.FriendId) : "Friends";
+                rows = new List<PostDeliveryRow> { PostDeliveryRow.Create(name, state, hasInternet) };
+            }
+
+            Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (CurrentFeedPost?.Id != post.Id) return;
+                PostDeliveryRows.Clear();
+                foreach (var row in rows) PostDeliveryRows.Add(row);
+                ShowPostDeliveryStatus = rows.Count > 0;
+            });
+        }
+
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(IsBottomBarVisible))]
         [NotifyPropertyChangedFor(nameof(IsSwipeAllowed))]
@@ -513,6 +567,11 @@ namespace Pocket.Client.PageModels
                 {
                     CloseFeedReply();
                 }
+
+                // Clear first so the previous post's lines never flash while this one's load.
+                PostDeliveryRows.Clear();
+                ShowPostDeliveryStatus = false;
+                _ = LoadPostDeliveryRowsAsync(CurrentFeedPost);
 
                 IsPostOptionsMenuOpen = true;
                 OpenPostOptionsMenuAction?.Invoke();
@@ -1293,6 +1352,11 @@ namespace Pocket.Client.PageModels
             ShellModel.OnMediaPostSent += HandleMediaPostSent;
             ShellModel.OnMediaPostDelivered += HandleMediaPostDelivered;
             ShellModel.OnMediaPostDeleted += HandleMediaPostDeleted;
+            ShellModel.OnPostDeliveryChanged += postId =>
+            {
+                if (IsPostOptionsMenuOpen && CurrentFeedPost?.Id == postId)
+                    _ = LoadPostDeliveryRowsAsync(CurrentFeedPost);
+            };
             ShellModel.OnConnectionStateChangedEvent += HandleConnectionStateChanged;
             ShellModel.OnDirectMessageReceived += HandleDirectMessageReceived;
             ShellModel.OnDirectMessageSendFailed += HandleDirectMessageSendFailed;
@@ -2068,6 +2132,9 @@ namespace Pocket.Client.PageModels
                 OnGridPostTapped = HandleGridPostTapped
             };
 
+            // Recipients first: once the post is in the DB a reconnect may resend it, and without rows it
+            // would fall back to "all friends".
+            await ShellModel.RegisterPostRecipientsAsync(mediaPost, targetFriends);
             await _database.SaveMediaPostAsync(mediaPost);
 
             _allFeedPosts.Insert(0, mediaPost);
