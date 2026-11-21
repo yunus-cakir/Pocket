@@ -5,11 +5,11 @@
 
     <!-- Note: For Android please see also Platforms\Android\Resources\values\colors.xml -->
 
-    <Color x:Key="AccentColor">#FFB800</Color>
+    <Color x:Key="AccentColor">#00B8D4</Color>
     <SolidColorBrush x:Key="AccentBrush" Color="{DynamicResource AccentColor}"/>
 
-    <Color x:Key="Primary">#FFB800</Color>
-    <Color x:Key="PrimaryDark">#FFB800</Color>
+    <Color x:Key="Primary">#00B8D4</Color>
+    <Color x:Key="PrimaryDark">#00B8D4</Color>
     <Color x:Key="PrimaryDarkText">#000000</Color>
     <Color x:Key="Secondary">#1C1C1E</Color>
     <Color x:Key="SecondaryDarkText">#8E8E93</Color>
@@ -19,7 +19,7 @@
     <Color x:Key="LocketSurface">#1C1C1E</Color>
     <Color x:Key="LocketElevated">#2C2C2E</Color>
     <Color x:Key="LocketActiveTab">#3A3A3C</Color>
-    <Color x:Key="LocketGold">#FFB800</Color>
+    <Color x:Key="LocketGold">#00B8D4</Color>
     <Color x:Key="LocketTextPrimary">#FFFFFF</Color>
     <Color x:Key="LocketTextSecondary">#8E8E93</Color>
     <Color x:Key="LocketTextMuted">#636366</Color>

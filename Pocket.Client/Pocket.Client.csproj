@@ -54,6 +54,18 @@
 		<MauiIcon Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'android'"
 		          Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appicon_fg.png" Color="#6085AD" />
 
+		<!-- Accent-themed launcher icons (Android). Each one backs an <activity-alias> in AndroidManifest.xml;
+		     AppIconSwitcher enables the alias matching the chosen accent color.
+		     Light blue (the default accent) uses the original appicon above. -->
+		<MauiIcon Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'"
+		          Include="Resources\AppIcon\Themed\appicon_yellow.svg" ForegroundFile="Resources\AppIcon\Themed\appicon_yellow_fg.png" />
+		<MauiIcon Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'"
+		          Include="Resources\AppIcon\Themed\appicon_darkblue.svg" ForegroundFile="Resources\AppIcon\Themed\appicon_darkblue_fg.png" />
+		<MauiIcon Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'"
+		          Include="Resources\AppIcon\Themed\appicon_green.svg" ForegroundFile="Resources\AppIcon\Themed\appicon_green_fg.png" />
+		<MauiIcon Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'"
+		          Include="Resources\AppIcon\Themed\appicon_pink.svg" ForegroundFile="Resources\AppIcon\Themed\appicon_pink_fg.png" />
+
 		<!-- Splash Screen -->
 		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#000000" BaseSize="128,128" />
 
@@ -68,11 +80,12 @@
 
 	<!--
 		Debug Android builds ship the sample data (SeedData/), copied in on first launch by DebugSeedData.
-		Seed user per install target: emulator-5554 = Selin, everything else (emulator-5556, phone) = Mert.
+		Seed user per install target: emulator-5554 (Latest) and emulator-5558 (Note9) = Selin, everything else (emulator-5556 Zebra, phone) = Mert.
+		Ports are pinned by Start-Emulators.ps1.
 		Override with -p:PocketSeedUser=selin|mert.
 	-->
 	<PropertyGroup Condition="'$(Configuration)' == 'Debug' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
-		<PocketSeedUser Condition="'$(PocketSeedUser)' == '' and $(AdbTarget.Contains('emulator-5554'))">selin</PocketSeedUser>
+		<PocketSeedUser Condition="'$(PocketSeedUser)' == '' and ($(AdbTarget.Contains('emulator-5554')) or $(AdbTarget.Contains('emulator-5558')))">selin</PocketSeedUser>
 		<PocketSeedUser Condition="'$(PocketSeedUser)' == ''">mert</PocketSeedUser>
 		<DefineConstants Condition="'$(PocketSeedUser)' == 'selin'">$(DefineConstants);SEED_SELIN</DefineConstants>
 	</PropertyGroup>

@@ -1,9 +1,79 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-	<application android:allowBackup="true" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:supportsRtl="true" android:usesCleartextTraffic="true"></application>
+	<application android:allowBackup="true" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:supportsRtl="true" android:usesCleartextTraffic="true">
+		<!-- Keeps the relay connection alive in the background (Platforms/Android/Services/RelayKeepAliveService.cs). -->
+		<service android:name="com.yunuscakir.pocket.client.RelayKeepAliveService"
+		         android:exported="false"
+		         android:foregroundServiceType="specialUse">
+			<property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+			          android:value="Persistent connection to the user's self-hosted relay server to receive end-to-end encrypted messages and photos as they arrive (no Firebase push)." />
+		</service>
+		<!-- Launcher entries, one per accent color. Exactly one is enabled at a time (AppIconSwitcher.cs);
+		     MainActivity itself has no launcher intent filter. Light blue (default accent) uses the original icon. -->
+		<activity-alias android:name="com.yunuscakir.pocket.client.LauncherIcon_yellow"
+		                android:targetActivity="com.yunuscakir.pocket.client.MainActivity"
+		                android:icon="@mipmap/appicon_yellow"
+		                android:roundIcon="@mipmap/appicon_yellow_round"
+		                android:enabled="false"
+		                android:exported="true">
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+		</activity-alias>
+		<activity-alias android:name="com.yunuscakir.pocket.client.LauncherIcon_lightblue"
+		                android:targetActivity="com.yunuscakir.pocket.client.MainActivity"
+		                android:icon="@mipmap/appicon"
+		                android:roundIcon="@mipmap/appicon_round"
+		                android:enabled="true"
+		                android:exported="true">
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+		</activity-alias>
+		<activity-alias android:name="com.yunuscakir.pocket.client.LauncherIcon_darkblue"
+		                android:targetActivity="com.yunuscakir.pocket.client.MainActivity"
+		                android:icon="@mipmap/appicon_darkblue"
+		                android:roundIcon="@mipmap/appicon_darkblue_round"
+		                android:enabled="false"
+		                android:exported="true">
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+		</activity-alias>
+		<activity-alias android:name="com.yunuscakir.pocket.client.LauncherIcon_green"
+		                android:targetActivity="com.yunuscakir.pocket.client.MainActivity"
+		                android:icon="@mipmap/appicon_green"
+		                android:roundIcon="@mipmap/appicon_green_round"
+		                android:enabled="false"
+		                android:exported="true">
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+		</activity-alias>
+		<activity-alias android:name="com.yunuscakir.pocket.client.LauncherIcon_pink"
+		                android:targetActivity="com.yunuscakir.pocket.client.MainActivity"
+		                android:icon="@mipmap/appicon_pink"
+		                android:roundIcon="@mipmap/appicon_pink_round"
+		                android:enabled="false"
+		                android:exported="true">
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+		</activity-alias>
+	</application>
 	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 	<uses-permission android:name="android.permission.INTERNET" />
 	<uses-permission android:name="android.permission.CAMERA" />
 	<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 	<uses-permission android:name="android.permission.VIBRATE" />
+	<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+	<uses-permission android:name="android.permission.WAKE_LOCK" />
+	<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+	<uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 </manifest>
