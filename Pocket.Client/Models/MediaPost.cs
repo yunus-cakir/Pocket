@@ -64,7 +64,7 @@ namespace Pocket.Client.Models
         }
     }
 
-    public partial class MediaPost : ObservableObject
+    public partial class MediaPost : ObservableObject, Pocket.Client.Services.ISendStateTicking
     {
         private SyncStatus _syncStatus = SyncStatus.Pending;
         private bool _isWaitingForServer;
@@ -265,10 +265,38 @@ namespace Pocket.Client.Models
                 {
                     OnPropertyChanged(nameof(StatusBadgeText));
                     OnPropertyChanged(nameof(IsPendingUpload));
-                    OnPropertyChanged(nameof(ShowNormalAuthorRow));
                     OnPropertyChanged(nameof(UploadStatusText));
+                    NotifySendStateChanged();
                 }
             }
+        }
+
+        private bool _lastIsSlowUpload;
+
+        /// <summary>Not on the server a few seconds after sending → yellow hourglass after "You 3h" (still retried).</summary>
+        [Ignore]
+        public bool IsSlowUpload => IsPendingUpload &&
+                                    DateTime.UtcNow - SentAt.ToUniversalTime() >= Pocket.Client.Services.SendTiming.SlowAfter;
+
+        /// <summary>The first seconds of a send: spinner + "Uploading..." in place of the author row.</summary>
+        [Ignore]
+        public bool ShowUploadingRow => IsPendingUpload && !IsSlowUpload;
+
+        [Ignore]
+        public bool NeedsSendStateTick => IsPendingUpload && !IsSlowUpload;
+
+        public void RefreshSendState()
+        {
+            if (_lastIsSlowUpload != IsSlowUpload)
+                NotifySendStateChanged();
+        }
+
+        private void NotifySendStateChanged()
+        {
+            _lastIsSlowUpload = IsSlowUpload;
+            OnPropertyChanged(nameof(IsSlowUpload));
+            OnPropertyChanged(nameof(ShowUploadingRow));
+            OnPropertyChanged(nameof(ShowNormalAuthorRow));
         }
 
         [Ignore]
@@ -288,7 +316,7 @@ namespace Pocket.Client.Models
         public bool IsPendingUpload => !IsIncoming && SyncStatus == SyncStatus.Pending;
 
         [Ignore]
-        public bool ShowNormalAuthorRow => !IsPendingUpload;
+        public bool ShowNormalAuthorRow => !ShowUploadingRow;
 
         [Ignore]
         public string UploadStatusText => IsWaitingForServer ? "Waiting server..." : "Uploading...";

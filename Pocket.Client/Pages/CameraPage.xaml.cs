@@ -1019,6 +1019,23 @@ namespace Pocket.Client.Pages
             }
         }
 
+        private const string DeliverySpinnerAnimation = "DeliverySpin";
+
+        /// <summary>Spins the "waiting" arc in the post options Delivery list (rows are rebuilt on every state change).</summary>
+        private void OnDeliverySpinnerLoaded(object? sender, EventArgs e)
+        {
+            if (sender is not VisualElement spinner || spinner.AnimationIsRunning(DeliverySpinnerAnimation))
+                return;
+            new Animation(v => spinner.Rotation = v, 0, 360)
+                .Commit(spinner, DeliverySpinnerAnimation, length: 900, easing: Easing.Linear, repeat: () => true);
+        }
+
+        private void OnDeliverySpinnerUnloaded(object? sender, EventArgs e)
+        {
+            if (sender is VisualElement spinner)
+                spinner.AbortAnimation(DeliverySpinnerAnimation);
+        }
+
         private async void OnPostOptionsMenuBackdropTapped(object? sender, TappedEventArgs e)
         {
             await AnimateClosePostOptionsMenuAsync();

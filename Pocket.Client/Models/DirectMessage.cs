@@ -6,8 +6,10 @@ using Pocket.Shared.Enums;
 
 namespace Pocket.Client.Models
 {
-    public partial class DirectMessage : ObservableObject
+    public partial class DirectMessage : ObservableObject, Pocket.Client.Services.ISendStateTicking
     {
+        private bool _lastIsSlowPending;
+        private bool _lastIsGivenUp;
         private SyncStatus _syncStatus = SyncStatus.Pending;
         private string _referencedPostPath = string.Empty;
         private string _referencedPostCaption = string.Empty;
@@ -51,15 +53,59 @@ namespace Pocket.Client.Models
                 if (SetProperty(ref _syncStatus, value))
                 {
                     OnPropertyChanged(nameof(StatusText));
-                    OnPropertyChanged(nameof(IsFailed));
-                    OnPropertyChanged(nameof(OutgoingBubbleStrokeThickness));
-                    OnPropertyChanged(nameof(OutgoingBubbleStrokeColor));
+                    NotifySendStateChanged();
                 }
             }
         }
 
+        private TimeSpan PendingFor => DateTime.UtcNow - SentAt.ToUniversalTime();
+
+        /// <summary>Outgoing and not yet accepted by a server (whether still retried or given up).</summary>
         [Ignore]
-        public bool IsFailed => !IsIncoming && SyncStatus == SyncStatus.Failed;
+        public bool IsUnsentOutgoing => !IsIncoming && SyncStatus == SyncStatus.Pending;
+
+        /// <summary>Not on a server after <see cref="Services.SendTiming.MessageGiveUpAfter"/>: no more automatic resends.</summary>
+        [Ignore]
+        public bool IsGivenUp => IsUnsentOutgoing && PendingFor >= Pocket.Client.Services.SendTiming.MessageGiveUpAfter;
+
+        /// <summary>Still being retried, but slower than a normal send → yellow hourglass beside the bubble.</summary>
+        [Ignore]
+        public bool IsSlowPending => IsUnsentOutgoing && !IsGivenUp && PendingFor >= Pocket.Client.Services.SendTiming.SlowAfter;
+
+        /// <summary>Needs the user: red outline with retry / delete.</summary>
+        [Ignore]
+        public bool IsFailed => !IsIncoming && (SyncStatus == SyncStatus.Failed || IsGivenUp);
+
+        /// <summary>Delivery state of an outgoing message, in the same words as the photo Delivery list.</summary>
+        [Ignore]
+        public string DeliveryStatusText => IsFailed
+            ? "Not sent"
+            : SyncStatus switch
+            {
+                SyncStatus.Delivered => "Sent",
+                SyncStatus.Sent => "Waiting to Receive",
+                _ => Pocket.Client.PageModels.AppShellModel.HasNetworkAccess() ? "Waiting for Server" : "Waiting for Internet"
+            };
+
+        [Ignore]
+        public bool NeedsSendStateTick => IsUnsentOutgoing && !IsGivenUp;
+
+        public void RefreshSendState()
+        {
+            if (_lastIsSlowPending != IsSlowPending || _lastIsGivenUp != IsGivenUp)
+                NotifySendStateChanged();
+        }
+
+        private void NotifySendStateChanged()
+        {
+            _lastIsSlowPending = IsSlowPending;
+            _lastIsGivenUp = IsGivenUp;
+            OnPropertyChanged(nameof(IsSlowPending));
+            OnPropertyChanged(nameof(IsFailed));
+            OnPropertyChanged(nameof(DeliveryStatusText));
+            OnPropertyChanged(nameof(OutgoingBubbleStrokeThickness));
+            OnPropertyChanged(nameof(OutgoingBubbleStrokeColor));
+        }
 
         [Ignore]
         public double OutgoingBubbleStrokeThickness => IsFailed ? 2.0 : 0.0;

@@ -189,6 +189,8 @@ namespace Pocket.Client.PageModels
         public event Action<DirectMessage>? OnDirectMessageReceived;
         public event Action<Guid>? OnDirectMessageDelivered;
         public event Action<DirectMessage>? OnDirectMessageSendFailed;
+        /// <summary>An outgoing DM was accepted by the server (Sent) — raised for background resends too.</summary>
+        public event Action<Guid, Pocket.Shared.Enums.SyncStatus>? OnDirectMessageStatusChanged;
         public event Action<Guid>? OnDirectMessageDeleted;
         public event Action<Friend>? OnFriendProfileUpdated;
         public event Action<User>? OnUserProfileUpdated;
@@ -580,16 +582,9 @@ namespace Pocket.Client.PageModels
                 OnDirectMessageReceived?.Invoke(dm);
             });
 
-            bool sent = await TryTransmitDirectMessageAsync(dm, friend);
-            if (!sent)
-            {
-                dm.SyncStatus = Pocket.Shared.Enums.SyncStatus.Failed;
-                await _database.SaveDirectMessageAsync(dm);
-                Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
-                {
-                    OnDirectMessageSendFailed?.Invoke(dm);
-                });
-            }
+            // Not sent (no internet / no server ack): it stays Pending and is resent automatically
+            // on the next connection, like photos (FlushOutgoingDirectMessagesAsync).
+            await TryTransmitDirectMessageAsync(dm, friend);
 
             return dm;
         }
@@ -612,18 +607,23 @@ namespace Pocket.Client.PageModels
             }
 
             bool sent = await TryTransmitDirectMessageAsync(dm, friend);
-            if (!sent)
+            if (!sent && dm.SyncStatus == Pocket.Shared.Enums.SyncStatus.Failed)
             {
-                dm.SyncStatus = Pocket.Shared.Enums.SyncStatus.Failed;
+                // Legacy Failed message: hand it to the automatic resend (if still inside the give-up window).
+                dm.SyncStatus = Pocket.Shared.Enums.SyncStatus.Pending;
                 await _database.SaveDirectMessageAsync(dm);
-                Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
-                {
-                    OnDirectMessageSendFailed?.Invoke(dm);
-                });
-                return false;
+                RaiseDirectMessageStatusChanged(dm);
             }
 
-            return true;
+            return sent;
+        }
+
+        private void RaiseDirectMessageStatusChanged(DirectMessage dm)
+        {
+            var id = dm.Id;
+            var status = dm.SyncStatus;
+            Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+                OnDirectMessageStatusChanged?.Invoke(id, status));
         }
 
         public async Task DeleteDirectMessageAsync(DirectMessage dm, bool undoSendForRecipient = false)
@@ -785,6 +785,7 @@ namespace Pocket.Client.PageModels
                     dm.SyncStatus = Pocket.Shared.Enums.SyncStatus.Sent;
                     dm.ServerInstance = _relayService.CurrentServerInstance;
                     await _database.SaveDirectMessageAsync(dm);
+                    RaiseDirectMessageStatusChanged(dm);
                 }
 
                 return true;
@@ -1707,8 +1708,8 @@ namespace Pocket.Client.PageModels
         }
 
         /// <summary>
-        /// Resends direct messages that are stuck Pending (app closed mid-send) or were accepted by a server
-        /// we are no longer connected to. Failed ones keep their manual retry button.
+        /// Resends direct messages that are still Pending (no internet / no server ack yet) and not given up,
+        /// and those accepted by a server we are no longer connected to (its queue may be gone).
         /// </summary>
         private async Task FlushOutgoingDirectMessagesAsync(string? instance)
         {
@@ -1722,7 +1723,9 @@ namespace Pocket.Client.PageModels
                 if (!_relayService.IsConnected)
                     break;
 
-                bool needsSend = dm.SyncStatus == Pocket.Shared.Enums.SyncStatus.Pending ||
+                // Failed and given-up (Pending past SendTiming.MessageGiveUpAfter) messages wait for the
+                // user's retry button; the rest are resent automatically.
+                bool needsSend = (dm.SyncStatus == Pocket.Shared.Enums.SyncStatus.Pending && !dm.IsGivenUp) ||
                                  (dm.SyncStatus == Pocket.Shared.Enums.SyncStatus.Sent && dm.ServerInstance != instance);
                 if (!needsSend)
                     continue;

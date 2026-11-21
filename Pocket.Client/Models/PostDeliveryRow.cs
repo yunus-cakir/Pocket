@@ -4,29 +4,30 @@ namespace Pocket.Client.Models
     public class PostDeliveryRow
     {
         public string Name { get; init; } = string.Empty;
+        /// <summary>Local path of the recipient's profile photo; empty shows the placeholder.</summary>
+        public string AvatarUrl { get; init; } = string.Empty;
         public string StatusText { get; init; } = string.Empty;
-        public string StatusColor { get; init; } = "#8E8E93";
+        /// <summary>Spinner (waiting for internet / server).</summary>
         public bool IsWaiting { get; init; }
         public bool IsSingleTick { get; init; }
         public bool IsDoubleTick { get; init; }
 
-        public const string AccentTickColor = "#34C759";
-
-        public static PostDeliveryRow Create(string name, DeliveryState state, bool hasInternet) => state switch
+        public static PostDeliveryRow Create(string name, string? avatarUrl, DeliveryState state, bool hasInternet) => state switch
         {
             DeliveryState.Delivered => new PostDeliveryRow
             {
-                Name = name, StatusText = "Sent", StatusColor = AccentTickColor, IsDoubleTick = true
+                Name = name, AvatarUrl = avatarUrl ?? string.Empty,
+                StatusText = "Sent", IsDoubleTick = true
             },
             DeliveryState.OnServer => new PostDeliveryRow
             {
-                Name = name, StatusText = "Waiting to Receive", IsSingleTick = true
+                Name = name, AvatarUrl = avatarUrl ?? string.Empty,
+                StatusText = "Waiting to Receive", IsSingleTick = true
             },
             _ => new PostDeliveryRow
             {
-                Name = name,
+                Name = name, AvatarUrl = avatarUrl ?? string.Empty,
                 StatusText = hasInternet ? "Waiting for Server" : "Waiting for Internet",
-                StatusColor = "#F59E0B",
                 IsWaiting = true
             }
         };

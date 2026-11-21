@@ -308,14 +308,15 @@ namespace Pocket.Client.Data
         #endregion
 
         #region Connection History
-        /// <summary>Outgoing direct messages since <paramref name="sinceUtc"/> the recipient has not confirmed (Pending or Sent).</summary>
+        /// <summary>Outgoing direct messages since <paramref name="sinceUtc"/> the recipient has not confirmed (Pending, Sent or Failed).</summary>
         public async Task<List<DirectMessage>> GetUndeliveredOutgoingDirectMessagesAsync(DateTime sinceUtc)
         {
             await InitAsync();
             return await _connection!.Table<DirectMessage>()
                 .Where(dm => !dm.IsIncoming && dm.SentAt >= sinceUtc &&
                              (dm.SyncStatus == Pocket.Shared.Enums.SyncStatus.Pending ||
-                              dm.SyncStatus == Pocket.Shared.Enums.SyncStatus.Sent))
+                              dm.SyncStatus == Pocket.Shared.Enums.SyncStatus.Sent ||
+                              dm.SyncStatus == Pocket.Shared.Enums.SyncStatus.Failed))
                 .OrderBy(dm => dm.SentAt)
                 .ToListAsync();
         }

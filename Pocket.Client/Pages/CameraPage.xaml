@@ -1497,14 +1497,24 @@
                                                FontSize="16"
                                                FontAttributes="Bold"
                                                VerticalOptions="Center" />
+                                        <!-- Slow send: not on the server after a few seconds, still retried automatically -->
+                                        <Path IsVisible="{Binding IsSlowUpload}"
+                                              WidthRequest="16"
+                                              HeightRequest="16"
+                                              Stroke="#FFCC00"
+                                              StrokeThickness="1.8"
+                                              StrokeLineCap="Round"
+                                              StrokeLineJoin="Round"
+                                              VerticalOptions="Center"
+                                              Data="M3.5,1.5 L12.5,1.5 M3.5,14.5 L12.5,14.5 M4.5,1.5 C4.5,5.5 8,6.5 8,8 C8,9.5 4.5,10.5 4.5,14.5 M11.5,1.5 C11.5,5.5 8,6.5 8,8 C8,9.5 11.5,10.5 11.5,14.5" />
                                     </HorizontalStackLayout>
 
-                                    <HorizontalStackLayout IsVisible="{Binding IsPendingUpload}"
+                                    <HorizontalStackLayout IsVisible="{Binding ShowUploadingRow}"
                                                            Spacing="8"
                                                            HorizontalOptions="Center">
                                         <controls:UploadSpinner WidthRequest="16"
                                                                 HeightRequest="16"
-                                                                IsRunning="{Binding IsPendingUpload}"
+                                                                IsRunning="{Binding ShowUploadingRow}"
                                                                 Color="#FFFFFF"
                                                                 StrokeThickness="2.2"
                                                                 VerticalOptions="Center" />
@@ -3540,8 +3550,8 @@
                     <TapGestureRecognizer />
                 </Border.GestureRecognizers>
                 <VerticalStackLayout Spacing="0">
-                    <!-- Delivery status per recipient (outgoing posts only):
-                         clock = waiting for internet/server, ✓ = on the server, ✓✓ = on the friend's phone -->
+                    <!-- Delivery status per recipient (outgoing posts only), grey text-sized icon before the status:
+                         spinner = waiting for internet/server, ✓ = on the server, ✓✓ = on the friend's phone -->
                     <VerticalStackLayout IsVisible="{Binding ShowPostDeliveryStatus}"
                                          Spacing="0"
                                          Padding="20,14,20,6">
@@ -3553,47 +3563,68 @@
                         <VerticalStackLayout BindableLayout.ItemsSource="{Binding PostDeliveryRows}" Spacing="0">
                             <BindableLayout.ItemTemplate>
                                 <DataTemplate x:DataType="models:PostDeliveryRow">
-                                    <Grid ColumnDefinitions="24, *" ColumnSpacing="12" Padding="0,6">
-                                        <!-- Clock -->
-                                        <Path Grid.Column="0"
-                                              IsVisible="{Binding IsWaiting}"
-                                              WidthRequest="18" HeightRequest="18"
-                                              Stroke="{Binding StatusColor}"
-                                              StrokeThickness="2"
-                                              StrokeLineCap="Round"
-                                              StrokeLineJoin="Round"
-                                              HorizontalOptions="Center" VerticalOptions="Center"
-                                              Data="M9,2 A7,7 0 1,1 8.99,2 Z M9,5.5 L9,9 L11.5,10.5" />
-                                        <!-- Single tick -->
-                                        <Path Grid.Column="0"
-                                              IsVisible="{Binding IsSingleTick}"
-                                              WidthRequest="20" HeightRequest="14"
-                                              Stroke="{Binding StatusColor}"
-                                              StrokeThickness="2.2"
-                                              StrokeLineCap="Round"
-                                              StrokeLineJoin="Round"
-                                              HorizontalOptions="Center" VerticalOptions="Center"
-                                              Data="M3,7.5 L6.5,11 L14,3.5" />
-                                        <!-- Double tick -->
-                                        <Path Grid.Column="0"
-                                              IsVisible="{Binding IsDoubleTick}"
-                                              WidthRequest="22" HeightRequest="14"
-                                              Stroke="{Binding StatusColor}"
-                                              StrokeThickness="2.2"
-                                              StrokeLineCap="Round"
-                                              StrokeLineJoin="Round"
-                                              HorizontalOptions="Center" VerticalOptions="Center"
-                                              Data="M1,7.5 L4.5,11 L12,3.5 M8.5,10.5 L9,11 L16.5,3.5" />
-                                        <VerticalStackLayout Grid.Column="1" Spacing="0" VerticalOptions="Center">
+                                    <Grid ColumnDefinitions="36, *" ColumnSpacing="12" Padding="0,6">
+                                        <!-- Recipient avatar (placeholder silhouette when there is no photo) -->
+                                        <Border Grid.Column="0"
+                                                WidthRequest="36" HeightRequest="36"
+                                                StrokeShape="RoundRectangle 18"
+                                                StrokeThickness="0"
+                                                BackgroundColor="#1C1C1E"
+                                                Padding="0"
+                                                VerticalOptions="Center">
+                                            <Grid>
+                                                <Path Fill="#8E8E93"
+                                                      HorizontalOptions="Center"
+                                                      VerticalOptions="Center"
+                                                      Scale="0.8"
+                                                      Data="M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z" />
+                                                <Image Source="{Binding AvatarUrl}"
+                                                       IsVisible="{Binding AvatarUrl, Converter={StaticResource IsStringNotNullOrWhiteSpaceConverter}}"
+                                                       Aspect="AspectFill" />
+                                            </Grid>
+                                        </Border>
+                                        <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
                                             <Label Text="{Binding Name}"
                                                    TextColor="#E5E5EA"
                                                    FontFamily="OpenSansSemibold"
                                                    FontSize="15"
                                                    LineBreakMode="TailTruncation" />
-                                            <Label Text="{Binding StatusText}"
-                                                   TextColor="{Binding StatusColor}"
-                                                   FontFamily="OpenSansRegular"
-                                                   FontSize="12" />
+                                            <HorizontalStackLayout Spacing="5">
+                                                <!-- Status icon, the size of the 12pt status text -->
+                                                <Grid WidthRequest="14" HeightRequest="12" VerticalOptions="Center">
+                                                    <!-- Spinner: a 3/4 arc rotated by OnDeliverySpinnerLoaded -->
+                                                    <Path IsVisible="{Binding IsWaiting}"
+                                                          Loaded="OnDeliverySpinnerLoaded"
+                                                          Unloaded="OnDeliverySpinnerUnloaded"
+                                                          WidthRequest="12" HeightRequest="12"
+                                                          HorizontalOptions="Center" VerticalOptions="Center"
+                                                          Stroke="#8E8E93"
+                                                          StrokeThickness="1.6"
+                                                          StrokeLineCap="Round"
+                                                          Data="M6,1 A5,5 0 1,1 1,6" />
+                                                    <!-- Single tick -->
+                                                    <Path IsVisible="{Binding IsSingleTick}"
+                                                          WidthRequest="14" HeightRequest="12"
+                                                          Stroke="#8E8E93"
+                                                          StrokeThickness="1.6"
+                                                          StrokeLineCap="Round"
+                                                          StrokeLineJoin="Round"
+                                                          Data="M2.4,6 L5.2,8.8 L11.2,2.8" />
+                                                    <!-- Double tick -->
+                                                    <Path IsVisible="{Binding IsDoubleTick}"
+                                                          WidthRequest="14" HeightRequest="12"
+                                                          Stroke="#8E8E93"
+                                                          StrokeThickness="1.6"
+                                                          StrokeLineCap="Round"
+                                                          StrokeLineJoin="Round"
+                                                          Data="M0.8,6 L3.6,8.8 L9.6,2.8 M6.8,8.4 L7.2,8.8 L13.2,2.8" />
+                                                </Grid>
+                                                <Label Text="{Binding StatusText}"
+                                                       TextColor="#8E8E93"
+                                                       FontFamily="OpenSansRegular"
+                                                       FontSize="12"
+                                                       VerticalOptions="Center" />
+                                            </HorizontalStackLayout>
                                         </VerticalStackLayout>
                                     </Grid>
                                 </DataTemplate>

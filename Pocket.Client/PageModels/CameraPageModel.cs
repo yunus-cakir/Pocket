@@ -254,12 +254,16 @@ namespace Pocket.Client.PageModels
         [ObservableProperty]
         private bool _showPostDeliveryStatus;
 
+        /// <summary>Post the current <see cref="PostDeliveryRows"/> belong to (preloaded while scrolling).</summary>
+        private Guid? _deliveryRowsPostId;
+
         private async Task LoadPostDeliveryRowsAsync(MediaPost? post)
         {
             if (post == null || post.IsIncoming)
             {
                 PostDeliveryRows.Clear();
                 ShowPostDeliveryStatus = false;
+                _deliveryRowsPostId = post?.Id;
                 return;
             }
 
@@ -270,13 +274,18 @@ namespace Pocket.Client.PageModels
             string NameOf(string id) => friends.TryGetValue(id, out var f)
                 ? (string.IsNullOrWhiteSpace(f.DisplayName) ? f.Username : f.DisplayName)
                 : "Removed friend";
+            string? AvatarOf(string? id) =>
+                id != null && friends.TryGetValue(id, out var f) && !string.IsNullOrWhiteSpace(f.ProfilePictureUrl) &&
+                File.Exists(f.ProfilePictureUrl)
+                    ? f.ProfilePictureUrl
+                    : null;
 
             var deliveries = await _database.GetPostDeliveriesAsync(post.Id);
             List<PostDeliveryRow> rows;
             if (deliveries.Count > 0)
             {
                 rows = deliveries
-                    .Select(d => PostDeliveryRow.Create(NameOf(d.RecipientId), d.State, hasInternet))
+                    .Select(d => PostDeliveryRow.Create(NameOf(d.RecipientId), AvatarOf(d.RecipientId), d.State, hasInternet))
                     .OrderBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase)
                     .ToList();
             }
@@ -290,15 +299,23 @@ namespace Pocket.Client.PageModels
                     _ => DeliveryState.Pending
                 };
                 string name = !string.IsNullOrEmpty(post.FriendId) ? NameOf(post.FriendId) : "Friends";
-                rows = new List<PostDeliveryRow> { PostDeliveryRow.Create(name, state, hasInternet) };
+                string? avatar = !string.IsNullOrEmpty(post.FriendId) ? AvatarOf(post.FriendId) : null;
+                rows = new List<PostDeliveryRow> { PostDeliveryRow.Create(name, avatar, state, hasInternet) };
             }
 
             Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
             {
                 if (CurrentFeedPost?.Id != post.Id) return;
+
+                // Unchanged (e.g. a refresh on menu open): keep the rows so the open menu doesn't flicker.
+                static (string, string, string) Key(PostDeliveryRow r) => (r.Name, r.AvatarUrl, r.StatusText);
+                if (_deliveryRowsPostId == post.Id && PostDeliveryRows.Select(Key).SequenceEqual(rows.Select(Key)))
+                    return;
+
                 PostDeliveryRows.Clear();
                 foreach (var row in rows) PostDeliveryRows.Add(row);
                 ShowPostDeliveryStatus = rows.Count > 0;
+                _deliveryRowsPostId = post.Id;
             });
         }
 
@@ -568,9 +585,14 @@ namespace Pocket.Client.PageModels
                     CloseFeedReply();
                 }
 
-                // Clear first so the previous post's lines never flash while this one's load.
-                PostDeliveryRows.Clear();
-                ShowPostDeliveryStatus = false;
+                // Rows are normally preloaded when the post scrolled into view; then this only refreshes
+                // them (e.g. "Waiting for Internet" vs "Server"). Otherwise clear first so another
+                // post's lines never flash while this one's load.
+                if (_deliveryRowsPostId != CurrentFeedPost?.Id)
+                {
+                    PostDeliveryRows.Clear();
+                    ShowPostDeliveryStatus = false;
+                }
                 _ = LoadPostDeliveryRowsAsync(CurrentFeedPost);
 
                 IsPostOptionsMenuOpen = true;
@@ -977,6 +999,9 @@ namespace Pocket.Client.PageModels
 
         partial void OnCurrentFeedPostChanged(MediaPost? value)
         {
+            // Preload the options menu's Delivery rows so they are ready when "..." is tapped.
+            _ = LoadPostDeliveryRowsAsync(value);
+
             IsReactionAnimationPlaying = false;
             StopReactionEmojiRainAction?.Invoke();
 
@@ -1354,7 +1379,8 @@ namespace Pocket.Client.PageModels
             ShellModel.OnMediaPostDeleted += HandleMediaPostDeleted;
             ShellModel.OnPostDeliveryChanged += postId =>
             {
-                if (IsPostOptionsMenuOpen && CurrentFeedPost?.Id == postId)
+                // Keep the preloaded rows of the visible post current, menu open or not.
+                if (CurrentFeedPost?.Id == postId)
                     _ = LoadPostDeliveryRowsAsync(CurrentFeedPost);
             };
             ShellModel.OnConnectionStateChangedEvent += HandleConnectionStateChanged;
@@ -1364,8 +1390,14 @@ namespace Pocket.Client.PageModels
             ShellModel.OnUserProfileUpdated += HandleUserProfileUpdated;
             ShellModel.OnDataImported += HandleDataImported;
 
+            // Slow-upload hourglass is time-based: tick while any own post is still waiting for the server.
+            _sendStateTicker = new Services.SendStateTicker(() => _allFeedPosts.Concat(FeedPosts));
+            FeedPosts.CollectionChanged += (_, _) => _sendStateTicker.Ensure();
+
             LoadRecentEmojis();
         }
+
+        private readonly Services.SendStateTicker _sendStateTicker;
 
         private async void HandleDataImported()
         {
@@ -1836,6 +1868,7 @@ namespace Pocket.Client.PageModels
             OnPropertyChanged(nameof(ShowFeedReplyBar));
 
             SchedulePendingReactionsCheck();
+            _sendStateTicker.Ensure();
 
             if (_relayService.IsConnected &&
                 _allFeedPosts.Any(p => !p.IsIncoming && p.SyncStatus == Shared.Enums.SyncStatus.Pending))
@@ -2138,6 +2171,7 @@ namespace Pocket.Client.PageModels
             await _database.SaveMediaPostAsync(mediaPost);
 
             _allFeedPosts.Insert(0, mediaPost);
+            _sendStateTicker.Ensure();
             OnPropertyChanged(nameof(AllFeedPostsCount));
             if (DoesPostMatchFilter(mediaPost))
             {

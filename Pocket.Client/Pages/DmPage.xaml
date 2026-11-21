@@ -231,6 +231,17 @@
                                 </Grid>
                             </HorizontalStackLayout>
 
+                            <!-- Slow send: not on the server after a few seconds, still retried automatically -->
+                            <Path IsVisible="{Binding IsSlowPending}"
+                                  WidthRequest="16"
+                                  HeightRequest="16"
+                                  Stroke="#FFCC00"
+                                  StrokeThickness="1.8"
+                                  StrokeLineCap="Round"
+                                  StrokeLineJoin="Round"
+                                  VerticalOptions="Center"
+                                  Data="M3.5,1.5 L12.5,1.5 M3.5,14.5 L12.5,14.5 M4.5,1.5 C4.5,5.5 8,6.5 8,8 C8,9.5 4.5,10.5 4.5,14.5 M11.5,1.5 C11.5,5.5 8,6.5 8,8 C8,9.5 11.5,10.5 11.5,14.5" />
+
                             <Grid HorizontalOptions="End"
                                   VerticalOptions="Center"
                                   HandlerChanged="OnMessageBubbleHandlerChanged">
@@ -1095,6 +1106,15 @@
                     <PanGestureRecognizer PanUpdated="OnMessageActionsSheetPanUpdated" />
                 </Border.GestureRecognizers>
                 <VerticalStackLayout Spacing="4">
+                    <!-- Delivery state of our own message (same states as the photo Delivery list) -->
+                    <Label IsVisible="{Binding SelectedActionMessage.IsOutgoing, FallbackValue=False}"
+                           Text="{Binding SelectedActionMessage.DeliveryStatusText}"
+                           TextColor="#8E8E93"
+                           FontFamily="OpenSansRegular"
+                           FontSize="13"
+                           HorizontalOptions="Center"
+                           Margin="20,6,20,0" />
+
                     <Grid Padding="20,16" BackgroundColor="Transparent">
                         <Grid.GestureRecognizers>
                             <TapGestureRecognizer Command="{Binding CopySelectedMessageCommand}" />

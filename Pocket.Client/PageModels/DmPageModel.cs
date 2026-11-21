@@ -188,6 +188,8 @@ namespace Pocket.Client.PageModels
         public Action? CloseMessageActionsAction { get; set; }
         public Action? ShowCopiedToastAction { get; set; }
 
+        private readonly Services.SendStateTicker _sendStateTicker;
+
         public DmPageModel(LocalDatabase database, AppShellModel shellModel)
         {
             _database = database;
@@ -196,6 +198,11 @@ namespace Pocket.Client.PageModels
             _shellModel.OnDirectMessageReceived += HandleDirectMessageReceived;
             _shellModel.OnDirectMessageDelivered += HandleDirectMessageDelivered;
             _shellModel.OnDirectMessageSendFailed += HandleDirectMessageSendFailed;
+            _shellModel.OnDirectMessageStatusChanged += HandleDirectMessageStatusChanged;
+
+            // Slow-send hourglass / 24h give-up are time-based: tick while any own message is still unsent.
+            _sendStateTicker = new Services.SendStateTicker(() => Messages);
+            Messages.CollectionChanged += (_, _) => _sendStateTicker.Ensure();
             _shellModel.OnDirectMessageDeleted += HandleDirectMessageDeleted;
             _shellModel.OnMediaPostDeleted += HandleMediaPostDeleted;
             _shellModel.OnFriendProfileUpdated += HandleFriendProfileUpdated;
@@ -400,6 +407,16 @@ namespace Pocket.Client.PageModels
             if (existing != null)
             {
                 existing.SyncStatus = Shared.Enums.SyncStatus.Delivered;
+            }
+        }
+
+        private void HandleDirectMessageStatusChanged(Guid messageId, Shared.Enums.SyncStatus status)
+        {
+            var existing = Messages.FirstOrDefault(m => m.Id == messageId);
+            if (existing != null && existing.SyncStatus != Shared.Enums.SyncStatus.Delivered)
+            {
+                existing.SyncStatus = status;
+                _sendStateTicker.Ensure();
             }
         }
 
