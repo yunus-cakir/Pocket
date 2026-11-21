@@ -6,12 +6,13 @@ Bu doküman, `Pocket.Client` (.NET 10.0 MAUI) ve `Pocket.Server` projelerinin ye
 
 ## 📱 Test Cihazları ve Emülatör Yapılandırması
 
-Test ortamında iki farklı Android emülatörü (karşılıklı mesajlaşma, arkadaş ekleme ve E2EE relay testleri için) ve bağlı fiziksel Android cihazlar kullanılabilir:
+Test ortamında üç Android emülatörü (karşılıklı mesajlaşma, arkadaş ekleme ve E2EE relay testleri için) ve bağlı fiziksel Android cihazlar kullanılabilir. Debug seed kullanıcısı ADB serial'a göre seçildiği için emülatörleri her zaman `.\Start-Emulators.ps1` ile sabit portlarda başlatın:
 
-| Rol | AVD / Cihaz Modeli | Sürüm & API | Varsayılan ADB Serial | Açıklama |
+| Rol | AVD / Cihaz Modeli | Sürüm & API | Sabit ADB Serial | Debug Seed |
 | :--- | :--- | :--- | :--- | :--- |
-| **Emülatör 1 (Birincil)** | `pixel_7_-_api_35` | Android 15 (API 35) | `emulator-5554` | `Pixel7_A15_API35` (Uygulama içi: `@pixel7_api35`) |
-| **Emülatör 2 (İkincil)** | `pixel_7_-_api_34_0` | Android 14 (API 34) | `emulator-5556` | `Pixel7_A14_API34` (Uygulama içi: `@pixel7_api34`) |
+| **Latest (Birincil)** | `Latest` (Pixel 7) | Android 15 (API 35) | `emulator-5554` | Selin |
+| **Zebra (İkincil)** | `Zebra` (Pixel 7) | Android 14 (API 34) | `emulator-5556` | Mert |
+| **Note9** | `Note9` (Galaxy Note 9 profili: 1440×2960, 640 dpi, 6 GB, hareketle gezinme) | Android 10 (API 29) | `emulator-5558` | Selin |
 | **Fiziksel Cihaz (Gerçek)** | Redmi Note 13 Pro 5G vb. | Android 14+ | Değişken (örn: `dd9fc8be`) | USB ile bağlı gerçek Android test cihazı |
 
 * **Uygulama Kimliği (ApplicationId):** `com.yunuscakir.pocket.client.debug`

@@ -10,12 +10,12 @@ if ($RefreshTimestamps) {
     python "$seedDir\generate_seed_db.py"
 }
 
-# Sabit eslesme (Debug APK'daki gomulu seed ile ayni): emulator-5554 = Selin, digerleri (emulator-5556, telefon) = Mert.
+# Sabit eslesme (Debug APK'daki gomulu seed ile ayni): emulator-5554 ve emulator-5558 (Galaxy Note 9) = Selin, digerleri (emulator-5556, telefon) = Mert.
 $serials = adb devices | Select-String "^(\S+)\s+device$" | ForEach-Object { $_.Matches[0].Groups[1].Value }
 if (-not $serials) { Write-Warning "Bagli cihaz yok."; return }
 
 foreach ($emu in $serials) {
-    $seedUser = if ($emu -eq "emulator-5554") { "selin" } else { "mert" }
+    $seedUser = if ($emu -in @("emulator-5554", "emulator-5558")) { "selin" } else { "mert" }
     $dbPath = "$seedDir\PocketLocal_$seedUser.db3"
 
     adb -s $emu shell pm path com.yunuscakir.pocket.client.debug | Out-Null
