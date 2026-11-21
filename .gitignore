@@ -432,3 +432,6 @@ FodyWeavers.xsd
 references/
 temp_analysis/
 
+
+# Pocket.Server runtime identity registry (local dotnet run)
+Pocket.Server/data/

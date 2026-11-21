@@ -22,40 +22,58 @@ tailscale up --unattended          # tarayıcıda giriş yap; Windows oturumu ka
 - Funnel ayarı kalıcıdır ve bilgisayar yeniden başladığında Tailscale servisiyle birlikte geri gelir.
 - Durumu görmek için: `tailscale funnel status`. Kapatmak için: `.\setup-tailscale-funnel.ps1 -Off`
 
-## Birincil (PC) + yedek (Mac)
+## Birincil (Mac) + yedek (PC): çift yönlü bekçi
 
-Sunucu her şeyi bellekte tutuyor. Bekçi normalde yalnızca bir sunucuyu açık tutar, ama iki sunucunun aynı anda açık olması artık sorun değil (aşağıdaki "Çoklu cihaz ve çoklu sunucu" bölümüne bak).
+Sunucu her şeyi bellekte tutuyor. İki makinede de bir bekçi çalışır ve her biri diğerini izler. İki sunucunun aynı anda açık olması sorun değil (aşağıdaki "Çoklu cihaz ve çoklu sunucu" bölümüne bak); bekçi yine de normalde yalnızca birincili açık tutar.
 
-| | PC (birincil) | Mac (yedek) |
+| | Mac (birincil) | PC (yedek) |
 |---|---|---|
-| Adres | `https://yunuscakir.tail4d1102.ts.net` | `https://yunuscakir-mac.tail4d1102.ts.net` |
-| Ne zaman çalışır | Her zaman (Windows servisi) | Yalnızca PC ~45 sn yanıt vermezse (bekçi script'i) |
-| Kurulum | `install-service.ps1` | `mac/install.sh --secret ...` |
+| Adres | `https://yunuscakir-mac.tail4d1102.ts.net` | `https://yunuscakir.tail4d1102.ts.net` |
+| Bekçi | `mac/watchdog.sh` (launchd, `com.pocket.watchdog`) | `windows/watchdog.ps1` (zamanlanmış görev `PocketServerWatchdog`, SYSTEM) |
+| Sunucu ne zaman çalışır | Her zaman | Yalnızca Mac ~45 sn yanıt vermezse ya da Mac planlı kapanıyorsa |
+| Kurulum | `mac/install.sh --secret ...` (varsayılan `--role primary`) | `install-service.ps1` (varsayılan `-Role standby`) |
 
-Nasıl çalışır:
-- **Bekçi (`mac/watchdog.sh`, launchd):** PC'nin `/health` ucunu 15 sn'de bir kontrol eder. PC 3 kontrolde üst üste yanıt vermezse Mac sunucusunu başlatır. PC 2 kontrolde üst üste sağlıklı görünürse Mac sunucusunu durdurur.
-- **Devir:** Mac sunucusu kapanırken önce yeni bağlantıları reddeder ve bağlı istemcileri koparır; böylece istemciler PC'ye döner. Ardından teslim edilmemiş mesajları PC'nin `/internal/handoff` ucuna aktarır. Aktarım bellekten belleğe yapılır, diske hiçbir şey yazılmaz (BR-201). Bu uç, ortak gizli anahtar (`Cluster:Secret`) ile korunur.
-- **Uygulama:** Tanımlı tüm sunuculara aynı anda bağlanır, hangisi açıksa onu kullanır; birincil kapalıyken Ayarlarda "yedek" yazısı görünür. Ayrıntı: "Çoklu cihaz ve çoklu sunucu".
+Bekçinin kuralları (iki tarafta da aynı mantık; rol `appsettings.Production.json` → `Cluster.Role`):
+- **Birincil:** Kendi sunucusunu hep açık tutar, kapanırsa yeniden başlatır.
+- **Yedek:** Karşı tarafın `/health` ucunu 15 sn'de bir kontrol eder.
+  - Karşı taraf 3 kontrolde üst üste yanıt vermezse (makine kapalı, uykuda, ağ yok) kendi sunucusunu başlatır.
+  - Karşı taraf **503 (devrediyor)** derse beklemeden hemen başlatır.
+  - Karşı taraf 2 kontrolde üst üste sağlıklı görünürse kendi sunucusunu durdurur.
+  - Kendi sunucusu kapalıyken kimlik kaydını yaklaşık dakikada bir karşı tarafla eşitler.
+
+Devir (iki yönde de aynı, `HandoffService`). Kapanan sunucu:
+1. Yeni bağlantıları reddetmeye başlar ve `/health` ucu 503 döner. Bağlı istemciler bu sırada bağlı kalır.
+2. Karşı tarafın ayağa kalkmasını en çok `Cluster:HandoffWaitSeconds` (varsayılan 45 sn) bekler. Karşı taraf zaten açıksa (yedek birincile geri verirken) beklemez.
+3. Kimlik kaydını karşı tarafla eşitler, istemcileri koparır (istemciler zaten diğer sunucuya da bağlıdır) ve teslim edilmemiş mesajları karşı tarafın `/internal/handoff` ucuna aktarır. Aktarım bellekten belleğe yapılır, diske hiçbir şey yazılmaz (BR-201). Bu uç ortak gizli anahtarla (`Cluster:Secret`) korunur.
+
+Örnekler:
+- **Mac güncelleniyor ya da elle durduruluyor:** Mac 503 döner → PC bekçisi PC sunucusunu hemen başlatır → Mac kuyruğunu PC'ye aktarıp kapanır → Mac geri gelince PC ~30 sn içinde kuyruğunu Mac'e geri verip durur.
+- **Mac aniden kapanıyor ya da uykuya geçiyor:** PC ~45 sn sonra devralır. Mac'in belleğindeki teslim edilmemiş mesajlar kaybolur (tek sunuculu davranışla aynı).
 
 Mac kurulumu:
 1. Mac'e Tailscale'i kur ve aynı hesapla giriş yap.
 2. [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)'yı kur.
 3. Repoyu Mac'e klonla.
-4. PC'de `install-service.ps1` çalıştırıldığında ekrana basılan gizli anahtarı al. Daha sonra tekrar görmek için PC'de `C:\Services\PocketServer\appsettings.Production.json` dosyasında `Cluster.Secret` alanına bakabilirsin.
+4. Gizli anahtarı al: PC'de `install-service.ps1` çalışınca ekrana basılır. Daha sonra görmek için PC'de `C:\Services\PocketServer\appsettings.Production.json` dosyasındaki `Cluster.Secret` alanına bak.
 5. Kurulum script'ini çalıştır:
    ```bash
    cd Pocket.Server/deploy/mac
    chmod +x *.sh
    ./install.sh --secret "<gizli anahtar>"
    ```
+   Eski yedek bekçi (`com.pocket.standby-watchdog`) varsa script onu kaldırır.
 6. Logları izlemek için: `tail -f ~/PocketServer/logs/watchdog.log`
 7. Güncellemek için repoyu çek (`git pull`) ve `./install.sh` komutunu çalıştır. `--secret` vermezsen mevcut gizli anahtar korunur.
 
+PC kurulumu (Yönetici PowerShell): `.\install-service.ps1`. Servisin başlangıç türü **Manual** olur; servisi bekçi başlatıp durdurur. Bekçi logu: `C:\Services\PocketServer\logs\watchdog.log`.
+
+Rolleri ileride tersine çevirmek için Mac'te `./install.sh --role standby`, PC'de `.\install-service.ps1 -Role primary` çalıştır. İki tarafı aynı anda birincil ya da yedek yapma.
+
 Dikkat edilmesi gerekenler:
-- Mac'te sunucuyu **elle başlatma** (`dotnet run` vb.). Her zaman bekçi script'i üzerinden çalışsın, yoksa iki sunucu aynı anda açık kalabilir.
-- Mac uykudayken bekçi çalışmaz. Yedek olarak kullanılacağı zamanlarda Mac'i uyanık tut (Ayarlar → Pil/Enerji).
-- PC kapanırken PC'nin kuyruğundaki teslim edilmemiş mesajlar Mac'e aktarılmaz, çünkü o anda Mac sunucusu henüz çalışmıyor. Bu mesajlar PC'nin belleğindeydi; PC servisi düzgün kapanmazsa kaybolurlar. Bu, bugünkü tek sunuculu davranışla aynı.
-- Kapatmak için: `./uninstall.sh`
+- Sunucuyu iki tarafta da **elle başlatma** (`dotnet run`, `Start-Service`). Her zaman bekçi üzerinden çalışsın. Bekçiyi durdurmak için Mac'te `launchctl bootout gui/$(id -u)/com.pocket.watchdog`, PC'de `Stop-ScheduledTask PocketServerWatchdog` kullan.
+- Mac uykudayken birincil çalışmaz ve PC devralır. Mac'in uyanık kalması için: Ayarlar → Pil/Enerji.
+- Makinenin kendisi kapanırken (yeniden başlatma, kapatma) işletim sistemi devir için 45 sn beklemeyebilir. Bu durumda devir yarım kalabilir.
+- Kaldırmak için Mac'te `./uninstall.sh`, PC'de `.\uninstall-service.ps1` çalıştır (bekçi görevini de siler).
 
 ## Çoklu cihaz ve çoklu sunucu
 
@@ -64,7 +82,7 @@ Aynı kimlik (aynı kullanıcı ID'si ve anahtar, ör. aynı Selin veritabanı) 
 - **İstemci:** Ayarlardaki her sunucuya (birincil + ikincil) aynı anda bağlanır. Gönderdiği her mesajı bağlı olduğu tüm sunuculara yollar; en az biri kabul ederse mesaj gönderilmiş sayılır. Aynı mesaj iki sunucudan gelirse mesaj ID'sine göre bir kez işlenir. Teslim onayı da bağlı tüm sunuculara gider. Kapalı sunucu arka planda yoklanır (`/health`), açılınca ona da bağlanılır.
 - **Cihaz kimliği:** Her kurulum rastgele bir cihaz ID'si üretir (Android'de yedeklenmeyen klasörde tutulur) ve girişte (`/auth/token`, `deviceId`) gönderir. Sunucu bunu JWT'ye `device` claim'i olarak koyar.
 - **Sunucu:** Bir mesaj, alıcının tüm aktif cihazları onaylayana kadar bellekte kalır. Böylece o an kapalı olan cihaz da açılınca mesajı alır. Bağlı olan ya da son 7 gün içinde görülen cihaz aktif sayılır; 7 günden uzun süre görünmeyen cihaz mesaj bekletmez (saatlik temizlik). Gönderene teslim bilgisi ilk onaylayan cihazla gider.
-- **Devir:** Mac kapanırken PC'ye aktarılan her mesajla birlikte, onu zaten onaylamış cihazlar (`X-Pocket-Confirmed-Devices`) ve alıcının aktif cihazları (`X-Pocket-Recipient-Devices`) da gider. PC mesajı yalnızca henüz almamış cihazlara gönderir; örneğin yeniden kurulumdan sonra yeni kurulum aynı fotoğrafı ikinci kez indirmez. Gövde aynı kaldığı için eski sürüm sunucu bu başlıkları yok sayar.
+- **Devir:** Kapanan sunucunun karşı tarafa aktardığı her mesajla birlikte, onu zaten onaylamış cihazlar (`X-Pocket-Confirmed-Devices`) ve alıcının aktif cihazları (`X-Pocket-Recipient-Devices`) da gider. PC mesajı yalnızca henüz almamış cihazlara gönderir; örneğin yeniden kurulumdan sonra yeni kurulum aynı fotoğrafı ikinci kez indirmez. Gövde aynı kaldığı için eski sürüm sunucu bu başlıkları yok sayar.
 - **Sınır:** Sunucu yeniden başladıktan sonra henüz hiç bağlanmamış bir cihazı tanımaz. Bu sırada diğer cihaz mesajı onaylarsa mesaj silinir ve o cihaz alamaz.
 - **Eski istemciler** (cihaz ID'si göndermeyen) tek bir ortak yuvayı paylaşır: eskisi gibi ilk onayda silinir.
 
@@ -83,10 +101,10 @@ cd "C:\Library\Projects\Visual Studio\Pocket\Pocket.Server\deploy"
 .\install-service.ps1
 ```
 
-- `C:\Services\PocketServer` klasörüne yayınlar ve `PocketServer` adlı otomatik başlayan bir servis oluşturur. Servis çökerse kendiliğinden yeniden başlar.
+- `C:\Services\PocketServer` klasörüne yayınlar, `PocketServer` servisini ve `PocketServerWatchdog` bekçi görevini kurar (yukarıdaki "çift yönlü bekçi" bölümü). Servis çökerse kendiliğinden yeniden başlar.
 - Varsayılan olarak yalnızca `127.0.0.1:5200` adresini dinler. LAN'dan da erişmek için: `.\install-service.ps1 -Urls "http://0.0.0.0:5200"`
-- Kod değiştikçe aynı komutu tekrar çalıştır; script servisi durdurup günceller.
-- Not: Servis 5200 portunu kullanırken `dotnet run` ile ikinci bir sunucu açılamaz. Geliştirme sırasında `Stop-Service PocketServer` ile servisi durdur.
+- Kod değiştikçe aynı komutu tekrar çalıştır; script bekçiyi ve servisi durdurup günceller. Servis o an çalışıyorsa önce karşı tarafa devreder (en çok ~2 dk).
+- Not: Servis 5200 portunu kullanırken `dotnet run` ile ikinci bir sunucu açılamaz. Geliştirme sırasında önce `Stop-ScheduledTask PocketServerWatchdog`, sonra `Stop-Service PocketServer` çalıştır.
 
 ## 2. Cloudflare tarafı (tarayıcıda, bir kez)
 
@@ -141,10 +159,11 @@ Token'ı sunucu verir; uygulamada hiçbir gizli anahtar bulunmaz.
 
 Dosyada yalnızca public key ve kullanıcı adı bulunur, mesaj ya da medya yoktur (BR-201).
 
-**PC ⇄ Mac eşitleme:** İki sunucu kayıtlarını `POST /internal/identities/sync` ucuyla eşitler. Bu uç `Cluster:Secret` ile korunur ve iki taraf da karşı tarafın kaydını kendi kaydıyla birleştirir.
-- PC servisi açılırken, giriş kabul etmeye başlamadan önce Mac'le eşitlenir (`Cluster:PeerUrl`). Mac kapalıysa 5 sn bekleyip devam eder.
-- Mac sunucusu kapanırken, istemcileri koparmadan önce PC'yle eşitlenir.
-- Mac sunucusu kapalıyken bekçi script'i kayıt dosyasını yaklaşık dakikada bir PC'yle eşitler.
+**Mac ⇄ PC eşitleme:** İki sunucu kayıtlarını `POST /internal/identities/sync` ucuyla eşitler. Bu uç `Cluster:Secret` ile korunur ve iki taraf da karşı tarafın kaydını kendi kaydıyla birleştirir.
+- Her sunucu açılırken, giriş kabul etmeye başlamadan önce karşı tarafla eşitlenir (`Cluster:PeerUrl`). Karşı taraf kapalıysa 5 sn bekleyip devam eder.
+- Her sunucu kapanırken, istemcileri koparmadan önce karşı tarafla eşitlenir.
+- Yedeğin sunucusu kapalıyken bekçisi kayıt dosyasını yaklaşık dakikada bir karşı tarafla eşitler.
+- `dotnet publish`, geliştirme sırasında oluşan `data/` klasörünü yayına koymaz. Böylece kurulum canlı kaydın üzerine yazmaz.
 
 Çakışma kuralları (iki sunucuda da aynı sonucu verir):
 - Aynı kullanıcı ID'si iki sunucuda farklı anahtarlara bağlandıysa, **ilk bağlanan** anahtar kazanır.

@@ -1,11 +1,12 @@
 #!/bin/bash
-# Installs the Pocket standby relay on macOS.
+# Installs the Pocket relay node on macOS (primary by default; the PC is the standby).
 #
 #   ./install.sh --secret "<Cluster secret printed by install-service.ps1 on the PC>"
 #   ./install.sh            (update: keeps the secret of the existing install)
+#   ./install.sh --role standby   (make the Mac the standby again)
 #
 # - Publishes Pocket.Server into ~/PocketServer/app (needs the .NET 10 SDK)
-# - Writes its config: loopback 127.0.0.1:5200, role=standby, hand off to the PC
+# - Writes its config: loopback 127.0.0.1:5200, role, hand off to / sync with the PC
 # - Renames this machine in Tailscale to "yunuscakir-mac" and enables Funnel on 5200
 # - Installs a LaunchAgent that runs watchdog.sh at login and keeps it alive
 # Safe to re-run (updates the build and restarts the watchdog).
@@ -13,15 +14,18 @@
 set -euo pipefail
 
 SECRET=""
-PRIMARY_URL="https://yunuscakir.tail4d1102.ts.net"
+ROLE="primary"
+PEER_URL="https://yunuscakir.tail4d1102.ts.net"
 TS_HOSTNAME="yunuscakir-mac"
 INSTALL_DIR="$HOME/PocketServer"
-LABEL="com.pocket.standby-watchdog"
+LABEL="com.pocket.watchdog"
+OLD_LABELS="com.pocket.standby-watchdog"
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --secret) SECRET="$2"; shift 2 ;;
-        --primary) PRIMARY_URL="$2"; shift 2 ;;
+        --role) ROLE="$2"; shift 2 ;;
+        --peer|--primary) PEER_URL="$2"; shift 2 ;;
         --hostname) TS_HOSTNAME="$2"; shift 2 ;;
         *) echo "Unknown argument: $1"; exit 1 ;;
     esac
@@ -32,6 +36,8 @@ EXISTING_CONFIG="$HOME/PocketServer/app/appsettings.Production.json"
 if [ -z "$SECRET" ] && [ -f "$EXISTING_CONFIG" ]; then
     SECRET="$(sed -n 's/.*"Secret"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$EXISTING_CONFIG" | head -n 1)"
 fi
+
+case "$ROLE" in primary|standby) ;; *) echo "--role must be primary or standby"; exit 1 ;; esac
 
 if [ -z "$SECRET" ]; then
     echo "Usage: $0 --secret \"<secret from the PC's install-service.ps1 output>\""
@@ -62,26 +68,32 @@ if [ -z "$TS" ]; then
 fi
 
 # --- Stop running watchdog (it stops the server gracefully) --------------------
-if launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1; then
-    step "Stopping existing watchdog"
-    launchctl bootout "gui/$(id -u)/$LABEL" || true
-    sleep 2
-fi
+# A primary's server waits for the standby to come up and hands off to it, so this can take
+# up to a minute or two when there are undelivered messages.
+for l in $LABEL $OLD_LABELS; do
+    if launchctl print "gui/$(id -u)/$l" >/dev/null 2>&1; then
+        step "Stopping existing watchdog ($l)"
+        launchctl bootout "gui/$(id -u)/$l" || true
+        sleep 2
+    fi
+    [ "$l" != "$LABEL" ] && rm -f "$HOME/Library/LaunchAgents/$l.plist"
+done
 
 # --- Publish ------------------------------------------------------------------
 step "Publishing Pocket.Server"
 mkdir -p "$INSTALL_DIR/app" "$INSTALL_DIR/logs"
 "$DOTNET" publish "$PROJECT" -c Release -o "$INSTALL_DIR/app" --nologo -v q
 
-step "Writing standby configuration"
+step "Writing $ROLE configuration"
 cat > "$INSTALL_DIR/app/appsettings.Production.json" <<EOF
 {
   "Urls": "http://127.0.0.1:5200",
   "Cluster": {
     "NodeName": "mac",
-    "Role": "standby",
+    "Role": "$ROLE",
     "Secret": "$SECRET",
-    "HandoffUrl": "$PRIMARY_URL"
+    "HandoffUrl": "$PEER_URL",
+    "PeerUrl": "$PEER_URL"
   }
 }
 EOF
@@ -117,7 +129,8 @@ cat > "$PLIST" <<EOF
     <key>EnvironmentVariables</key>
     <dict>
         <key>DOTNET_PATH</key><string>$DOTNET</string>
-        <key>PRIMARY_URL</key><string>$PRIMARY_URL</string>
+        <key>ROLE</key><string>$ROLE</string>
+        <key>PEER_URL</key><string>$PEER_URL</string>
         <key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
     <key>WorkingDirectory</key><string>$INSTALL_DIR</string>
@@ -133,8 +146,8 @@ launchctl bootstrap "gui/$(id -u)" "$PLIST"
 
 step "Done"
 DNS="$("$TS" status --json 2>/dev/null | grep -m1 '"DNSName"' | sed -E 's/.*"DNSName": *"([^"]+)\.".*/\1/')"
-echo "Standby URL : https://$DNS"
-echo "Primary URL : $PRIMARY_URL"
+echo "This node   : https://$DNS ($ROLE)"
+echo "Peer        : $PEER_URL"
 echo "Logs        : $INSTALL_DIR/logs/watchdog.log, $INSTALL_DIR/logs/server.log"
 echo
 tail -n 3 "$INSTALL_DIR/logs/watchdog.log" 2>/dev/null || true

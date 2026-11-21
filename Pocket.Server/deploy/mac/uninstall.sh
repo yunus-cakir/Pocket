@@ -1,11 +1,11 @@
 #!/bin/bash
-# Removes the Pocket standby watchdog (stops the standby server gracefully) and disables Funnel.
+# Removes the Pocket watchdog (stops the local server gracefully; a primary hands off to the
+# standby first) and disables Funnel.
 set -u
-LABEL="com.pocket.standby-watchdog"
-PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
-
-launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null && echo "Watchdog stopped."
-rm -f "$PLIST"
+for LABEL in com.pocket.watchdog com.pocket.standby-watchdog; do
+    launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null && echo "Watchdog $LABEL stopped."
+    rm -f "$HOME/Library/LaunchAgents/$LABEL.plist"
+done
 
 TS="$(command -v tailscale || echo /Applications/Tailscale.app/Contents/MacOS/Tailscale)"
 [ -x "$TS" ] && "$TS" funnel reset && echo "Funnel disabled."

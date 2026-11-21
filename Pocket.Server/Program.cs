@@ -38,8 +38,8 @@ builder.Services.AddSignalR(options =>
 builder.Services.AddSingleton<TransientMemoryStore>();
 builder.Services.AddHostedService<TransientStoreSweeper>();
 
-// Primary/standby cluster (see deploy/README.md). Registered after the web host so the
-// handoff runs before Kestrel stops on shutdown.
+// Primary/standby cluster (see deploy/README.md). The handoff runs in the hosted-service
+// "stopping" phase, before Kestrel stops, so /health answers 503 while it waits for the peer.
 builder.Services.Configure<ClusterOptions>(builder.Configuration.GetSection("Cluster"));
 builder.Services.AddSingleton<ClusterState>();
 builder.Services.AddHttpClient("handoff", c => c.Timeout = TimeSpan.FromSeconds(60));
@@ -125,10 +125,12 @@ app.MapPost("/auth/token", (TokenRequest request, AuthService auth) =>
     };
 });
 
-// Liveness + identity, used by clients (failover/failback) and the standby watchdog.
+// Liveness + identity, used by clients (failover/failback) and both watchdogs. While draining
+// (shutting down) it answers 503, which the peer's watchdog takes as "take over now".
 app.MapGet("/health", (IOptions<ClusterOptions> options, ClusterState state) =>
     state.Draining
-        ? Results.StatusCode(StatusCodes.Status503ServiceUnavailable)
+        ? Results.Json(new { node = options.Value.NodeName, role = options.Value.Role, draining = true },
+            statusCode: StatusCodes.Status503ServiceUnavailable)
         : Results.Ok(new
         {
             node = options.Value.NodeName,

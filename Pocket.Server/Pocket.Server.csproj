@@ -6,6 +6,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <!-- data/ is the runtime identity registry written by a local `dotnet run`; never publish it
+       over an installed node's registry. -->
+  <ItemGroup>
+    <Content Remove="data\**" />
+    <None Remove="data\**" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Pocket.Shared\Pocket.Shared.csproj" />
   </ItemGroup>

@@ -5,9 +5,9 @@ using Microsoft.AspNetCore.SignalR;
 namespace Pocket.Server.Services
 {
     /// <summary>
-    /// "Cluster" section of configuration. Only one relay node may be active at a time:
-    /// the primary (PC) is normally live, the standby (Mac) is started by its watchdog only
-    /// while the primary is unreachable.
+    /// "Cluster" section of configuration. Each node runs a watchdog (deploy/README.md): the
+    /// primary (Mac) keeps its server running, the standby (PC) starts its server only while the
+    /// primary is unreachable or draining and stops it (handing off) once the primary is back.
     /// </summary>
     public class ClusterOptions
     {
@@ -22,13 +22,20 @@ namespace Pocket.Server.Services
 
         /// <summary>
         /// Base URL of the node that receives this node's pending payloads on graceful shutdown
-        /// (set on the standby, pointing at the primary). Empty = no handoff on shutdown.
+        /// (set on both nodes, pointing at the other one). Empty = no handoff on shutdown.
         /// </summary>
         public string? HandoffUrl { get; set; }
 
         /// <summary>
+        /// On shutdown, how long to wait for the peer to come up before handing off. While this node
+        /// drains, its /health answers 503, so the peer's watchdog starts the peer at once; a node
+        /// that is already up (the primary, when the standby hands back) is used immediately.
+        /// </summary>
+        public int HandoffWaitSeconds { get; set; } = 45;
+
+        /// <summary>
         /// Base URL of the other node, used to sync the identity registry (on startup and, on the
-        /// standby, before handing off). Defaults to HandoffUrl. The primary sets it to the standby.
+        /// way out, before handing off). Defaults to HandoffUrl.
         /// </summary>
         public string? PeerUrl { get; set; }
     }
