@@ -7,8 +7,8 @@
 		  PocketSourceFingerprint Hash of Pocket.Client + Pocket.Shared at the last version change; used to detect new changes.
 	-->
 	<PropertyGroup>
-		<PocketVersion>1.0.1</PocketVersion>
-		<PocketBuildNumber>3</PocketBuildNumber>
-		<PocketSourceFingerprint>d43d447a8a7cda0f6a1433dd062732083956b884</PocketSourceFingerprint>
+		<PocketVersion>1.1.0</PocketVersion>
+		<PocketBuildNumber>4</PocketBuildNumber>
+		<PocketSourceFingerprint>12a167b49bbd3c7550e6f392766d2b5daf9b885a</PocketSourceFingerprint>
 	</PropertyGroup>
 </Project>
