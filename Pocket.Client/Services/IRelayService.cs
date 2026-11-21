@@ -12,15 +12,16 @@ namespace Pocket.Client.Services
         void SetIdentityKeyProvider(Func<Task<(string PublicKey, string PrivateKey)>> provider);
         Task DisconnectAsync();
         /// <summary>
-        /// Sends a payload and waits until the server has stored it. False when not connected, the
+        /// Sends a payload to every connected server and waits until at least one has stored it. False when not connected, the
         /// call failed or the server did not answer in time — the caller must treat it as not sent.
         /// </summary>
         Task<bool> SendPayloadAsync(EncryptedPayloadDto payload);
 
         /// <summary>
-        /// Identifies the running relay process ("node|startedAt"). Payloads accepted by a server live only
-        /// in its memory, so a different value after a reconnect means they may be gone and must be resent.
-        /// Null when unknown.
+        /// The running relay processes we are connected to ("node|startedAt", several joined with ';' when more
+        /// than one server is up). Payloads accepted by a server live only in its memory: when none of the
+        /// processes that accepted one is connected any more it may be gone and must be resent
+        /// (see RelayService.IsHeldBy). Null when unknown.
         /// </summary>
         string? CurrentServerInstance { get; }
         Task ConfirmDeliveryAsync(string senderId, Guid messageId);
