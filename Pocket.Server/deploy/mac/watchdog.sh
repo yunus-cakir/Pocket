@@ -74,10 +74,52 @@ sync_identities() {
     rm -f "$hdr"
 }
 
-# Prints "up", "draining" (the peer is shutting down and handing off) or "down".
+# Clients reach the peer through its public URL (Tailscale Funnel), but on this machine the
+# *.ts.net name resolves through MagicDNS to the peer's tailnet address. Those paths fail
+# separately (e.g. a VPN on the peer breaks Funnel while the tailnet link stays up), so the peer
+# is checked the way clients see it: the host is resolved with public DNS (DNS-over-HTTPS) and
+# curl is pinned to those addresses. When public DNS can't be reached, the plain URL is used.
+PEER_HOST="$(printf '%s' "$PEER_URL" | sed -nE 's#^https://([^/:]+)(:[0-9]+)?/?.*$#\1#p')"
+PEER_PORT="$(printf '%s' "$PEER_URL" | sed -nE 's#^https://[^/:]+:([0-9]+).*$#\1#p')"
+PEER_PORT="${PEER_PORT:-443}"
+# Public check only for a DNS name (not an IP) over https.
+if printf '%s' "$PEER_HOST" | grep -qE '^[0-9.]+$'; then PEER_HOST=""; fi
+PUBLIC_IPS=""
+PUBLIC_IPS_AT=0
+
+resolve_public_ips() {
+    local now ips
+    now="$(date +%s)"
+    if [ -n "$PUBLIC_IPS" ] && [ $((now - PUBLIC_IPS_AT)) -lt 300 ]; then return; fi
+    ips="$(curl -s --max-time 8 "https://dns.google/resolve?name=$PEER_HOST&type=A" 2>/dev/null \
+        | grep -oE '"type": ?1,[^}]*"data": ?"[0-9.]+"' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | paste -sd, -)"
+    if [ -n "$ips" ]; then PUBLIC_IPS="$ips"; PUBLIC_IPS_AT="$now"; fi
+}
+
+health_code() {   # $1 = comma separated addresses to pin the host to, or empty
+    local pin=()
+    [ -n "${1:-}" ] && pin=(--resolve "$PEER_HOST:$PEER_PORT:$1")
+    curl -s -o /dev/null -w '%{http_code}' --max-time 8 "${pin[@]}" "$PEER_URL/health" 2>/dev/null || true
+}
+
+# Prints "up", "draining" (the peer is shutting down and handing off), "down", or
+# "down-public" (answers on the tailnet but not on its public URL: clients can't reach it).
 peer_state() {
     local code
-    code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 8 "$PEER_URL/health" 2>/dev/null)"
+    if [ -n "$PEER_HOST" ]; then
+        resolve_public_ips
+        if [ -n "$PUBLIC_IPS" ]; then
+            code="$(health_code "$PUBLIC_IPS")"
+            case "$code" in
+                200) echo up; return ;;
+                503) echo draining; return ;;
+            esac
+            PUBLIC_IPS_AT=0   # re-resolve next time
+            if [ "$(health_code "")" = "200" ]; then echo down-public; else echo down; fi
+            return
+        fi
+    fi
+    code="$(health_code "")"
     case "$code" in
         200) echo up ;;
         503) echo draining ;;

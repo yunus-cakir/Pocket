@@ -36,6 +36,7 @@ Sunucu her şeyi bellekte tutuyor. İki makinede de bir bekçi çalışır ve he
 Bekçinin kuralları (iki tarafta da aynı mantık; rol `appsettings.Production.json` → `Cluster.Role`):
 - **Birincil:** Kendi sunucusunu hep açık tutar, kapanırsa yeniden başlatır.
 - **Yedek:** Karşı tarafın `/health` ucunu 15 sn'de bir kontrol eder.
+  - Kontrol, istemcilerin kullandığı **genel Funnel yolundan** yapılır: adres genel DNS ile (DNS-over-HTTPS, `dns.google`) çözülür. Karşı taraf tailnet üzerinden yanıt verip genel adresten vermiyorsa (örneğin Mac'te VPN açıkken) kapalı sayılır (`down-public`). Genel DNS'e ulaşılamazsa normal adres kullanılır. Bekçinin gördüğü durumu görmek için PC'de: `powershell -File C:\Services\PocketServer\watchdog.ps1 -CheckOnly`
   - Karşı taraf 3 kontrolde üst üste yanıt vermezse (makine kapalı, uykuda, ağ yok) kendi sunucusunu başlatır.
   - Karşı taraf **503 (devrediyor)** derse beklemeden hemen başlatır.
   - Karşı taraf 2 kontrolde üst üste sağlıklı görünürse kendi sunucusunu durdurur.

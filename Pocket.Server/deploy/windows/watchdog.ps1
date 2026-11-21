@@ -25,7 +25,8 @@ param(
     [int]$DownThreshold    = 3,    # failed checks before taking over (~45s)
     [int]$UpThreshold      = 2,    # healthy checks before handing back (~30s)
     [int]$SyncEvery        = 4,    # healthy checks between registry syncs (~60s)
-    [int]$StopTimeout      = 150   # server may wait for the peer and hand off large media
+    [int]$StopTimeout      = 150,  # server may wait for the peer and hand off large media
+    [switch]$CheckOnly             # print the peer state as this watchdog sees it, then exit
 )
 
 $ErrorActionPreference = 'Continue'
@@ -52,9 +53,50 @@ function Write-Log([string]$message) {
     } catch { }
 }
 
-# "up", "draining" (the peer is shutting down and handing off) or "down".
+# Clients reach the peer through its public URL (Tailscale Funnel), but on this machine the
+# *.ts.net name resolves through MagicDNS to the peer's tailnet address. Those paths fail
+# separately (e.g. a VPN on the peer breaks Funnel while the tailnet link stays up), so the peer
+# is checked the way clients see it: the host is resolved with public DNS (DNS-over-HTTPS) and
+# curl is pinned to those addresses. When public DNS can't be reached, the plain URL is used.
+$curl = Join-Path $env:SystemRoot 'System32\curl.exe'
+$peerUri = $null
+try { $peerUri = [Uri]$peerUrl } catch { }
+$publicCheck = $peerUri -and $peerUri.Scheme -eq 'https' -and $peerUri.HostNameType -eq 'Dns' -and (Test-Path $curl)
+$publicIps = @(); $publicIpsAt = [DateTime]::MinValue
+
+function Resolve-PublicIps {
+    if (((Get-Date) - $script:publicIpsAt).TotalMinutes -lt 5 -and $script:publicIps.Count -gt 0) { return $script:publicIps }
+    try {
+        $r = Invoke-RestMethod -Uri "https://dns.google/resolve?name=$($peerUri.Host)&type=A" -TimeoutSec 8
+        $ips = @($r.Answer | Where-Object { $_.type -eq 1 } | ForEach-Object { "$($_.data)" })
+        if ($ips.Count -gt 0) { $script:publicIps = $ips; $script:publicIpsAt = Get-Date }
+    } catch { }
+    return $script:publicIps
+}
+
+# HTTP status of GET /health ("000" = no answer). $ips pins the host to those addresses.
+function Get-HealthCode([string[]]$ips) {
+    $curlArgs = @('-s', '-o', 'NUL', '-w', '%{http_code}', '-m', '8')
+    if ($ips) { $curlArgs += @('--resolve', "$($peerUri.Host):$($peerUri.Port):$($ips -join ',')") }
+    $code = & $curl @curlArgs "$peerUrl/health" 2>$null
+    if ($code) { return "$code".Trim() } else { return '000' }
+}
+
+# "up", "draining" (the peer is shutting down and handing off), "down", or "down-public"
+# (answers on the tailnet but not on its public URL, so clients can't reach it).
 function Get-PeerState {
     if (-not $peerUrl) { return 'down' }
+    if ($publicCheck) {
+        $ips = Resolve-PublicIps
+        if ($ips.Count -gt 0) {
+            $code = Get-HealthCode $ips
+            if ($code -eq '200') { return 'up' }
+            if ($code -eq '503') { return 'draining' }
+            $script:publicIpsAt = [DateTime]::MinValue   # re-resolve next time
+            if ((Get-HealthCode $null) -eq '200') { return 'down-public' }
+            return 'down'
+        }
+    }
     try {
         $r = Invoke-WebRequest -Uri "$peerUrl/health" -UseBasicParsing -TimeoutSec 8
         if ($r.StatusCode -eq 200) { return 'up' }
@@ -124,14 +166,24 @@ function Sync-Identities {
     }
 }
 
-Write-Log "Watchdog started. Peer: $peerUrl"
+if ($CheckOnly) {
+    $ips = if ($publicCheck) { (Resolve-PublicIps) -join ', ' } else { '(public check off)' }
+    "Peer $peerUrl ($ips): $(Get-PeerState)"
+    return
+}
+
+Write-Log "Watchdog started. Peer: $peerUrl$(if ($publicCheck) { ' (checked via its public URL)' })"
 if ($role -ne 'primary' -and $role -ne 'standby') { Write-Log "Unknown role '$role', acting as standby"; $role = 'standby' }
 
 $down = 0; $up = 0; $lastPeer = ''
 $weStarted = $false
 while ($true) {
     $state = Get-PeerState
-    if ($state -ne $lastPeer) { Write-Log "Peer is $state"; $lastPeer = $state }
+    if ($state -ne $lastPeer) {
+        if ($state -eq 'down-public') { Write-Log "Peer is down-public (answers on the tailnet, but its public URL does not: clients can't reach it)" }
+        else { Write-Log "Peer is $state" }
+        $lastPeer = $state
+    }
     if ($state -eq 'up') { $up++; $down = 0 } else { $down++; $up = 0 }
 
     $running = Test-ServerRunning
