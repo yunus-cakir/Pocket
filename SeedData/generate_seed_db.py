@@ -145,8 +145,8 @@ def main():
     for filename, pid, _ in sample_photos:
         ensure_image(pid, 800, os.path.join(MEDIA_LOCAL_DIR, filename))
 
-    db_5554_path = os.path.join(SEED_DIR, "PocketLocal_5554.db3")
-    db_5556_path = os.path.join(SEED_DIR, "PocketLocal_5556.db3")
+    db_5554_path = os.path.join(SEED_DIR, "PocketLocal_mert.db3")
+    db_5556_path = os.path.join(SEED_DIR, "PocketLocal_selin.db3")
 
     con_5554 = sqlite3.connect(db_5554_path)
     cur_5554 = con_5554.cursor()
@@ -338,7 +338,7 @@ def main():
     con_5554.close()
     con_5556.commit()
     con_5556.close()
-    print("Seed databases (PocketLocal_5554.db3 & PocketLocal_5556.db3) refreshed with current timestamps!")
+    print("Seed databases (PocketLocal_mert.db3 & PocketLocal_selin.db3) refreshed with current timestamps!")
 
 
 if __name__ == "__main__":

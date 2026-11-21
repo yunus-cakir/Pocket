@@ -170,8 +170,10 @@ Uygulama bir sonraki açılışında temiz bir veritabanı, yeni kullanıcı kim
 
 Proje kök dizinindeki [`SeedData/`](SeedData/) klasöründe her iki emülatör için önceden eşleştirilmiş E2EE anahtarları, 4 arkadaş profili (`Mert Kaya`, `Selin Demir`, `Zeynep Yılmaz`, `Can Özkan`, `Elif Arslan`), 15 adet yüksek çözünürlüklü örnek fotoğraf, reaksiyonlar ve sohbet mesajları yedeklenmiştir:
 
-* `SeedData/PocketLocal_5554.db3` : `emulator-5554` (`Mert Kaya`) için hazır SQLite veritabanı
-* `SeedData/PocketLocal_5556.db3` : `emulator-5556` (`Selin Demir`) için hazır SQLite veritabanı
+* `SeedData/PocketLocal_selin.db3` : `emulator-5554` (`Selin Demir`) için hazır SQLite veritabanı
+* `SeedData/PocketLocal_mert.db3` : `emulator-5556` ve bağlı Android telefon (`Mert Kaya`) için hazır SQLite veritabanı
+
+**Debug APK'da gömülü seed:** Debug Android derlemeleri iki veritabanını ve fotoğrafları içerir. Uygulama veritabanı olmadan açıldığında (yeni kurulum veya silinen uygulama verisi) seed otomatik kurulur ve tarihler kurulum anına kaydırılır. Kullanıcı, derlemedeki `AdbTarget`'a göre seçilir: `emulator-5554` → Selin, diğer her şey (emulator-5556, telefon) → Mert. Elle seçmek için `-p:PocketSeedUser=selin|mert`. Var olan veriye dokunulmaz; Release derlemesinde seed yoktur.
 * `SeedData/Media/` : 15 adet (800×800) örnek akış ve galeri fotoğrafı (`sample_01_coffee.jpg` .. `sample_15_tea.jpg`)
 * `SeedData/Profile/` : 7 adet kullanıcı ve arkadaş profil fotoğrafı
 * `SeedData/Restore-SeedData.ps1` : Tek komutla her iki emülatöre veritabanlarını ve fotoğrafları yükleyen PowerShell betiği

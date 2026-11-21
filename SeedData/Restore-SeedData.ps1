@@ -10,23 +10,21 @@ if ($RefreshTimestamps) {
     python "$seedDir\generate_seed_db.py"
 }
 
-$targets = @(
-    @{ Serial = "emulator-5554"; DbFile = "$seedDir\PocketLocal_5554.db3" },
-    @{ Serial = "emulator-5556"; DbFile = "$seedDir\PocketLocal_5556.db3" }
-)
+# Sabit eslesme (Debug APK'daki gomulu seed ile ayni): emulator-5554 = Selin, digerleri (emulator-5556, telefon) = Mert.
+$serials = adb devices | Select-String "^(\S+)\s+device$" | ForEach-Object { $_.Matches[0].Groups[1].Value }
+if (-not $serials) { Write-Warning "Bagli cihaz yok."; return }
 
-$connectedDevices = (adb devices) -join "`n"
+foreach ($emu in $serials) {
+    $seedUser = if ($emu -eq "emulator-5554") { "selin" } else { "mert" }
+    $dbPath = "$seedDir\PocketLocal_$seedUser.db3"
 
-foreach ($t in $targets) {
-    $emu = $t.Serial
-    $dbPath = $t.DbFile
-
-    if ($connectedDevices -notmatch "$emu\s+device") {
-        Write-Warning "$emu bagli degil, atlaniyor."
+    adb -s $emu shell pm path com.yunuscakir.pocket.client.debug | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "$emu cihazinda Debug uygulamasi kurulu degil, atlaniyor."
         continue
     }
 
-    Write-Host "=== $emu cihazina ornek fotograflar ve veritabani yukleniyor ===" -ForegroundColor Green
+    Write-Host "=== $emu cihazina '$seedUser' ornek fotograflari ve veritabani yukleniyor ===" -ForegroundColor Green
 
     adb -s $emu shell am force-stop com.yunuscakir.pocket.client.debug
 
@@ -38,8 +36,11 @@ foreach ($t in $targets) {
     adb -s $emu shell "run-as com.yunuscakir.pocket.client.debug mkdir -p files/Media files/Profile"
     adb -s $emu shell "run-as com.yunuscakir.pocket.client.debug sh -c 'cp /data/local/tmp/seed_media/*.jpg files/Media/ && cp /data/local/tmp/seed_profile/*.jpg files/Profile/'"
 
-    adb -s $emu shell "mkdir -p /sdcard/DCIM/Camera && cp /data/local/tmp/seed_media/*.jpg /sdcard/DCIM/Camera/"
-    adb -s $emu shell "content call --uri content://media/none/media_scanner --method scan_volume --arg external_primary" | Out-Null
+    # Ornek fotograflari galeriye yalnizca emulatorlerde kopyala (telefonun gercek galerisini kirletme).
+    if ($emu -like "emulator-*") {
+        adb -s $emu shell "mkdir -p /sdcard/DCIM/Camera && cp /data/local/tmp/seed_media/*.jpg /sdcard/DCIM/Camera/"
+        adb -s $emu shell "content call --uri content://media/none/media_scanner --method scan_volume --arg external_primary" | Out-Null
+    }
 
     adb -s $emu push $dbPath /data/local/tmp/new.db3 | Out-Null
     adb -s $emu shell "chmod 777 /data/local/tmp/new.db3; run-as com.yunuscakir.pocket.client.debug rm -f files/PocketLocal.db3-wal files/PocketLocal.db3-shm; run-as com.yunuscakir.pocket.client.debug cp /data/local/tmp/new.db3 files/PocketLocal.db3"

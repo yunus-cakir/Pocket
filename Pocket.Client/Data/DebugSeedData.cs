@@ -8,13 +8,19 @@ using Microsoft.Maui.Storage;
 namespace Pocket.Client.Data
 {
     /// <summary>
-    /// Debug Android builds only: on a fresh install (no database yet) the "Mert Kaya" sample data
-    /// bundled from SeedData/ is copied in, so the app starts with friends, posts and messages
-    /// instead of an empty new identity. Existing data is never touched.
+    /// Debug Android builds only: on a fresh install (no database yet) the sample data bundled from
+    /// SeedData/ is copied in, so the app starts with friends, posts and messages instead of an
+    /// empty new identity. Existing data is never touched. Which sample user is chosen at build
+    /// time from the install target (see PocketSeedUser in Pocket.Client.csproj).
     /// </summary>
     internal static class DebugSeedData
     {
         private const string SeedRoot = "Seed";
+#if SEED_SELIN
+        private const string SeedUser = "selin";
+#else
+        private const string SeedUser = "mert";
+#endif
 
         public static async Task SeedIfMissingAsync()
         {
@@ -29,11 +35,11 @@ namespace Pocket.Client.Data
                 await CopyFolderAsync("Profile", Path.Combine(appData, "Profile"));
 
                 string tempPath = dbPath + ".seed";
-                await CopyAssetAsync($"{SeedRoot}/{DatabaseConstants.DatabaseFilename}", tempPath);
+                await CopyAssetAsync($"{SeedRoot}/PocketLocal_{SeedUser}.db3", tempPath);
                 ShiftTimestampsToNow(tempPath);
                 File.Move(tempPath, dbPath);
 
-                Debug.WriteLine("[DebugSeedData] Installed the Mert Kaya sample database.");
+                Debug.WriteLine($"[DebugSeedData] Installed the '{SeedUser}' sample database.");
             }
             catch (Exception ex)
             {
