@@ -82,22 +82,7 @@ namespace Pocket.Client.Pages
 
             viewModel.OpenMessageActionsAction = () =>
             {
-                MainThread.BeginInvokeOnMainThread(async () =>
-                {
-                    UnfocusDmMessageEntry();
-
-                    MessageActionsSheetCard.AbortAnimation("TranslateTo");
-                    MessageActionsBackdrop.AbortAnimation("FadeTo");
-
-                    MessageActionsOverlayGrid.IsVisible = true;
-                    MessageActionsSheetCard.TranslationY = 280;
-                    MessageActionsBackdrop.Opacity = 0;
-
-                    await Task.WhenAll(
-                        MessageActionsSheetCard.TranslateToAsync(0, 0, 220, Easing.CubicOut),
-                        MessageActionsBackdrop.FadeToAsync(1, 220, Easing.CubicOut)
-                    );
-                });
+                MainThread.BeginInvokeOnMainThread(async () => { await ShowMessagePopupAsync(); });
             };
 
             viewModel.CloseMessageActionsAction = () =>
@@ -108,12 +93,265 @@ namespace Pocket.Client.Pages
 
         private System.Threading.CancellationTokenSource? _sendFailedToastCts;
         private System.Threading.CancellationTokenSource? _copiedToastCts;
-        private double _messageActionsPanInitialTranslationY = 0;
 
 #if ANDROID
         private readonly System.Runtime.CompilerServices.ConditionalWeakTable<global::Android.Views.View, VisualElement>
             _longPressTargets = new();
+
+        /// <summary>Bubble that was long-pressed: the popup is placed around it.</summary>
+        private WeakReference<global::Android.Views.View>? _longPressedBubble;
 #endif
+
+        private const double PopupGap = 8;
+        private const double PopupSideMargin = 12;
+        private const double PopupTopLimit = 44;
+
+        private async Task ShowMessagePopupAsync()
+        {
+            bool keyboardWasOpen = KeyboardSpacerBox.HeightRequest > 0 || DmMessageEntry.IsFocused;
+            UnfocusDmMessageEntry();
+
+            if (keyboardWasOpen)
+            {
+                // The list moves while the keyboard closes: place the popup once it has settled.
+                for (int i = 0; i < 25 && KeyboardSpacerBox.HeightRequest > 0; i++)
+                {
+                    await Task.Delay(20);
+                }
+
+                await Task.Delay(40);
+            }
+
+            if (BindingContext is not DmPageModel vm || !vm.IsMessageActionsOpen)
+                return;
+
+            if (vm.SelectedActionMessage?.IsIncoming != true)
+            {
+                // Own messages keep the bottom sheet.
+                await ShowMessageSheetAsync();
+                return;
+            }
+
+            AbortPopupAnimations();
+            MessageActionsBackdrop.Opacity = 0;
+            foreach (var card in new VisualElement[] { ReactionBarCard, MessageMenuCard })
+            {
+                card.Opacity = 0;
+                card.Scale = 0.8;
+            }
+
+            MessageActionsOverlayGrid.Opacity = 1;
+            MessageActionsOverlayGrid.IsVisible = true;
+
+            await PositionMessagePopupAsync();
+            if (!vm.IsMessageActionsOpen)
+                return;
+
+            // Grow out of the bubble downwards.
+            ReactionBarCard.AnchorY = 0;
+            MessageMenuCard.AnchorY = 0;
+            ReactionBarCard.AnchorX = 0.15;
+            MessageMenuCard.AnchorX = 0.15;
+
+            // Fade + scale only, no slide; the chat behind dims.
+            await Task.WhenAll(
+                MessageActionsBackdrop.FadeToAsync(1, 180, Easing.CubicOut),
+                ReactionBarCard.FadeToAsync(1, 160, Easing.CubicOut),
+                ReactionBarCard.ScaleToAsync(1, 220, Easing.SpringOut),
+                MessageMenuCard.FadeToAsync(1, 160, Easing.CubicOut),
+                MessageMenuCard.ScaleToAsync(1, 220, Easing.SpringOut));
+        }
+
+        private void AbortPopupAnimations()
+        {
+            MessageActionsBackdrop.AbortAnimation("FadeTo");
+            foreach (var card in new VisualElement[] { ReactionBarCard, MessageMenuCard })
+            {
+                card.AbortAnimation("FadeTo");
+                card.AbortAnimation("ScaleTo");
+            }
+        }
+
+        private async Task ShowMessageSheetAsync()
+        {
+            MessageActionsSheetCard.AbortAnimation("TranslateTo");
+            MessageSheetBackdrop.AbortAnimation("FadeTo");
+
+            MessageSheetOverlayGrid.IsVisible = true;
+            MessageActionsSheetCard.TranslationY = 280;
+            MessageSheetBackdrop.Opacity = 0;
+
+            await Task.WhenAll(
+                MessageActionsSheetCard.TranslateToAsync(0, 0, 220, Easing.CubicOut),
+                MessageSheetBackdrop.FadeToAsync(1, 220, Easing.CubicOut)
+            );
+        }
+
+        private double _messageSheetPanInitialTranslationY;
+
+        private async void OnMessageActionsSheetPanUpdated(object? sender, PanUpdatedEventArgs e)
+        {
+            switch (e.StatusType)
+            {
+                case GestureStatus.Started:
+                    _messageSheetPanInitialTranslationY = MessageActionsSheetCard.TranslationY;
+                    break;
+
+                case GestureStatus.Running:
+                    if (e.TotalY > 0)
+                    {
+                        MessageActionsSheetCard.TranslationY = _messageSheetPanInitialTranslationY + e.TotalY;
+                        MessageSheetBackdrop.Opacity =
+                            Math.Clamp(1.0 - (MessageActionsSheetCard.TranslationY / 240.0), 0.0, 1.0);
+                    }
+
+                    break;
+
+                case GestureStatus.Completed:
+                case GestureStatus.Canceled:
+                    if (MessageActionsSheetCard.TranslationY > 55)
+                    {
+                        await AnimateCloseMessageActionsAsync();
+                    }
+                    else
+                    {
+                        await Task.WhenAll(
+                            MessageActionsSheetCard.TranslateToAsync(0, 0, 150, Easing.CubicOut),
+                            MessageSheetBackdrop.FadeToAsync(1, 150, Easing.Linear)
+                        );
+                    }
+
+                    break;
+            }
+        }
+
+        /// <summary>Bubble bounds captured at the moment of the long press (fallback if the view is recycled later).</summary>
+        private Rect? _longPressedBubbleBoundsAtPress;
+
+        /// <summary>How far the message list was lifted so the popup fits under the bubble (undone on close).</summary>
+        private double _popupListLift;
+
+        /// <summary>
+        /// Stacks the popup directly under the pressed bubble: reaction bar, then the menu. If there is not
+        /// enough room below, the message list is scrolled / lifted so the bubble moves up instead.
+        /// </summary>
+        private async Task PositionMessagePopupAsync()
+        {
+            // Real sizes only exist after a layout pass: Measure() before that can report 0 (→ overlapping cards).
+            for (int i = 0; i < 20 && (MessageMenuCard.Height <= 0 || (ReactionBarCard.IsVisible && ReactionBarCard.Height <= 0)); i++)
+            {
+                await Task.Delay(16);
+            }
+
+            double rootW = DmRootGrid.Width > 0 ? DmRootGrid.Width : Width;
+            double rootH = DmRootGrid.Height > 0 ? DmRootGrid.Height : Height;
+            double bottomLimit = rootH - PopupSideMargin;
+
+            double menuW = MessageMenuCard.Width > 0 ? MessageMenuCard.Width : MessageMenuCard.WidthRequest;
+            double menuH = MessageMenuCard.Height;
+            bool showBar = ReactionBarCard.IsVisible;
+            double barW = showBar ? ReactionBarCard.Width : 0;
+            double barH = showBar ? ReactionBarCard.Height : 0;
+
+            var bubble = GetLongPressedBubbleBounds() ?? _longPressedBubbleBoundsAtPress
+                         ?? new Rect(54, rootH / 2 - 20, 146, 40);
+
+            double stackH = (showBar ? barH + PopupGap : 0) + menuH;
+            double deficit = bubble.Bottom + PopupGap + stackH - bottomLimit;
+            if (deficit > 0)
+            {
+                // Not enough room under the bubble: move the chat up (scroll first, lift the rest).
+                double maxLift = Math.Max(0, bubble.Top - PopupTopLimit);
+                double needed = Math.Min(deficit, maxLift);
+                double scrolled = ScrollMessagesBy(needed);
+                if (scrolled > 0)
+                {
+                    await Task.Delay(16);
+                    bubble = GetLongPressedBubbleBounds() ?? new Rect(bubble.X, bubble.Y - scrolled, bubble.Width, bubble.Height);
+                }
+
+                double rest = bubble.Bottom + PopupGap + stackH - bottomLimit;
+                if (rest > 0)
+                {
+                    _popupListLift = Math.Min(rest, Math.Max(0, bubble.Top - PopupTopLimit));
+                    MessagesCollectionView.AbortAnimation("TranslateTo");
+                    _ = MessagesCollectionView.TranslateToAsync(0, -_popupListLift, 180, Easing.CubicOut);
+                    bubble = new Rect(bubble.X, bubble.Y - _popupListLift, bubble.Width, bubble.Height);
+                }
+            }
+
+            double Clamp(double v, double min, double max) => max < min ? min : Math.Clamp(v, min, max);
+
+            double barX = Clamp(bubble.Left - 6, PopupSideMargin, rootW - PopupSideMargin - barW);
+            double menuX = Clamp(bubble.Left, PopupSideMargin, rootW - PopupSideMargin - menuW);
+
+            double barY = bubble.Bottom + PopupGap;
+            double menuY = showBar ? barY + barH + PopupGap : barY;
+
+            ReactionBarCard.Margin = new Thickness(barX, barY, 0, 0);
+            MessageMenuCard.Margin = new Thickness(menuX, menuY, 0, 0);
+        }
+
+        /// <summary>Scrolls the message list content up by up to <paramref name="dp"/>; returns how much it moved.</summary>
+        private double ScrollMessagesBy(double dp)
+        {
+#if ANDROID
+            if (dp > 0 && MessagesCollectionView.Handler?.PlatformView is AndroidX.RecyclerView.Widget.RecyclerView rv)
+            {
+                float density = rv.Resources?.DisplayMetrics?.Density ?? 2.75f;
+                int before = rv.ComputeVerticalScrollOffset();
+                rv.ScrollBy(0, (int)Math.Ceiling(dp * density));
+                int after = rv.ComputeVerticalScrollOffset();
+                return Math.Max(0, (after - before) / density);
+            }
+#endif
+            return 0;
+        }
+
+        private void ResetPopupListLift()
+        {
+            if (_popupListLift == 0 && MessagesCollectionView.TranslationY == 0)
+                return;
+
+            _popupListLift = 0;
+            MessagesCollectionView.AbortAnimation("TranslateTo");
+            _ = MessagesCollectionView.TranslateToAsync(0, 0, 160, Easing.CubicOut);
+        }
+
+        /// <summary>Long-pressed bubble's bounds in <see cref="DmRootGrid"/> coordinates (dp).</summary>
+        private Rect? GetLongPressedBubbleBounds()
+        {
+#if ANDROID
+            if (_longPressedBubble == null || !_longPressedBubble.TryGetTarget(out var bubbleView) ||
+                !bubbleView.IsAttachedToWindow ||
+                DmRootGrid.Handler?.PlatformView is not global::Android.Views.View rootView)
+            {
+                return null;
+            }
+
+            // The list recycles rows: make sure this view still shows the pressed message.
+            if (BindingContext is DmPageModel { SelectedActionMessage: { } selected } &&
+                _longPressTargets.TryGetValue(bubbleView, out var element) &&
+                !ReferenceEquals(element.BindingContext, selected))
+            {
+                return null;
+            }
+
+            var bubbleLoc = new int[2];
+            var rootLoc = new int[2];
+            bubbleView.GetLocationInWindow(bubbleLoc);
+            rootView.GetLocationInWindow(rootLoc);
+            float density = bubbleView.Resources?.DisplayMetrics?.Density ?? 2.75f;
+
+            return new Rect(
+                (bubbleLoc[0] - rootLoc[0]) / density,
+                (bubbleLoc[1] - rootLoc[1]) / density,
+                bubbleView.Width / density,
+                bubbleView.Height / density);
+#else
+            return null;
+#endif
+        }
 
         private void OnMessageBubbleHandlerChanged(object? sender, EventArgs e)
         {
@@ -134,6 +372,8 @@ namespace Pocket.Client.Pages
                             BindingContext is DmPageModel vm)
                         {
                             v.PerformHapticFeedback(global::Android.Views.FeedbackConstants.LongPress);
+                            _longPressedBubble = new WeakReference<global::Android.Views.View>(v);
+                            _longPressedBubbleBoundsAtPress = GetLongPressedBubbleBounds();
                             vm.OpenMessageActionsCommand.Execute(dm);
                             args.Handled = true;
                         }
@@ -168,66 +408,36 @@ namespace Pocket.Client.Pages
 
         private async Task AnimateCloseMessageActionsAsync()
         {
-            if (!MessageActionsOverlayGrid.IsVisible)
+            if (MessageSheetOverlayGrid.IsVisible)
             {
-                if (BindingContext is DmPageModel earlyVm)
-                {
-                    earlyVm.IsMessageActionsOpen = false;
-                    earlyVm.SelectedActionMessage = null;
-                }
+                MessageActionsSheetCard.AbortAnimation("TranslateTo");
+                MessageSheetBackdrop.AbortAnimation("FadeTo");
 
-                return;
+                await Task.WhenAll(
+                    MessageActionsSheetCard.TranslateToAsync(0, 280, 190, Easing.CubicIn),
+                    MessageSheetBackdrop.FadeToAsync(0, 190, Easing.Linear)
+                );
+
+                MessageSheetOverlayGrid.IsVisible = false;
+            }
+            else if (MessageActionsOverlayGrid.IsVisible)
+            {
+                AbortPopupAnimations();
+                ResetPopupListLift();
+                await Task.WhenAll(
+                    MessageActionsBackdrop.FadeToAsync(0, 140, Easing.CubicIn),
+                    ReactionBarCard.FadeToAsync(0, 120, Easing.CubicIn),
+                    ReactionBarCard.ScaleToAsync(0.9, 120, Easing.CubicIn),
+                    MessageMenuCard.FadeToAsync(0, 120, Easing.CubicIn),
+                    MessageMenuCard.ScaleToAsync(0.9, 120, Easing.CubicIn));
+
+                MessageActionsOverlayGrid.IsVisible = false;
             }
 
-            MessageActionsSheetCard.AbortAnimation("TranslateTo");
-            MessageActionsBackdrop.AbortAnimation("FadeTo");
-
-            await Task.WhenAll(
-                MessageActionsSheetCard.TranslateToAsync(0, 280, 190, Easing.CubicIn),
-                MessageActionsBackdrop.FadeToAsync(0, 190, Easing.Linear)
-            );
-
-            MessageActionsOverlayGrid.IsVisible = false;
             if (BindingContext is DmPageModel vm)
             {
                 vm.IsMessageActionsOpen = false;
                 vm.SelectedActionMessage = null;
-            }
-        }
-
-        private async void OnMessageActionsSheetPanUpdated(object? sender, PanUpdatedEventArgs e)
-        {
-            switch (e.StatusType)
-            {
-                case GestureStatus.Started:
-                    _messageActionsPanInitialTranslationY = MessageActionsSheetCard.TranslationY;
-                    break;
-
-                case GestureStatus.Running:
-                    if (e.TotalY > 0)
-                    {
-                        MessageActionsSheetCard.TranslationY = _messageActionsPanInitialTranslationY + e.TotalY;
-                        double progress = Math.Clamp(1.0 - (MessageActionsSheetCard.TranslationY / 240.0), 0.0, 1.0);
-                        MessageActionsBackdrop.Opacity = progress;
-                    }
-
-                    break;
-
-                case GestureStatus.Completed:
-                case GestureStatus.Canceled:
-                    if (MessageActionsSheetCard.TranslationY > 55)
-                    {
-                        await AnimateCloseMessageActionsAsync();
-                    }
-                    else
-                    {
-                        await Task.WhenAll(
-                            MessageActionsSheetCard.TranslateToAsync(0, 0, 150, Easing.CubicOut),
-                            MessageActionsBackdrop.FadeToAsync(1, 150, Easing.Linear)
-                        );
-                    }
-
-                    break;
             }
         }
 
@@ -539,6 +749,9 @@ namespace Pocket.Client.Pages
         private int _imeUpperBoundPx;
         private AndroidX.RecyclerView.Widget.RecyclerView? _messagesAnchorRv;
         private MessagesLayoutAnchorListener? _messagesAnchorListener;
+        private bool _isLegacyImeSubscribed;
+
+        private void OnLegacyImeChanged() => CheckKeyboardState();
 
         private void RegisterKeyboardVisibilityWatcher(bool startPollTimer)
         {
@@ -560,6 +773,14 @@ namespace Pocket.Client.Pages
                 }
 
                 AndroidX.Core.View.ViewCompat.SetWindowInsetsAnimationCallback(decorView, _imeAnimationCallback);
+            }
+
+            // Android 10 and older report no IME insets with ADJUST_NOTHING: measure the keyboard separately.
+            Pocket.Client.Services.LegacyImeHeightTracker.EnsureAttached(activity);
+            if (Pocket.Client.Services.LegacyImeHeightTracker.IsNeeded && !_isLegacyImeSubscribed)
+            {
+                Pocket.Client.Services.LegacyImeHeightTracker.Changed += OnLegacyImeChanged;
+                _isLegacyImeSubscribed = true;
             }
 
             if (MessagesCollectionView.Handler?.PlatformView is AndroidX.RecyclerView.Widget.RecyclerView messagesRv &&
@@ -611,6 +832,12 @@ namespace Pocket.Client.Pages
 
             _keyboardListener = null;
             _imeAnimationCallback = null;
+
+            if (_isLegacyImeSubscribed)
+            {
+                Pocket.Client.Services.LegacyImeHeightTracker.Changed -= OnLegacyImeChanged;
+                _isLegacyImeSubscribed = false;
+            }
 
             if (_messagesAnchorRv != null && _messagesAnchorListener != null)
             {
@@ -754,8 +981,9 @@ namespace Pocket.Client.Pages
             decorView.GetWindowVisibleDisplayFrame(rect);
             int screenHeight = decorView.RootView?.Height ?? 0;
             int frameKeypadPx = screenHeight > 0 ? Math.Max(0, screenHeight - rect.Bottom) : 0;
+            int legacyKeyboardPx = Pocket.Client.Services.LegacyImeHeightTracker.GetRawKeyboardPx(decorView);
 
-            int rawKeyboardPx = Math.Max(imeBottomPx, frameKeypadPx);
+            int rawKeyboardPx = Math.Max(imeBottomPx, Math.Max(frameKeypadPx, legacyKeyboardPx));
             bool isKeyboardOpen = (rootInsets?.IsVisible(AndroidX.Core.View.WindowInsetsCompat.Type.Ime()) ?? false)
                                   || (screenHeight > 0 && rawKeyboardPx > screenHeight * 0.15);
 

@@ -39,8 +39,81 @@ namespace Pocket.Client.Models
 
         public bool IsReactionAnimationShown { get; set; }
 
+        private string? _messageReaction;
+        private DateTime? _messageReactionAt;
+
+        /// <summary>
+        /// Emoji reaction ON this message (1:1 chat: on an incoming message it is ours, on an outgoing one the friend's).
+        /// Not to be confused with <see cref="ReactionEmoji"/>, which is a photo reaction carried by this message.
+        /// </summary>
+        public string? MessageReaction
+        {
+            get => _messageReaction;
+            set
+            {
+                if (SetProperty(ref _messageReaction, string.IsNullOrWhiteSpace(value) ? null : value))
+                {
+                    OnPropertyChanged(nameof(HasMessageReaction));
+                    OnPropertyChanged(nameof(ShowPostReactionBadge));
+                    OnPropertyChanged(nameof(RowPadding));
+                }
+            }
+        }
+
+        /// <summary>When <see cref="MessageReaction"/> was last set or removed (UTC); newer reaction payloads win.</summary>
+        public DateTime? MessageReactionAt
+        {
+            get => _messageReactionAt;
+            set => _messageReactionAt = value is DateTime v ? Services.ServerClock.AsUtc(v) : null;
+        }
+
+        /// <summary>Our reaction on this (incoming) message is not on a server yet: resent on the next connection.</summary>
+        public bool MessageReactionPending { get; set; }
+
+        [Ignore]
+        public bool HasMessageReaction => !string.IsNullOrWhiteSpace(MessageReaction);
+
+        /// <summary>Extra room above the bubble so the corner reaction badge is not clipped / doesn't touch the previous row.</summary>
+        [Ignore]
+        public Thickness RowPadding => HasMessageReaction ? new Thickness(12, 18, 12, 3) : new Thickness(12, 3);
+
+        /// <summary>The message text as quoted in reaction previews / notifications.</summary>
+        [Ignore]
+        public string QuotedText
+        {
+            get
+            {
+                var text = (DisplayText ?? string.Empty).Replace('\n', ' ').Trim();
+                if (string.IsNullOrEmpty(text))
+                    text = "photo";
+                var info = new System.Globalization.StringInfo(text);
+                return info.LengthInTextElements > 40 ? info.SubstringByTextElements(0, 40).TrimEnd() + "…" : text;
+            }
+        }
+
+        /// <summary>"You reacted 🔥 to "eee"" / "Reacted 🔥 to your message: "eee"".</summary>
+        [Ignore]
+        public string MessageReactionPreviewText => IsIncoming
+            ? $"You reacted {MessageReaction} to \"{QuotedText}\""
+            : $"Reacted {MessageReaction} to your message: \"{QuotedText}\"";
+
+        private DateTime _sentAt = Services.ServerClock.UtcNow;
+        private DateTime? _serverReceivedAt;
+
+        /// <summary>When it was sent (UTC; sqlite-net reads ticks back as Unspecified, so the setter marks it UTC).</summary>
         [Indexed]
-        public DateTime SentAt { get; set; } = DateTime.UtcNow;
+        public DateTime SentAt
+        {
+            get => _sentAt;
+            set => _sentAt = Services.ServerClock.AsUtc(value);
+        }
+
+        /// <summary>Incoming: when the relay accepted it (null from older relays).</summary>
+        public DateTime? ServerReceivedAt
+        {
+            get => _serverReceivedAt;
+            set => _serverReceivedAt = value is DateTime v ? Services.ServerClock.AsUtc(v) : null;
+        }
 
         /// <summary>Relay process that accepted this outgoing message (resent if we later connect to another).</summary>
         public string? ServerInstance { get; set; }
@@ -58,7 +131,7 @@ namespace Pocket.Client.Models
             }
         }
 
-        private TimeSpan PendingFor => DateTime.UtcNow - SentAt.ToUniversalTime();
+        private TimeSpan PendingFor => Services.ServerClock.UtcNow - SentAt;
 
         /// <summary>Outgoing and not yet accepted by a server (whether still retried or given up).</summary>
         [Ignore]
@@ -183,6 +256,10 @@ namespace Pocket.Client.Models
         [Ignore]
         public bool HasReactionAndText => HasReaction && HasText;
 
+        /// <summary>Photo-reaction corner badge; a message reaction takes the same corner and wins.</summary>
+        [Ignore]
+        public bool ShowPostReactionBadge => HasReactionAndText && !HasMessageReaction;
+
         [Ignore]
         public bool HasReactionOnlyInChat => HasReaction && !HasText;
 
@@ -264,7 +341,7 @@ namespace Pocket.Client.Models
 
         [Ignore]
         public string StatusText => IsIncoming
-            ? $"🔐 E2EE Decrypted • {SentAt.ToLocalTime():HH:mm}"
+            ? $"🔐 E2EE Decrypted • {SentAt.ToLocalTime():HH:mm}{MediaPost.ArrivalSuffix(SentAt, ServerReceivedAt)}"
             : SyncStatus switch
             {
                 SyncStatus.Pending => $"⏳ Pending • {SentAt.ToLocalTime():HH:mm}",

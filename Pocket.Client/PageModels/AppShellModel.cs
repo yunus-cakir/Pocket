@@ -90,18 +90,24 @@ namespace Pocket.Client.PageModels
         public const string AccentLightBlueHex = "#00B8D4";
         public const string AccentDarkBlueHex = "#0066D4";
         public const string AccentGreenHex = "#00D458";
-        public const string AccentRedHex = "#D43800";
+        public const string AccentPinkHex = "#FF59D6";
+        /// <summary>Accent used until the user picks one (matches the original blue launcher icon).</summary>
+        public const string DefaultAccentColorHex = AccentLightBlueHex;
+        /// <summary>Former red accent and earlier pink shades; saved preferences holding them are migrated to pink.</summary>
+        private const string LegacyAccentRedHex = "#D43800";
+        private const string LegacyAccentBrightPinkHex = "#FF40DC";
+        private const string LegacyAccentDeepPinkHex = "#D400A0";
 
         public static string GetSavedAccentColorHex()
         {
-            var raw = Microsoft.Maui.Storage.Preferences.Default.Get(AccentColorPreferenceKey, AccentYellowHex);
+            var raw = Microsoft.Maui.Storage.Preferences.Default.Get(AccentColorPreferenceKey, DefaultAccentColorHex);
             return NormalizeAccentColorHex(raw);
         }
 
         public static string NormalizeAccentColorHex(string? hex)
         {
             if (string.IsNullOrWhiteSpace(hex))
-                return AccentYellowHex;
+                return DefaultAccentColorHex;
 
             string clean = hex.Trim().ToUpperInvariant();
             if (!clean.StartsWith("#", StringComparison.Ordinal))
@@ -113,8 +119,11 @@ namespace Pocket.Client.PageModels
                 AccentLightBlueHex => AccentLightBlueHex,
                 AccentDarkBlueHex => AccentDarkBlueHex,
                 AccentGreenHex => AccentGreenHex,
-                AccentRedHex => AccentRedHex,
-                _ => AccentYellowHex
+                AccentPinkHex => AccentPinkHex,
+                LegacyAccentRedHex => AccentPinkHex,
+                LegacyAccentBrightPinkHex => AccentPinkHex,
+                LegacyAccentDeepPinkHex => AccentPinkHex,
+                _ => DefaultAccentColorHex
             };
         }
 
@@ -143,7 +152,7 @@ namespace Pocket.Client.PageModels
         [NotifyPropertyChangedFor(nameof(IsAccentLightBlueSelected))]
         [NotifyPropertyChangedFor(nameof(IsAccentDarkBlueSelected))]
         [NotifyPropertyChangedFor(nameof(IsAccentGreenSelected))]
-        [NotifyPropertyChangedFor(nameof(IsAccentRedSelected))]
+        [NotifyPropertyChangedFor(nameof(IsAccentPinkSelected))]
         private string _accentColorHex = GetSavedAccentColorHex();
 
         public Microsoft.Maui.Graphics.Color AccentColorValue =>
@@ -161,8 +170,8 @@ namespace Pocket.Client.PageModels
         public bool IsAccentGreenSelected =>
             string.Equals(AccentColorHex, AccentGreenHex, StringComparison.OrdinalIgnoreCase);
 
-        public bool IsAccentRedSelected =>
-            string.Equals(AccentColorHex, AccentRedHex, StringComparison.OrdinalIgnoreCase);
+        public bool IsAccentPinkSelected =>
+            string.Equals(AccentColorHex, AccentPinkHex, StringComparison.OrdinalIgnoreCase);
 
         public event Action<string>? OnAccentColorChanged;
 
@@ -173,7 +182,8 @@ namespace Pocket.Client.PageModels
 
         public bool IsViewingHistory { get; set; }
 
-        public bool IsAppInForeground { get; set; } = true;
+        /// <summary>Set by the window/activity lifecycle; false while only the background keep-alive service runs.</summary>
+        public bool IsAppInForeground { get; set; }
 
         public bool IsInDmWindow { get; set; }
 
@@ -192,6 +202,8 @@ namespace Pocket.Client.PageModels
         /// <summary>An outgoing DM was accepted by the server (Sent) — raised for background resends too.</summary>
         public event Action<Guid, Pocket.Shared.Enums.SyncStatus>? OnDirectMessageStatusChanged;
         public event Action<Guid>? OnDirectMessageDeleted;
+        /// <summary>A message's reaction changed (message id, emoji or null when removed). Raised on the main thread.</summary>
+        public event Action<Guid, string?>? OnDirectMessageReactionChanged;
         public event Action<Friend>? OnFriendProfileUpdated;
         public event Action<User>? OnUserProfileUpdated;
         public event Action? OnDataImported;
@@ -217,7 +229,41 @@ namespace Pocket.Client.PageModels
 
             ApplyAccentColorResources(AccentColorHex);
 
+            if (database != null)
+                Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(StartRelativeTimeTimer);
+
             _ = LoadUserAsync();
+        }
+
+        // ---------------------------------------------------------- Emoji layout
+
+        public Pocket.Client.Services.EmojiLayout EmojiLayout => Pocket.Client.Services.EmojiLayoutSettings.Current;
+
+        public string EmojiLayoutDisplayName => Pocket.Client.Services.EmojiLayoutSettings.GetDisplayName(EmojiLayout);
+
+        public bool IsEmojiLayoutSystemSelected => EmojiLayout == Pocket.Client.Services.EmojiLayout.System;
+        public bool IsEmojiLayoutWhatsAppSelected => EmojiLayout == Pocket.Client.Services.EmojiLayout.WhatsApp;
+        public bool IsEmojiLayoutNotoSelected => EmojiLayout == Pocket.Client.Services.EmojiLayout.Noto;
+
+        public bool IsEmojiLayoutWhatsAppAvailable =>
+            Pocket.Client.Services.EmojiLayoutSettings.IsAvailable(Pocket.Client.Services.EmojiLayout.WhatsApp);
+        public bool IsEmojiLayoutNotoAvailable =>
+            Pocket.Client.Services.EmojiLayoutSettings.IsAvailable(Pocket.Client.Services.EmojiLayout.Noto);
+
+        [RelayCommand]
+        private void SelectEmojiLayout(string? value)
+        {
+            if (!Enum.TryParse(value, true, out Pocket.Client.Services.EmojiLayout layout))
+                return;
+            if (!Pocket.Client.Services.EmojiLayoutSettings.IsAvailable(layout))
+                return;
+
+            Pocket.Client.Services.EmojiLayoutSettings.Set(layout);
+            OnPropertyChanged(nameof(EmojiLayout));
+            OnPropertyChanged(nameof(EmojiLayoutDisplayName));
+            OnPropertyChanged(nameof(IsEmojiLayoutSystemSelected));
+            OnPropertyChanged(nameof(IsEmojiLayoutWhatsAppSelected));
+            OnPropertyChanged(nameof(IsEmojiLayoutNotoSelected));
         }
 
         [RelayCommand]
@@ -255,6 +301,46 @@ namespace Pocket.Client.PageModels
                     "Your home screen doesn't support adding widgets automatically. Long-press an empty area of the home screen, open \"Widgets\" and pick Pocket.",
                     "OK");
             }
+        }
+
+        /// <summary>Subtitle of the "Battery optimization" settings row; refreshed whenever the app resumes.</summary>
+        [ObservableProperty] private string _batteryOptimizationStatusText = string.Empty;
+
+        public void RefreshBatteryOptimizationStatus()
+        {
+#if ANDROID
+            bool unrestricted = Pocket.Client.Services.BatteryOptimizationHelper.IsIgnoringOptimizations(
+                global::Android.App.Application.Context);
+            BatteryOptimizationStatusText = unrestricted
+                ? "Unrestricted · runs in the background"
+                : "Limited · messages may be delayed";
+#endif
+        }
+
+        [RelayCommand]
+        private async Task OpenBatteryOptimizationAsync()
+        {
+#if ANDROID
+            var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
+            var shell = Microsoft.Maui.Controls.Shell.Current;
+            if (activity == null)
+                return;
+
+            // Already exempt: the direct dialog would do nothing, so go straight to the list where it can be turned off.
+            bool opened = Pocket.Client.Services.BatteryOptimizationHelper.IsIgnoringOptimizations(activity)
+                ? Pocket.Client.Services.BatteryOptimizationHelper.TryOpenSettings(activity)
+                : Pocket.Client.Services.BatteryOptimizationHelper.TryRequestExemption(activity);
+
+            if (!opened && shell != null)
+            {
+                await shell.DisplayAlert(
+                    "Couldn't Open Settings",
+                    "Open the system Settings → Apps → Pocket → Battery and choose \"Unrestricted\".",
+                    "OK");
+            }
+#else
+            await Task.CompletedTask;
+#endif
         }
 
         [RelayCommand]
@@ -366,17 +452,137 @@ namespace Pocket.Client.PageModels
 
         private void UpdateFriendLastMessage(DirectMessage dm)
         {
-            foreach (var f in Friends)
+            _ = RefreshFriendLastMessagePreviewAsync(dm.FriendId);
+        }
+
+        /// <summary>
+        /// Latest chat event of a conversation for the chat list: the newest message, or a message reaction
+        /// if that happened later ("You reacted 🔥 to "eee"" / "Reacted 🔥 to your message: "eee"").
+        /// </summary>
+        public static (string Preview, DateTime At)? BuildLastMessagePreview(System.Collections.Generic.IEnumerable<DirectMessage> dms)
+        {
+            (string Preview, DateTime At)? best = null;
+            foreach (var dm in dms)
             {
-                if (f.Id == dm.FriendId)
+                if (dm.IsPostReactionOnly)
+                    continue;
+
+                string text = !string.IsNullOrWhiteSpace(dm.TextContent)
+                    ? dm.TextContent!
+                    : (!string.IsNullOrWhiteSpace(dm.ReactionEmoji) ? dm.ReactionEmoji! : "Replied to a photo");
+                if (best == null || dm.SentAt >= best.Value.At)
+                    best = (text, dm.SentAt);
+
+                if (dm.HasMessageReaction)
                 {
-                    f.LastMessagePreview = !string.IsNullOrWhiteSpace(dm.TextContent)
-                        ? dm.TextContent
-                        : (!string.IsNullOrWhiteSpace(dm.ReactionEmoji) ? dm.ReactionEmoji : "Replied to a photo");
-                    f.LastMessageTimeText = MediaPost.FormatRelativeTime(dm.SentAt);
-                    break;
+                    var at = dm.MessageReactionAt ?? dm.SentAt;
+                    if (at >= best.Value.At)
+                        best = (dm.MessageReactionPreviewText, at);
                 }
             }
+
+            return best;
+        }
+
+        private void ApplyLastMessagePreview(Friend friend, System.Collections.Generic.IEnumerable<DirectMessage> dms)
+        {
+            var list = dms as System.Collections.Generic.IList<DirectMessage> ?? dms.ToList();
+            var preview = BuildLastMessagePreview(list);
+            if (preview is { } p)
+            {
+                friend.LastMessagePreview = p.Preview;
+                friend.LastMessageAt = p.At;
+            }
+            else
+            {
+                friend.LastMessagePreview = "Tap to start chatting";
+                friend.LastMessageAt = friend.AddedAt;
+            }
+
+            var lastIncoming = LatestIncomingEventAt(list);
+            if (lastIncoming is DateTime incomingAt && IsDmVisibleFor(friend.Id))
+                DmReadState.MarkRead(friend.Id, incomingAt);
+
+            friend.HasUnread = lastIncoming is DateTime at &&
+                               Pocket.Client.Services.ServerClock.AsUtc(at) > DmReadState.GetLastReadAt(friend.Id);
+        }
+
+        /// <summary>
+        /// Newest thing the friend did in the chat that shows in the chat list: a message they sent, or their
+        /// reaction to one of our messages (post-only reactions are not in the preview, so they don't count).
+        /// </summary>
+        private static DateTime? LatestIncomingEventAt(System.Collections.Generic.IEnumerable<DirectMessage> dms)
+        {
+            DateTime? latest = null;
+            foreach (var dm in dms)
+            {
+                if (dm.IsPostReactionOnly)
+                    continue;
+
+                DateTime? at = null;
+                if (dm.IsIncoming)
+                    at = dm.SentAt;
+                if (!dm.IsIncoming && dm.HasMessageReaction)
+                    at = dm.MessageReactionAt ?? dm.SentAt;
+
+                if (at is DateTime t && (latest == null || t > latest))
+                    latest = t;
+            }
+
+            return latest;
+        }
+
+        /// <summary>Friend whose chat (DmPage) is open, or null.</summary>
+        public string? ActiveDmFriendId { get; set; }
+
+        private bool IsDmVisibleFor(string friendId)
+        {
+            bool isForeground = IsAppInForeground;
+#if ANDROID
+            isForeground = isForeground && MainActivity.IsActivityResumed;
+#endif
+            return isForeground && IsInDmWindow && ActiveDmFriendId == friendId;
+        }
+
+        /// <summary>Marks everything in the chat with <paramref name="friendId"/> as read and clears its unread style.</summary>
+        public async Task MarkConversationReadAsync(string friendId)
+        {
+            if (_database == null || string.IsNullOrEmpty(friendId))
+                return;
+
+            var dms = await _database.GetDirectMessagesForFriendAsync(friendId);
+            var latest = LatestIncomingEventAt(dms);
+            var now = Pocket.Client.Services.ServerClock.UtcNow;
+            DmReadState.MarkRead(friendId, latest is DateTime l && Pocket.Client.Services.ServerClock.AsUtc(l) > now ? l : now);
+
+            Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+            {
+                var friend = Friends.FirstOrDefault(f => f.Id == friendId);
+                if (friend != null)
+                    friend.HasUnread = false;
+            });
+        }
+
+        private Microsoft.Maui.Dispatching.IDispatcherTimer? _relativeTimeTimer;
+
+        /// <summary>Raised every 30 s so time labels ("Just now", "1m", …) move on.</summary>
+        public event Action? OnRelativeTimeTick;
+
+        private void StartRelativeTimeTimer()
+        {
+            var dispatcher = Microsoft.Maui.Controls.Application.Current?.Dispatcher;
+            if (dispatcher == null || _relativeTimeTimer != null)
+                return;
+
+            _relativeTimeTimer = dispatcher.CreateTimer();
+            _relativeTimeTimer.Interval = TimeSpan.FromSeconds(30);
+            _relativeTimeTimer.Tick += (_, _) =>
+            {
+                foreach (var friend in Friends)
+                    friend.RefreshLastMessageTimeText();
+                OnRelativeTimeTick?.Invoke();
+            };
+            _relativeTimeTimer.Start();
         }
 
         public AppShellModel() : this(null!, null!, null!, null!, null!, null!)
@@ -462,20 +668,7 @@ namespace Pocket.Client.PageModels
                 foreach (var friend in friends)
                 {
                     var dms = await _database.GetDirectMessagesForFriendAsync(friend.Id);
-                    var chatDms = dms.Where(d => !d.IsPostReactionOnly).ToList();
-                    if (chatDms.Count > 0)
-                    {
-                        var lastDm = chatDms[chatDms.Count - 1];
-                        friend.LastMessagePreview = !string.IsNullOrWhiteSpace(lastDm.TextContent)
-                            ? lastDm.TextContent
-                            : "Replied to a photo";
-                        friend.LastMessageTimeText = MediaPost.FormatRelativeTime(lastDm.SentAt);
-                    }
-                    else
-                    {
-                        friend.LastMessagePreview = "Tap to start chatting";
-                        friend.LastMessageTimeText = MediaPost.FormatRelativeTime(friend.AddedAt);
-                    }
+                    ApplyLastMessagePreview(friend, dms);
 
                     Friends.Add(friend);
                 }
@@ -542,7 +735,7 @@ namespace Pocket.Client.PageModels
                 IsIncoming = false,
                 TextContent = textContent,
                 ReactionEmoji = reactionEmoji,
-                SentAt = DateTime.UtcNow,
+                SentAt = Pocket.Client.Services.ServerClock.UtcNow,
                 SyncStatus = Pocket.Shared.Enums.SyncStatus.Pending,
                 SenderAvatarUrl = CurrentUser.ProfilePictureUrl ?? string.Empty
             };
@@ -567,18 +760,7 @@ namespace Pocket.Client.PageModels
 
             Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
             {
-                if (!dm.IsPostReactionOnly)
-                {
-                    var targetFriend = Friends.FirstOrDefault(f => f.Id == friendId);
-                    if (targetFriend != null)
-                    {
-                        targetFriend.LastMessagePreview = !string.IsNullOrWhiteSpace(dm.TextContent)
-                            ? dm.TextContent
-                            : "Replied to a photo";
-                        targetFriend.LastMessageTimeText = MediaPost.FormatRelativeTime(dm.SentAt);
-                    }
-                }
-
+                // Chat-list preview is refreshed by UpdateFriendLastMessage (subscribed to this event).
                 OnDirectMessageReceived?.Invoke(dm);
             });
 
@@ -676,32 +858,176 @@ namespace Pocket.Client.PageModels
             }
         }
 
+        /// <summary>
+        /// Sets (or with null/empty removes) our reaction on a message the friend sent us, saves it locally first
+        /// and sends it; if it cannot be sent now it is resent on the next connection.
+        /// </summary>
+        public async Task SetMessageReactionAsync(DirectMessage target, string? emoji)
+        {
+            if (_database == null || target == null || !target.IsIncoming)
+                return;
+
+            emoji = string.IsNullOrWhiteSpace(emoji) ? null : emoji.Trim();
+            var now = Pocket.Client.Services.ServerClock.UtcNow;
+
+            // Update the stored row (not the UI copy) so nothing else on it is overwritten.
+            var stored = await _database.GetDirectMessageAsync(target.Id);
+            if (stored == null)
+                return;
+
+            stored.MessageReaction = emoji;
+            stored.MessageReactionAt = now;
+            stored.MessageReactionPending = true;
+            await _database.SaveDirectMessageAsync(stored);
+
+            target.MessageReactionAt = now;
+            await RefreshFriendLastMessagePreviewAsync(stored.FriendId);
+
+            var friend = await _database.GetFriendAsync(stored.FriendId);
+            if (friend != null && !string.IsNullOrEmpty(friend.PublicKey))
+            {
+                await TryTransmitMessageReactionAsync(stored, friend);
+            }
+        }
+
+        private async Task<bool> TryTransmitMessageReactionAsync(DirectMessage target, Friend friend)
+        {
+            if (_database == null || _cryptoService == null || _relayService == null || CurrentUser == null)
+                return false;
+
+            if (!_relayService.IsConnected)
+                return false;
+
+            var privateKey = await GetPrivateKeyAsync();
+            if (string.IsNullOrEmpty(privateKey))
+                return false;
+
+            var reactionAt = target.MessageReactionAt;
+            try
+            {
+                var sharedSecret = GetOrDeriveSharedSecret(privateKey, friend.PublicKey);
+                var body = Encoding.UTF8.GetBytes($"{target.Id}|{target.MessageReaction ?? string.Empty}");
+
+                var payload = new Pocket.Shared.DTOs.EncryptedPayloadDto
+                {
+                    MessageId = Guid.NewGuid(),
+                    SenderId = CurrentUser.Id,
+                    RecipientId = friend.Id,
+                    EncryptedContent = _cryptoService.EncryptData(body, sharedSecret),
+                    MediaType = Pocket.Shared.Enums.MediaType.MessageReaction,
+                    Timestamp = reactionAt ?? Pocket.Client.Services.ServerClock.UtcNow
+                };
+
+                if (!await _relayService.SendPayloadAsync(payload))
+                    return false;
+
+                // Only clear the flag if the reaction was not changed again meanwhile.
+                var current = await _database.GetDirectMessageAsync(target.Id);
+                if (current != null && current.MessageReactionPending && current.MessageReactionAt == reactionAt)
+                {
+                    current.MessageReactionPending = false;
+                    await _database.SaveDirectMessageAsync(current);
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[E2EE Reaction Send Error] {ex.Message}");
+                return false;
+            }
+        }
+
+        private async Task ApplyIncomingMessageReactionAsync(
+            Pocket.Shared.DTOs.EncryptedPayloadDto payload, Friend senderFriend, byte[] sharedSecret)
+        {
+            if (_database == null || _cryptoService == null || payload.EncryptedContent is not { Length: > 0 })
+                return;
+
+            var body = Encoding.UTF8.GetString(_cryptoService.DecryptData(payload.EncryptedContent, sharedSecret));
+            int sep = body.IndexOf('|');
+            if (sep <= 0 || !Guid.TryParse(body.AsSpan(0, sep), out var targetId))
+                return;
+
+            string? emoji = body[(sep + 1)..];
+            if (string.IsNullOrWhiteSpace(emoji))
+                emoji = null;
+
+            // The friend reacted to a message WE sent them.
+            var target = await _database.GetDirectMessageAsync(targetId);
+            if (target == null || target.IsIncoming || target.FriendId != payload.SenderId)
+                return;
+
+            var at = Pocket.Client.Services.PayloadTime.SentAt(payload);
+            if (target.MessageReactionAt is DateTime known && known > at)
+                return; // an older reaction arriving late
+
+            target.MessageReaction = emoji;
+            target.MessageReactionAt = at;
+            await _database.SaveDirectMessageAsync(target);
+            await RefreshFriendLastMessagePreviewAsync(target.FriendId);
+
+            Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+            {
+                OnDirectMessageReactionChanged?.Invoke(targetId, emoji);
+            });
+
+            if (emoji == null || !IsReactionsNotificationEnabled)
+                return;
+
+            bool isForeground = IsAppInForeground;
+#if ANDROID
+            isForeground = isForeground && MainActivity.IsActivityResumed;
+#endif
+            bool isDmWindowActive = isForeground &&
+                                    (IsInDmWindow ||
+                                     Microsoft.Maui.Controls.Shell.Current?.CurrentPage is Pocket.Client.Pages.DmPage);
+            if (isDmWindowActive)
+                return;
+
+            string senderHeader = !string.IsNullOrWhiteSpace(senderFriend.DisplayName)
+                ? senderFriend.DisplayName
+                : senderFriend.Username;
+            _notificationService?.ShowMessageNotification(
+                senderFriend.Id,
+                senderHeader,
+                target.MessageReactionPreviewText,
+                senderFriend.ProfilePictureUrl);
+        }
+
+        /// <summary>Resends our reactions that never reached a server.</summary>
+        private async Task FlushPendingMessageReactionsAsync()
+        {
+            if (_database == null || _relayService == null)
+                return;
+
+            var pending = await _database.GetDirectMessagesWithPendingReactionAsync();
+            foreach (var dm in pending)
+            {
+                if (!_relayService.IsConnected)
+                    break;
+
+                var friend = await _database.GetFriendAsync(dm.FriendId);
+                if (friend == null || string.IsNullOrEmpty(friend.PublicKey))
+                    continue;
+
+                await TryTransmitMessageReactionAsync(dm, friend);
+            }
+        }
+
         private async Task RefreshFriendLastMessagePreviewAsync(string friendId)
         {
             if (_database == null || string.IsNullOrEmpty(friendId))
                 return;
 
             var remainingDms = await _database.GetDirectMessagesForFriendAsync(friendId);
-            var chatDms = remainingDms.Where(d => !d.IsPostReactionOnly).ToList();
 
             Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
             {
                 var targetFriend = Friends.FirstOrDefault(f => f.Id == friendId);
                 if (targetFriend != null)
                 {
-                    if (chatDms.Count > 0)
-                    {
-                        var lastDm = chatDms[chatDms.Count - 1];
-                        targetFriend.LastMessagePreview = !string.IsNullOrWhiteSpace(lastDm.TextContent)
-                            ? lastDm.TextContent
-                            : "Replied to a photo";
-                        targetFriend.LastMessageTimeText = MediaPost.FormatRelativeTime(lastDm.SentAt);
-                    }
-                    else
-                    {
-                        targetFriend.LastMessagePreview = "Tap to start chatting";
-                        targetFriend.LastMessageTimeText = MediaPost.FormatRelativeTime(targetFriend.AddedAt);
-                    }
+                    ApplyLastMessagePreview(targetFriend, remainingDms);
                 }
             });
         }
@@ -802,6 +1128,10 @@ namespace Pocket.Client.PageModels
             if (_database == null || _cryptoService == null || _relayService == null)
                 return;
 
+#if ANDROID
+            // Often runs with the screen off (keep-alive service): finish decrypt/save/widget/ack before sleeping.
+            using var awake = Pocket.Client.Services.RelayKeepAliveService.HoldAwake("receive", TimeSpan.FromSeconds(60));
+#endif
             try
             {
                 // Zero Trust & BR-601: Verify sender is an established mutual friend with a known PublicKey
@@ -913,6 +1243,13 @@ namespace Pocket.Client.PageModels
                     return;
                 }
 
+                if (payload.MediaType == Pocket.Shared.Enums.MediaType.MessageReaction)
+                {
+                    await ApplyIncomingMessageReactionAsync(payload, senderFriend, sharedSecret);
+                    await _relayService.ConfirmDeliveryAsync(payload.SenderId, payload.MessageId);
+                    return;
+                }
+
                 if (payload.MediaType == Pocket.Shared.Enums.MediaType.MessageDeleted)
                 {
                     if (payload.EncryptedContent is { Length: > 0 })
@@ -973,7 +1310,8 @@ namespace Pocket.Client.PageModels
                         IsIncoming = true,
                         TextContent = textContent,
                         ReactionEmoji = reactionEmoji,
-                        SentAt = payload.Timestamp,
+                        SentAt = Pocket.Client.Services.PayloadTime.SentAt(payload),
+                        ServerReceivedAt = payload.ServerReceivedAtUtc,
                         SyncStatus = Pocket.Shared.Enums.SyncStatus.Delivered,
                         SenderAvatarUrl = senderFriend.ProfilePictureUrl ?? string.Empty
                     };
@@ -1032,18 +1370,7 @@ namespace Pocket.Client.PageModels
 
                     Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
                     {
-                        if (!dm.IsPostReactionOnly)
-                        {
-                            var targetFriend = Friends.FirstOrDefault(f => f.Id == dm.FriendId);
-                            if (targetFriend != null)
-                            {
-                                targetFriend.LastMessagePreview = !string.IsNullOrWhiteSpace(dm.TextContent)
-                                    ? dm.TextContent
-                                    : "Replied to a photo";
-                                targetFriend.LastMessageTimeText = MediaPost.FormatRelativeTime(dm.SentAt);
-                            }
-                        }
-
+                        // Chat-list preview is refreshed by UpdateFriendLastMessage (subscribed to this event).
                         OnDirectMessageReceived?.Invoke(dm);
                     });
 
@@ -1087,7 +1414,8 @@ namespace Pocket.Client.PageModels
                     MediaLocalPath = localMediaPath,
                     MediaType = payload.MediaType,
                     Caption = caption,
-                    SentAt = payload.Timestamp,
+                    SentAt = Pocket.Client.Services.PayloadTime.SentAt(payload),
+                    ServerReceivedAt = payload.ServerReceivedAtUtc,
                     IsIncludedInRollcall = false,
                     IsUnseen = !IsViewingHistory,
                     SyncStatus = Pocket.Shared.Enums.SyncStatus.Delivered,
@@ -1386,14 +1714,14 @@ namespace Pocket.Client.PageModels
         }
 
         /// <summary>
-        /// A copy must be (re)sent when no server has confirmed it, or when the confirming server is not the
-        /// one we are connected to now — relays only keep payloads in memory, so a restart or a switch to the
-        /// other node may have dropped it. Resending is safe: servers key payloads by message id and the
+        /// A copy must be (re)sent when no server has confirmed it, or when none of the servers that accepted it
+        /// is among the ones we are connected to now — relays only keep payloads in memory, so a restart or
+        /// losing that node may have dropped it. Resending is safe: servers key payloads by message id and the
         /// recipient ignores ids it already has (and confirms again).
         /// </summary>
         private static bool NeedsSend(PostDelivery delivery, string? currentInstance) =>
             delivery.State == DeliveryState.Pending ||
-            (delivery.State == DeliveryState.OnServer && delivery.ServerInstance != currentInstance);
+            (delivery.State == DeliveryState.OnServer && !RelayService.IsHeldBy(delivery.ServerInstance, currentInstance));
 
         /// <summary>
         /// Delivery rows of an outgoing post, created on first send. Recipients are fixed then: the explicit
@@ -1659,10 +1987,14 @@ namespace Pocket.Client.PageModels
             if (!await _pendingPostSyncLock.WaitAsync(0))
                 return;
 
+#if ANDROID
+            // Reconnects often happen with the screen off: let queued photos/messages finish uploading.
+            using var awake = Pocket.Client.Services.RelayKeepAliveService.HoldAwake("resend", TimeSpan.FromMinutes(3));
+#endif
             try
             {
                 string? instance = _relayService.CurrentServerInstance;
-                var resendCutoff = DateTime.UtcNow - ResendWindow;
+                var resendCutoff = Pocket.Client.Services.ServerClock.UtcNow - ResendWindow;
 
                 var undelivered = await _database.GetUndeliveredPostDeliveriesAsync();
                 var postIds = undelivered
@@ -1689,13 +2021,14 @@ namespace Pocket.Client.PageModels
                         continue;
 
                     // Old copies that only need a resend because the server changed are left alone.
-                    if (!hasPending && post.SentAt.ToUniversalTime() < resendCutoff)
+                    if (!hasPending && post.SentAt < resendCutoff)
                         continue;
 
                     await TryUploadMediaPostAsync(post);
                 }
 
                 await FlushOutgoingDirectMessagesAsync(instance);
+                await FlushPendingMessageReactionsAsync();
             }
             catch (Exception ex)
             {
@@ -1716,7 +2049,7 @@ namespace Pocket.Client.PageModels
             if (_database == null || _relayService == null)
                 return;
 
-            var cutoff = DateTime.UtcNow - ResendWindow;
+            var cutoff = Pocket.Client.Services.ServerClock.UtcNow - ResendWindow;
             var candidates = await _database.GetUndeliveredOutgoingDirectMessagesAsync(cutoff);
             foreach (var dm in candidates)
             {
@@ -1726,7 +2059,7 @@ namespace Pocket.Client.PageModels
                 // Failed and given-up (Pending past SendTiming.MessageGiveUpAfter) messages wait for the
                 // user's retry button; the rest are resent automatically.
                 bool needsSend = (dm.SyncStatus == Pocket.Shared.Enums.SyncStatus.Pending && !dm.IsGivenUp) ||
-                                 (dm.SyncStatus == Pocket.Shared.Enums.SyncStatus.Sent && dm.ServerInstance != instance);
+                                 (dm.SyncStatus == Pocket.Shared.Enums.SyncStatus.Sent && !RelayService.IsHeldBy(dm.ServerInstance, instance));
                 if (!needsSend)
                     continue;
 

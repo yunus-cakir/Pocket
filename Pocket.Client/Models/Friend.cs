@@ -92,6 +92,35 @@ namespace Pocket.Client.Models
             set => SetProperty(ref _lastMessageTimeText, value);
         }
 
+        private bool _hasUnread;
+        private DateTime? _lastMessageAt;
+
+        /// <summary>The friend sent a message or reacted after we last had this chat open.</summary>
+        [Ignore]
+        public bool HasUnread
+        {
+            get => _hasUnread;
+            set => SetProperty(ref _hasUnread, value);
+        }
+
+        /// <summary>Time behind <see cref="LastMessageTimeText"/>, kept so the text can be re-formatted as time passes.</summary>
+        [Ignore]
+        public DateTime? LastMessageAt
+        {
+            get => _lastMessageAt;
+            set
+            {
+                _lastMessageAt = value;
+                RefreshLastMessageTimeText();
+            }
+        }
+
+        public void RefreshLastMessageTimeText()
+        {
+            if (_lastMessageAt is DateTime at)
+                LastMessageTimeText = MediaPost.FormatRelativeTime(at);
+        }
+
         [Ignore]
         public System.Windows.Input.ICommand OpenChatCommand => new Microsoft.Maui.Controls.Command(async () =>
         {

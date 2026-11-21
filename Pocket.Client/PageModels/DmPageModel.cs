@@ -163,8 +163,78 @@ namespace Pocket.Client.PageModels
             if (string.IsNullOrWhiteSpace(emoji))
                 return;
 
-            await SendQuickEmojiMessageAsync(emoji);
+            // Picker opened from the reaction bar's "+": the emoji is a reaction, not a message.
+            var reactionTarget = _reactionPickerTarget;
+            _reactionPickerTarget = null;
             CloseEmojiPicker();
+
+            if (reactionTarget != null)
+            {
+                await ApplyReactionAsync(reactionTarget, emoji);
+                return;
+            }
+
+            await SendQuickEmojiMessageAsync(emoji);
+        }
+
+        partial void OnIsEmojiPickerOpenChanged(bool value)
+        {
+            if (!value)
+            {
+                _reactionPickerTarget = null;
+            }
+        }
+
+        /// <summary>Quick reactions in the long-press popup (the current one is highlighted).</summary>
+        public ObservableCollection<QuickReactionItem> QuickReactions { get; } = new()
+        {
+            new("💛"), new("🫶"), new("😍"), new("💕"), new("🤣")
+        };
+
+        private DirectMessage? _reactionPickerTarget;
+
+        public bool CanReactToSelectedMessage => SelectedActionMessage?.IsIncoming == true;
+
+        [RelayCommand]
+        private async Task ReactToSelectedMessageAsync(string? emoji)
+        {
+            var target = SelectedActionMessage;
+            CloseMessageActions();
+
+            if (target == null || !target.IsIncoming || string.IsNullOrWhiteSpace(emoji))
+                return;
+
+            // Tapping the reaction you already gave removes it.
+            await ApplyReactionAsync(target, target.MessageReaction == emoji ? null : emoji);
+        }
+
+        [RelayCommand]
+        private void OpenReactionPicker()
+        {
+            var target = SelectedActionMessage;
+            CloseMessageActions();
+
+            if (target == null || !target.IsIncoming)
+                return;
+
+            OpenEmojiPicker();
+            _reactionPickerTarget = target;
+        }
+
+        private async Task ApplyReactionAsync(DirectMessage target, string? emoji)
+        {
+            // Visible copy first: its corner badge pops in right away.
+            target.MessageReaction = emoji;
+            await _shellModel.SetMessageReactionAsync(target, emoji);
+        }
+
+        private void HandleDirectMessageReactionChanged(Guid messageId, string? emoji)
+        {
+            var existing = Messages.FirstOrDefault(m => m.Id == messageId);
+            if (existing != null && existing.MessageReaction != emoji)
+            {
+                existing.MessageReaction = emoji;
+            }
         }
 
         [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasReplyPost))]
@@ -172,7 +242,9 @@ namespace Pocket.Client.PageModels
 
         public bool HasReplyPost => ReplyingToPost != null;
 
-        [ObservableProperty] [NotifyPropertyChangedFor(nameof(SelectedMessageDeleteLabel))]
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(SelectedMessageDeleteLabel))]
+        [NotifyPropertyChangedFor(nameof(CanReactToSelectedMessage))]
         private DirectMessage? _selectedActionMessage;
 
         public string SelectedMessageDeleteLabel =>
@@ -204,6 +276,7 @@ namespace Pocket.Client.PageModels
             _sendStateTicker = new Services.SendStateTicker(() => Messages);
             Messages.CollectionChanged += (_, _) => _sendStateTicker.Ensure();
             _shellModel.OnDirectMessageDeleted += HandleDirectMessageDeleted;
+            _shellModel.OnDirectMessageReactionChanged += HandleDirectMessageReactionChanged;
             _shellModel.OnMediaPostDeleted += HandleMediaPostDeleted;
             _shellModel.OnFriendProfileUpdated += HandleFriendProfileUpdated;
             _shellModel.OnUserProfileUpdated += HandleUserProfileUpdated;
@@ -214,6 +287,14 @@ namespace Pocket.Client.PageModels
         public void SetDmWindowActive(bool isActive)
         {
             _shellModel.IsInDmWindow = isActive;
+            if (isActive)
+                _shellModel.ActiveDmFriendId = FriendId;
+            else if (_shellModel.ActiveDmFriendId == FriendId)
+                _shellModel.ActiveDmFriendId = null;
+
+            // Opening the chat reads it; leaving it also covers anything that arrived while it was open.
+            if (!string.IsNullOrEmpty(FriendId))
+                _ = _shellModel.MarkConversationReadAsync(FriendId);
         }
 
         public void LoadRecentEmojis()
@@ -458,6 +539,11 @@ namespace Pocket.Client.PageModels
             if (IsEmojiPickerOpen)
             {
                 CloseEmojiPicker();
+            }
+
+            foreach (var item in QuickReactions)
+            {
+                item.IsSelected = dm.IsIncoming && item.Emoji == dm.MessageReaction;
             }
 
             SelectedActionMessage = dm;

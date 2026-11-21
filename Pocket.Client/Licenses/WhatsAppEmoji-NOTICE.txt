@@ -1,0 +1,4 @@
+WhatsAppEmoji.ttf — from https://github.com/dmlls/whatsapp-emoji-linux (release 2.26.8.72-1).
+The emoji images belong to WhatsApp LLC. Per the upstream project they are provided for
+non-commercial, educational purposes only. Do not ship this font in publicly distributed builds
+without a license from the rights holder.

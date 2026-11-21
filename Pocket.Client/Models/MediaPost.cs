@@ -253,8 +253,37 @@ namespace Pocket.Client.Models
 
         public bool IsUnseen { get; set; }
 
+        private DateTime _sentAt = Pocket.Client.Services.ServerClock.UtcNow;
+        private DateTime? _serverReceivedAt;
+
+        /// <summary>When it was sent (UTC; sqlite-net reads ticks back as Unspecified, so the setter marks it UTC).</summary>
         [Indexed]
-        public DateTime SentAt { get; set; } = DateTime.UtcNow;
+        public DateTime SentAt
+        {
+            get => _sentAt;
+            set => _sentAt = Pocket.Client.Services.ServerClock.AsUtc(value);
+        }
+
+        /// <summary>Incoming: when the relay accepted it (null from older relays).</summary>
+        public DateTime? ServerReceivedAt
+        {
+            get => _serverReceivedAt;
+            set => _serverReceivedAt = value is DateTime v ? Pocket.Client.Services.ServerClock.AsUtc(v) : null;
+        }
+
+        /// <summary>" · arrived 14:20" when it reached the relay well after it was sent (sender was offline).</summary>
+        [Ignore]
+        public string ArrivedSuffix => ArrivalSuffix(SentAt, ServerReceivedAt);
+
+        internal static string ArrivalSuffix(DateTime sentAt, DateTime? serverReceivedAt)
+        {
+            if (serverReceivedAt is not DateTime arrived || arrived - sentAt < Pocket.Client.Services.PayloadTime.LateArrival)
+                return string.Empty;
+            var local = arrived.ToLocalTime();
+            return local.Date == sentAt.ToLocalTime().Date
+                ? $" · arrived {local:HH:mm}"
+                : $" · arrived {local:dd.MM HH:mm}";
+        }
 
         public SyncStatus SyncStatus
         {
@@ -276,7 +305,7 @@ namespace Pocket.Client.Models
         /// <summary>Not on the server a few seconds after sending → yellow hourglass after "You 3h" (still retried).</summary>
         [Ignore]
         public bool IsSlowUpload => IsPendingUpload &&
-                                    DateTime.UtcNow - SentAt.ToUniversalTime() >= Pocket.Client.Services.SendTiming.SlowAfter;
+                                    Pocket.Client.Services.ServerClock.UtcNow - SentAt >= Pocket.Client.Services.SendTiming.SlowAfter;
 
         /// <summary>The first seconds of a send: spinner + "Uploading..." in place of the author row.</summary>
         [Ignore]
@@ -343,6 +372,9 @@ namespace Pocket.Client.Models
         [Ignore]
         public string RelativeTimeText => FormatRelativeTime(SentAt);
 
+        /// <summary>Re-evaluates <see cref="RelativeTimeText"/> ("Just now" → "1m" …) as time passes.</summary>
+        public void RefreshRelativeTimeText() => OnPropertyChanged(nameof(RelativeTimeText));
+
         [Ignore]
         public string HeaderTitleText => IsIncoming
             ? $"🔐 {SenderDisplayName}"
@@ -350,7 +382,7 @@ namespace Pocket.Client.Models
 
         [Ignore]
         public string StatusBadgeText => IsIncoming
-            ? $"🔒 E2EE • {SentAt.ToLocalTime():HH:mm}"
+            ? $"🔒 E2EE • {SentAt.ToLocalTime():HH:mm}{ArrivedSuffix}"
             : SyncStatus switch
             {
                 SyncStatus.Pending => $"⏳ Pending • {SentAt.ToLocalTime():HH:mm}",
@@ -362,9 +394,9 @@ namespace Pocket.Client.Models
 
         public static string FormatRelativeTime(DateTime utcTime)
         {
-            var elapsed = DateTime.UtcNow - utcTime.ToUniversalTime();
+            var elapsed = Pocket.Client.Services.ServerClock.UtcNow - Pocket.Client.Services.ServerClock.AsUtc(utcTime);
             if (elapsed.TotalMinutes < 1)
-                return "1m";
+                return "Just now";
             if (elapsed.TotalHours < 1)
                 return $"{(int)Math.Max(1, elapsed.TotalMinutes)}m";
             if (elapsed.TotalDays < 1)

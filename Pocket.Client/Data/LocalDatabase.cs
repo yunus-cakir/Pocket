@@ -292,6 +292,15 @@ namespace Pocket.Client.Data
             return await _connection!.DeleteAsync<DirectMessage>(id);
         }
 
+        /// <summary>Messages whose (our) reaction has not reached a server yet.</summary>
+        public async Task<List<DirectMessage>> GetDirectMessagesWithPendingReactionAsync()
+        {
+            await InitAsync();
+            return await _connection!.Table<DirectMessage>()
+                .Where(dm => dm.MessageReactionPending)
+                .ToListAsync();
+        }
+
         public async Task MarkPostReactionsAnimationShownAsync(IEnumerable<Guid> dmIds)
         {
             await InitAsync();

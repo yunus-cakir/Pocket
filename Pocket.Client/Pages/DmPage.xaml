@@ -51,7 +51,7 @@
 
             <CollectionView.ItemTemplate>
                 <DataTemplate x:DataType="models:DirectMessage">
-                    <VerticalStackLayout Padding="12,3" Spacing="8">
+                    <VerticalStackLayout Padding="{Binding RowPadding}" Spacing="8">
 
                         <!-- Large Rounded Photo Card when message replies to a Feed Photo -->
                         <Border IsVisible="{Binding ShowMediaCard}"
@@ -163,8 +163,15 @@
                                        VerticalOptions="Center"
                                        Margin="4,2,0,2" />
 
+                                <!-- Our reaction on their message (top-right, pops in when given) -->
+                                <controls:ReactionBadge Emoji="{Binding MessageReaction}"
+                                                        BackgroundColor="#EBEBF0"
+                                                        HorizontalOptions="End"
+                                                        VerticalOptions="Start"
+                                                        Margin="0,-17,-14,0" />
+
                                 <!-- Optional Corner Reaction Badge -->
-                                <Border IsVisible="{Binding HasReactionAndText}"
+                                <Border IsVisible="{Binding ShowPostReactionBadge}"
                                         WidthRequest="30"
                                         HeightRequest="30"
                                         StrokeShape="RoundRectangle 15"
@@ -276,8 +283,15 @@
                                            VerticalOptions="Center" />
                                 </Border>
 
+                                <!-- Their reaction on our message (top-left) -->
+                                <controls:ReactionBadge Emoji="{Binding MessageReaction}"
+                                                        BackgroundColor="#262629"
+                                                        HorizontalOptions="Start"
+                                                        VerticalOptions="Start"
+                                                        Margin="-14,-17,0,0" />
+
                                 <!-- Optional Top-Left Corner Reaction Badge (e.g. 💋) -->
-                                <Border IsVisible="{Binding HasReactionAndText}"
+                                <Border IsVisible="{Binding ShowPostReactionBadge}"
                                         WidthRequest="30"
                                         HeightRequest="30"
                                         StrokeShape="RoundRectangle 15"
@@ -1073,16 +1087,16 @@
         </Grid>
 
         <!-- ============================================================== -->
-        <!-- MESSAGE LONG-PRESS ACTION SHEET OVERLAY                        -->
+        <!-- OWN MESSAGE LONG-PRESS ACTION SHEET (bottom sheet)             -->
         <!-- ============================================================== -->
-        <Grid x:Name="MessageActionsOverlayGrid"
+        <Grid x:Name="MessageSheetOverlayGrid"
               Grid.Row="0"
               Grid.RowSpan="4"
               ZIndex="25"
               IsVisible="False"
               HorizontalOptions="Fill"
               VerticalOptions="Fill">
-            <BoxView x:Name="MessageActionsBackdrop"
+            <BoxView x:Name="MessageSheetBackdrop"
                      BackgroundColor="#78000000"
                      Color="#78000000"
                      Opacity="0"
@@ -1106,7 +1120,6 @@
                     <PanGestureRecognizer PanUpdated="OnMessageActionsSheetPanUpdated" />
                 </Border.GestureRecognizers>
                 <VerticalStackLayout Spacing="4">
-                    <!-- Delivery state of our own message (same states as the photo Delivery list) -->
                     <Label IsVisible="{Binding SelectedActionMessage.IsOutgoing, FallbackValue=False}"
                            Text="{Binding SelectedActionMessage.DeliveryStatusText}"
                            TextColor="#8E8E93"
@@ -1153,6 +1166,156 @@
                                FontSize="17"
                                FontAttributes="Bold"
                                HorizontalOptions="Center"
+                               VerticalOptions="Center"
+                               InputTransparent="True" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
+
+        <!-- ============================================================== -->
+        <!-- MESSAGE LONG-PRESS POPUP: reaction bar above the bubble, menu below -->
+        <!-- (positioned next to the pressed bubble in code; no slide animation) -->
+        <!-- ============================================================== -->
+        <Grid x:Name="MessageActionsOverlayGrid"
+              Grid.Row="0"
+              Grid.RowSpan="4"
+              ZIndex="25"
+              IsVisible="False"
+              HorizontalOptions="Fill"
+              VerticalOptions="Fill">
+            <BoxView x:Name="MessageActionsBackdrop"
+                     BackgroundColor="#99000000"
+                     Color="#99000000"
+                     Opacity="0"
+                     HorizontalOptions="Fill"
+                     VerticalOptions="Fill">
+                <BoxView.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnMessageActionsBackdropTapped" />
+                </BoxView.GestureRecognizers>
+            </BoxView>
+
+            <!-- Quick reactions (only on messages we received) -->
+            <Border x:Name="ReactionBarCard"
+                    IsVisible="{Binding CanReactToSelectedMessage}"
+                    HorizontalOptions="Start"
+                    VerticalOptions="Start"
+                    BackgroundColor="#2C2C2E"
+                    StrokeShape="RoundRectangle 30"
+                    StrokeThickness="0"
+                    Padding="8,6">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer />
+                </Border.GestureRecognizers>
+                <HorizontalStackLayout Spacing="2">
+                    <HorizontalStackLayout Spacing="2" BindableLayout.ItemsSource="{Binding QuickReactions}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="models:QuickReactionItem">
+                                <Grid WidthRequest="46" HeightRequest="46" BackgroundColor="Transparent">
+                                    <Grid.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding Source={x:Reference thisDmPage}, Path=BindingContext.ReactToSelectedMessageCommand}"
+                                                              CommandParameter="{Binding Emoji}" />
+                                    </Grid.GestureRecognizers>
+                                    <Border IsVisible="{Binding IsSelected}"
+                                            WidthRequest="42"
+                                            HeightRequest="42"
+                                            StrokeShape="RoundRectangle 21"
+                                            StrokeThickness="0"
+                                            BackgroundColor="#48484A"
+                                            HorizontalOptions="Center"
+                                            VerticalOptions="Center"
+                                            InputTransparent="True" />
+                                    <Label Text="{Binding Emoji}"
+                                           FontSize="27"
+                                           HorizontalOptions="Center"
+                                           VerticalOptions="Center"
+                                           InputTransparent="True" />
+                                </Grid>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </HorizontalStackLayout>
+
+                    <!-- "+": pick any emoji as the reaction -->
+                    <Grid WidthRequest="46" HeightRequest="46" BackgroundColor="Transparent">
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding OpenReactionPickerCommand}" />
+                        </Grid.GestureRecognizers>
+                        <Path WidthRequest="25"
+                              HeightRequest="24"
+                              Stroke="#C7C7CC"
+                              StrokeThickness="1.8"
+                              StrokeLineCap="Round"
+                              StrokeLineJoin="Round"
+                              HorizontalOptions="Center"
+                              VerticalOptions="Center"
+                              InputTransparent="True"
+                              Data="M18,13 A8,8 0 1,1 2,13 A8,8 0 1,1 18,13 Z M7.3,10.5 L7.3,11.3 M12.7,10.5 L12.7,11.3 M6.6,15.4 C8.2,17.6 11.8,17.6 13.4,15.4 M21,1.5 L21,7.5 M18,4.5 L24,4.5" />
+                    </Grid>
+                </HorizontalStackLayout>
+            </Border>
+
+            <!-- Menu -->
+            <Border x:Name="MessageMenuCard"
+                    HorizontalOptions="Start"
+                    VerticalOptions="Start"
+                    WidthRequest="236"
+                    BackgroundColor="#2C2C2E"
+                    StrokeShape="RoundRectangle 18"
+                    StrokeThickness="0"
+                    Padding="0,4">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer />
+                </Border.GestureRecognizers>
+                <VerticalStackLayout>
+                    <!-- Delivery state of our own message (same states as the photo Delivery list) -->
+                    <Label IsVisible="{Binding SelectedActionMessage.IsOutgoing, FallbackValue=False}"
+                           Text="{Binding SelectedActionMessage.DeliveryStatusText}"
+                           TextColor="#8E8E93"
+                           FontFamily="OpenSansRegular"
+                           FontSize="13"
+                           Margin="18,10,18,2" />
+
+                    <Grid Padding="18,14" ColumnDefinitions="Auto,*" ColumnSpacing="14" BackgroundColor="Transparent">
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding CopySelectedMessageCommand}" />
+                        </Grid.GestureRecognizers>
+                        <Path Grid.Column="0"
+                              WidthRequest="22"
+                              HeightRequest="22"
+                              Stroke="#FFFFFF"
+                              StrokeThickness="1.8"
+                              StrokeLineCap="Round"
+                              StrokeLineJoin="Round"
+                              VerticalOptions="Center"
+                              InputTransparent="True"
+                              Data="M8,2.5 L17,2.5 C18.4,2.5 19.5,3.6 19.5,5 L19.5,15 M5,6.5 L13,6.5 C14.4,6.5 15.5,7.6 15.5,9 L15.5,18 C15.5,19.4 14.4,20.5 13,20.5 L5,20.5 C3.6,20.5 2.5,19.4 2.5,18 L2.5,9 C2.5,7.6 3.6,6.5 5,6.5 Z" />
+                        <Label Grid.Column="1"
+                               Text="Copy text"
+                               TextColor="#FFFFFF"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="16"
+                               VerticalOptions="Center"
+                               InputTransparent="True" />
+                    </Grid>
+
+                    <BoxView HeightRequest="0.6" Color="#48484A" BackgroundColor="#48484A" Margin="18,2" />
+
+                    <Grid Padding="18,14" ColumnDefinitions="Auto,*" ColumnSpacing="14" BackgroundColor="Transparent">
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding DeleteSelectedMessageCommand}" />
+                        </Grid.GestureRecognizers>
+                        <Path Grid.Column="0"
+                              WidthRequest="22"
+                              HeightRequest="22"
+                              Fill="#FF453A"
+                              VerticalOptions="Center"
+                              InputTransparent="True"
+                              Data="M8.5,2 C7.95,2 7.5,2.45 7.5,3 L7.5,4 L4,4 C3.45,4 3,4.45 3,5 C3,5.55 3.45,6 4,6 L18,6 C18.55,6 19,5.55 19,5 C19,4.45 18.55,4 18,4 L14.5,4 L14.5,3 C14.5,2.45 14.05,2 13.5,2 L8.5,2 Z M5,7.5 L5.7,18.2 C5.78,19.2 6.6,20 7.6,20 L14.4,20 C15.4,20 16.22,19.2 16.3,18.2 L17,7.5 L5,7.5 Z M9.2,10 C9.75,10 10.2,10.45 10.2,11 L10.2,16.5 C10.2,17.05 9.75,17.5 9.2,17.5 C8.65,17.5 8.2,17.05 8.2,16.5 L8.2,11 C8.2,10.45 8.65,10 9.2,10 Z M12.8,10 C13.35,10 13.8,10.45 13.8,11 L13.8,16.5 C13.8,17.05 13.35,17.5 12.8,17.5 C12.25,17.5 11.8,17.05 11.8,16.5 L11.8,11 C11.8,10.45 12.25,10 12.8,10 Z" />
+                        <Label Grid.Column="1"
+                               Text="{Binding SelectedMessageDeleteLabel}"
+                               TextColor="#FF453A"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="16"
                                VerticalOptions="Center"
                                InputTransparent="True" />
                     </Grid>

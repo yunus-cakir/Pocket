@@ -33,6 +33,7 @@ namespace Pocket.Client
                     handlers.AddHandler(typeof(Pocket.Client.Controls.IncognitoEntry), typeof(Pocket.Client.Platforms.Android.Handlers.IncognitoEntryHandler));
                     handlers.AddHandler(typeof(Pocket.Client.Controls.UploadSpinner), typeof(Pocket.Client.Platforms.Android.Handlers.UploadSpinnerHandler));
                     Pocket.Client.Platforms.Android.Handlers.AccentEntryStyle.Register();
+                    Pocket.Client.Platforms.Android.Services.EmojiFontApplier.Register();
 #elif IOS
                     handlers.AddHandler(typeof(Pocket.Client.Controls.IncognitoEntry), typeof(Pocket.Client.Platforms.iOS.Handlers.IncognitoEntryHandler));
 #endif
