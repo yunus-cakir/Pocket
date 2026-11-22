@@ -25,7 +25,7 @@ param(
     [int]$DownThreshold    = 3,    # failed checks before taking over (~45s)
     [int]$UpThreshold      = 2,    # healthy checks before handing back (~30s)
     [int]$SyncEvery        = 4,    # healthy checks between registry syncs (~60s)
-    [int]$StopTimeout      = 150,  # server may wait for the peer and hand off large media
+    [int]$StopTimeout      = 210,  # server may wait 90s for the peer, then hand off large media
     [switch]$CheckOnly             # print the peer state as this watchdog sees it, then exit
 )
 

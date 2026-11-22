@@ -17,7 +17,7 @@ if (-not $svc) { Write-Host "Service '$ServiceName' is not installed."; return }
 if ($svc.Status -ne 'Stopped') {
     # A running node drains, waits for the peer and hands off undelivered messages first.
     Stop-Service -Name $ServiceName -Force -NoWait
-    $svc.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(150))
+    $svc.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(210))
 }
 sc.exe delete $ServiceName | Out-Null
 Write-Host "Service '$ServiceName' removed." -ForegroundColor Green

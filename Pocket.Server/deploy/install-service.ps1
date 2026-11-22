@@ -45,9 +45,9 @@ if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
 $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
 if ($svc -and $svc.Status -ne 'Stopped') {
     # A running node drains, waits for the peer to take over and hands off undelivered messages.
-    Write-Host "==> Stopping existing service (hands off to the peer, can take up to ~2 min)" -ForegroundColor Cyan
+    Write-Host "==> Stopping existing service (hands off to the peer, can take up to ~3 min)" -ForegroundColor Cyan
     Stop-Service -Name $ServiceName -Force -NoWait
-    try { $svc.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(150)) } catch {
+    try { $svc.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(210)) } catch {
         Write-Warning "Service did not stop in time; killing it."
         $procId = (Get-CimInstance Win32_Service -Filter "Name='$ServiceName'").ProcessId
         if ($procId) { Stop-Process -Id $procId -Force }

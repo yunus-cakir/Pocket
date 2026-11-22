@@ -31,7 +31,7 @@ namespace Pocket.Server.Services
         /// drains, its /health answers 503, so the peer's watchdog starts the peer at once; a node
         /// that is already up (the primary, when the standby hands back) is used immediately.
         /// </summary>
-        public int HandoffWaitSeconds { get; set; } = 45;
+        public int HandoffWaitSeconds { get; set; } = 90;
 
         /// <summary>
         /// Base URL of the other node, used to sync the identity registry (on startup and, on the

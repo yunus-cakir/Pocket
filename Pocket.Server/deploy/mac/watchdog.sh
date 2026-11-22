@@ -29,7 +29,7 @@ CHECK_INTERVAL="${CHECK_INTERVAL:-15}"   # seconds between checks
 DOWN_THRESHOLD="${DOWN_THRESHOLD:-3}"    # failed checks before taking over (~45s)
 UP_THRESHOLD="${UP_THRESHOLD:-2}"        # healthy checks before handing back (~30s)
 SYNC_EVERY="${SYNC_EVERY:-4}"            # healthy checks between registry syncs (~60s)
-STOP_TIMEOUT=150                         # server may wait for the peer and hand off large media
+STOP_TIMEOUT=210                         # server may wait 90s for the peer, then hand off large media
 
 APP_DIR="$DIR/app"
 REGISTRY="$APP_DIR/data/identities.json"
@@ -97,9 +97,12 @@ resolve_public_ips() {
 }
 
 health_code() {   # $1 = comma separated addresses to pin the host to, or empty
-    local pin=()
-    [ -n "${1:-}" ] && pin=(--resolve "$PEER_HOST:$PEER_PORT:$1")
-    curl -s -o /dev/null -w '%{http_code}' --max-time 8 "${pin[@]}" "$PEER_URL/health" 2>/dev/null || true
+    # No arrays: macOS bash 3.2 treats an empty "${arr[@]}" as unbound under set -u.
+    if [ -n "${1:-}" ]; then
+        curl -s -o /dev/null -w '%{http_code}' --max-time 8 --resolve "$PEER_HOST:$PEER_PORT:$1" "$PEER_URL/health" 2>/dev/null || true
+    else
+        curl -s -o /dev/null -w '%{http_code}' --max-time 8 "$PEER_URL/health" 2>/dev/null || true
+    fi
 }
 
 # Prints "up", "draining" (the peer is shutting down and handing off), "down", or

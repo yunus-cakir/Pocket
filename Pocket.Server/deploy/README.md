@@ -44,7 +44,7 @@ Bekçinin kuralları (iki tarafta da aynı mantık; rol `appsettings.Production.
 
 Devir (iki yönde de aynı, `HandoffService`). Kapanan sunucu:
 1. Yeni bağlantıları reddetmeye başlar ve `/health` ucu 503 döner. Bağlı istemciler bu sırada bağlı kalır.
-2. Karşı tarafın ayağa kalkmasını en çok `Cluster:HandoffWaitSeconds` (varsayılan 45 sn) bekler. Karşı taraf zaten açıksa (yedek birincile geri verirken) beklemez.
+2. Karşı tarafın ayağa kalkmasını en çok `Cluster:HandoffWaitSeconds` (varsayılan 90 sn) bekler. Karşı taraf zaten açıksa (yedek birincile geri verirken) beklemez.
 3. Kimlik kaydını karşı tarafla eşitler, istemcileri koparır (istemciler zaten diğer sunucuya da bağlıdır) ve teslim edilmemiş mesajları karşı tarafın `/internal/handoff` ucuna aktarır. Aktarım bellekten belleğe yapılır, diske hiçbir şey yazılmaz (BR-201). Bu uç ortak gizli anahtarla (`Cluster:Secret`) korunur.
 
 Örnekler:
@@ -73,7 +73,7 @@ Rolleri ileride tersine çevirmek için Mac'te `./install.sh --role standby`, PC
 Dikkat edilmesi gerekenler:
 - Sunucuyu iki tarafta da **elle başlatma** (`dotnet run`, `Start-Service`). Her zaman bekçi üzerinden çalışsın. Bekçiyi durdurmak için Mac'te `launchctl bootout gui/$(id -u)/com.pocket.watchdog`, PC'de `Stop-ScheduledTask PocketServerWatchdog` kullan.
 - Mac uykudayken birincil çalışmaz ve PC devralır. Mac'in uyanık kalması için: Ayarlar → Pil/Enerji.
-- Makinenin kendisi kapanırken (yeniden başlatma, kapatma) işletim sistemi devir için 45 sn beklemeyebilir. Bu durumda devir yarım kalabilir.
+- Makinenin kendisi kapanırken (yeniden başlatma, kapatma) işletim sistemi devir için 90 sn beklemeyebilir. Bu durumda devir yarım kalabilir.
 - Kaldırmak için Mac'te `./uninstall.sh`, PC'de `.\uninstall-service.ps1` çalıştır (bekçi görevini de siler).
 
 ## Çoklu cihaz ve çoklu sunucu
@@ -104,7 +104,7 @@ cd "C:\Library\Projects\Visual Studio\Pocket\Pocket.Server\deploy"
 
 - `C:\Services\PocketServer` klasörüne yayınlar, `PocketServer` servisini ve `PocketServerWatchdog` bekçi görevini kurar (yukarıdaki "çift yönlü bekçi" bölümü). Servis çökerse kendiliğinden yeniden başlar.
 - Varsayılan olarak yalnızca `127.0.0.1:5200` adresini dinler. LAN'dan da erişmek için: `.\install-service.ps1 -Urls "http://0.0.0.0:5200"`
-- Kod değiştikçe aynı komutu tekrar çalıştır; script bekçiyi ve servisi durdurup günceller. Servis o an çalışıyorsa önce karşı tarafa devreder (en çok ~2 dk).
+- Kod değiştikçe aynı komutu tekrar çalıştır; script bekçiyi ve servisi durdurup günceller. Servis o an çalışıyorsa önce karşı tarafa devreder (en çok ~3 dk).
 - Not: Servis 5200 portunu kullanırken `dotnet run` ile ikinci bir sunucu açılamaz. Geliştirme sırasında önce `Stop-ScheduledTask PocketServerWatchdog`, sonra `Stop-Service PocketServer` çalıştır.
 
 ## 2. Cloudflare tarafı (tarayıcıda, bir kez)

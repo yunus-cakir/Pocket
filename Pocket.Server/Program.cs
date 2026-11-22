@@ -45,7 +45,7 @@ builder.Services.AddSingleton<ClusterState>();
 builder.Services.AddHttpClient("handoff", c => c.Timeout = TimeSpan.FromSeconds(60));
 builder.Services.AddSingleton<IdentitySync>();
 builder.Services.AddHostedService<HandoffService>();
-builder.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromMinutes(2));
+builder.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromMinutes(3));
 
 // Auth: clients prove possession of their identity key (/auth/challenge + /auth/token) and get a
 // JWT signed with a random per-process key — nothing secret ships in the client anymore.

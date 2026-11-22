@@ -70,11 +70,20 @@ fi
 # --- Stop running watchdog (it stops the server gracefully) --------------------
 # A primary's server waits for the standby to come up and hands off to it, so this can take
 # up to a minute or two when there are undelivered messages.
+# bootout only sends SIGTERM: wait until the job is really gone, so the drain (503 on the public
+# URL) is not cut short by the Funnel reset below and the new job can be bootstrapped.
 for l in $LABEL $OLD_LABELS; do
     if launchctl print "gui/$(id -u)/$l" >/dev/null 2>&1; then
         step "Stopping existing watchdog ($l)"
         launchctl bootout "gui/$(id -u)/$l" || true
-        sleep 2
+        for _ in $(seq 1 125); do
+            launchctl print "gui/$(id -u)/$l" >/dev/null 2>&1 || break
+            sleep 2
+        done
+        if launchctl print "gui/$(id -u)/$l" >/dev/null 2>&1; then
+            echo "Watchdog $l is still stopping after 250s; re-run this script later."
+            exit 1
+        fi
     fi
     [ "$l" != "$LABEL" ] && rm -f "$HOME/Library/LaunchAgents/$l.plist"
 done
@@ -136,7 +145,7 @@ cat > "$PLIST" <<EOF
     <key>WorkingDirectory</key><string>$INSTALL_DIR</string>
     <key>RunAtLoad</key><true/>
     <key>KeepAlive</key><true/>
-    <key>ExitTimeOut</key><integer>180</integer>
+    <key>ExitTimeOut</key><integer>240</integer>
     <key>StandardOutPath</key><string>$INSTALL_DIR/logs/watchdog.log</string>
     <key>StandardErrorPath</key><string>$INSTALL_DIR/logs/watchdog.log</string>
 </dict>
